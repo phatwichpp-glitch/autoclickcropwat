@@ -75,7 +75,12 @@ Open `http://127.0.0.1:8000`. Before starting a run:
    "Save changes?" prompt with No automatically)
 2. In the **ตั้งค่า** (Setup) tab, point "โฟลเดอร์ข้อมูลต้นทาง" at the folder
    containing your `Clim_*`/`Rain_*` station folders and crop/soil files, and
-   scan
+   scan. **File naming is enforced** (year/month are parsed from filenames;
+   case-insensitive, any folder nesting):
+   - station folders start with `Clim_` / `Rain_` (e.g. `Clim_425201`)
+   - climate files: `{station}clim_{year}{mon}.PED` (e.g. `425201clim_1981apr.PED`)
+   - rain files: `rain_{station}_{year}{mon}.CRD` (e.g. `Rain_450006_1981Apr.CRD`)
+   - crop/soil files: any name with `.CRO` / `.SOI` extension
 3. In the **Dashboard** tab, adjust the planting-date calendar and year range,
    then start the run — or just press **Ctrl+Alt+F9** (start) /
    **Ctrl+Alt+F10** (stop) from anywhere once configured; a small always-on-top
