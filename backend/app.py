@@ -249,6 +249,30 @@ async def download_word_doc() -> FileResponse:
 
 
 # ---------------------------------------------------------------------------
+# เช็คอัปเดต + อัปเดตตัวเองจาก GitHub Releases (ดูรายละเอียดใน updater.py)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/update/check")
+async def update_check() -> dict:
+    import updater
+
+    return await asyncio.to_thread(updater.check_for_update)
+
+
+@app.post("/api/update/apply")
+async def update_apply() -> dict:
+    import updater
+
+    if runner.is_run_active():
+        raise HTTPException(409, "กำลังรันอยู่ — กดหยุดหรือรอให้เสร็จก่อนค่อยอัปเดต")
+    try:
+        await asyncio.to_thread(updater.apply_update)
+    except updater.UpdateError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "message": "กำลังอัปเดต — โปรแกรมจะปิดและเปิดใหม่เองอัตโนมัติ"}
+
+
+# ---------------------------------------------------------------------------
 # WebSocket: push สถานะแบบ real-time ทุกครั้งที่มีการเปลี่ยนแปลง
 # ---------------------------------------------------------------------------
 

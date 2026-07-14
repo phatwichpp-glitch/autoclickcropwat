@@ -503,14 +503,58 @@ function setConn(online) {
   document.getElementById("conn-label").textContent = online ? "เชื่อมต่อแล้ว" : "ขาดการเชื่อมต่อ";
 }
 
+let wsDroppedOnce = false;
+
 function connectWebSocket() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen = () => setConn(true);
-  ws.onclose = () => { setConn(false); setTimeout(connectWebSocket, 2000); };
+  ws.onopen = () => {
+    // ต่อกลับได้หลังหลุด = backend เพิ่ง restart (เคสหลักคือเพิ่งอัปเดตเวอร์ชัน
+    // เสร็จ) — reload หน้าให้ได้ frontend เวอร์ชันใหม่จาก .exe ตัวใหม่อัตโนมัติ
+    if (wsDroppedOnce) { location.reload(); return; }
+    setConn(true);
+  };
+  ws.onclose = () => { wsDroppedOnce = true; setConn(false); setTimeout(connectWebSocket, 2000); };
   ws.onerror = () => ws.close();
   ws.onmessage = (event) => renderStatus(JSON.parse(event.data));
 }
+
+// ---------------------------------------------------------------------------
+// เช็คอัปเดตตอนเปิดโปรแกรม — มีเวอร์ชันใหม่ = โชว์ปุ่มอัปเดตที่มุมบน กดแล้ว
+// backend ดาวน์โหลด+สลับไฟล์+restart ตัวเองให้ทั้งหมด (ดู backend/updater.py)
+// ---------------------------------------------------------------------------
+async function checkUpdate() {
+  try {
+    const res = await fetch("/api/update/check");
+    const info = await res.json();
+    document.getElementById("app-version").textContent = `v${info.current}`;
+    if (info.update_available) {
+      const btn = document.getElementById("btn-update");
+      btn.hidden = false;
+      btn.lastChild.textContent = `อัปเดตเป็น v${info.latest}`;
+    }
+  } catch { /* ออฟไลน์/เช็คไม่ได้ = ไม่ต้องโชว์อะไร */ }
+}
+
+document.getElementById("btn-update").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  if (!confirm("โปรแกรมจะปิดและเปิดขึ้นมาใหม่เป็นเวอร์ชันล่าสุดโดยอัตโนมัติ อัปเดตเลยหรือไม่?")) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/update/apply", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.detail || "อัปเดตไม่สำเร็จ");
+      btn.disabled = false;
+      return;
+    }
+    document.getElementById("conn-label").textContent = "กำลังอัปเดต...";
+    // จากนี้ backend จะปิดตัวเอง → WS หลุด → พอตัวใหม่เปิด หน้าจะ reload เอง
+  } catch {
+    alert("อัปเดตไม่สำเร็จ (เชื่อมต่อ backend ไม่ได้)");
+    btn.disabled = false;
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Quick-start guide modal — โชว์อัตโนมัติตอนเปิดโปรแกรม จนกว่าผู้ใช้จะติ๊ก
@@ -547,3 +591,4 @@ if (localStorage.getItem("cw-hide-guide") !== "1") showGuide();
 loadConfig();
 fetchStatus();
 connectWebSocket();
+checkUpdate();

@@ -287,3 +287,7 @@ input[type="number"] { width: 90px; }
    ของเบราว์เซอร์ (display:none) ทำให้กดปิด modal แล้วไม่หาย — ต้อง override
    กลับอย่างชัดเจนแบบนี้เสมอเวลาใช้ hidden คู่กับ class ที่ตั้ง display เอง */
 .modal-backdrop[hidden] { display: none; }
+
+/* ---------- update button + version label ---------- */
+.btn[hidden] { display: none; }  /* .btn เป็น inline-flex — ต้อง override เหมือนเคสของ modal */
+.conn .ver { font-size: 11px; color: var(--muted-2); margin-right: 4px; }
