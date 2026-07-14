@@ -382,6 +382,7 @@ function renderScanResults(scan) {
 // Dashboard: run status (REST + WebSocket)
 // ---------------------------------------------------------------------------
 const STATUS_LABEL = { done: "เสร็จ", running: "กำลังรัน", queued: "รอคิว", error: "มีปัญหา" };
+let wasRunning = false;
 
 function renderStatus(snapshot) {
   if (!snapshot) return;
@@ -406,6 +407,10 @@ function renderStatus(snapshot) {
   document.getElementById("btn-start").disabled = isRunning;
   document.getElementById("btn-stop").disabled = !isRunning;
   document.getElementById("btn-retry").disabled = isRunning;
+
+  // พอรันจบ (idle) รีเฟรชความคืบหน้าไฟล์ output อัตโนมัติ ให้เห็นว่าทำต่อได้ถึงไหน
+  if (!isRunning && wasRunning) fetchOutputProgress();
+  wasRunning = isRunning;
 
   const list = document.getElementById("year-list");
   list.innerHTML = "";
@@ -432,6 +437,32 @@ async function fetchStatus() {
   const res = await fetch("/api/status");
   renderStatus(await res.json());
 }
+
+// ---------------------------------------------------------------------------
+// Output scan — ทำถึงไหนแล้ว/เหลืออะไร (resume). สแกนไฟล์ .txt จริงเทียบกับแผน
+// ---------------------------------------------------------------------------
+async function fetchOutputProgress() {
+  let data;
+  try {
+    const res = await fetch("/api/output-progress");
+    data = await res.json();
+  } catch {
+    return;
+  }
+  const summary = document.getElementById("os-summary");
+  const grid = document.getElementById("os-grid");
+  const pct = data.total_expected ? Math.round((data.total_done / data.total_expected) * 100) : 0;
+  summary.innerHTML =
+    `ทำเสร็จแล้ว <b>${data.total_done.toLocaleString("en-US")}</b> / ${data.total_expected.toLocaleString("en-US")} วันปลูก (${pct}%)` +
+    ` · ภาพ ${data.screenshot_count.toLocaleString("en-US")} ไฟล์`;
+  grid.innerHTML = data.years
+    .map(
+      (y) => `<div class="os-cell ${y.status}"><div class="y">${y.year}</div><div class="f">${y.done}/${y.expected}</div></div>`
+    )
+    .join("");
+}
+
+document.getElementById("btn-rescan").addEventListener("click", fetchOutputProgress);
 
 document.getElementById("btn-start").addEventListener("click", async () => {
   const start_year = Number(document.getElementById("start-year").value);
@@ -591,5 +622,6 @@ if (localStorage.getItem("cw-hide-guide") !== "1") showGuide();
 // ---------------------------------------------------------------------------
 loadConfig();
 fetchStatus();
+fetchOutputProgress();
 connectWebSocket();
 checkUpdate();

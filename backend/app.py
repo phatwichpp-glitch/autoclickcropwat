@@ -134,6 +134,14 @@ async def get_status() -> StateSnapshot:
     return run_state.snapshot()
 
 
+@app.get("/api/output-progress")
+async def output_progress() -> dict:
+    """ความคืบหน้าไฟล์ output แบบละเอียด (ทำถึงไหนแล้ว/เหลืออะไร) — สแกนไฟล์ .txt
+    จริงเทียบกับแผนปัจจุบัน กดเริ่มรันอีกครั้งระบบจะทำต่อจากจุดที่ค้างให้เอง"""
+    settings = load_settings()
+    return await asyncio.to_thread(runner.scan_output_progress, settings)
+
+
 # ---------------------------------------------------------------------------
 # Run control
 # ---------------------------------------------------------------------------

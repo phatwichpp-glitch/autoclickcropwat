@@ -11,6 +11,7 @@ asyncio event loop ของ FastAPI เพราะ pywinauto เป็น bloc
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from pathlib import Path
 
@@ -32,6 +33,67 @@ logger = logging.getLogger("runner")
 
 _run_lock = threading.Lock()
 _active_thread: threading.Thread | None = None
+
+# ชื่อไฟล์ .txt ที่ export_results สร้าง: "{ปี}_{MMDD}.txt"
+_TXT_RE = re.compile(r"^(?P<year>\d{4})_(?P<mmdd>\d{4})\.txt$")
+
+
+def _done_candidates(settings: Settings) -> set[tuple[int, str]]:
+    """สแกน output/txt/ หา (ปี, 'MMDD') ของวันปลูกที่ทำเสร็จไปแล้ว (มีไฟล์ .txt) —
+    ใช้ทั้งตอน resume การรัน และตอนรายงานความคืบหน้าไฟล์ output ให้ frontend"""
+    done: set[tuple[int, str]] = set()
+    d = txt_dir(settings)
+    if d.is_dir():
+        for p in d.glob("*.txt"):
+            m = _TXT_RE.match(p.name)
+            if m:
+                done.add((int(m.group("year")), m.group("mmdd")))
+    return done
+
+
+def _count_done_in_plan(
+    settings: Settings, years: list[int], done_set: set[tuple[int, str]]
+) -> int:
+    """นับว่าในแผน (ปี × ปฏิทินวันปลูก) มีกี่วันปลูกที่ทำเสร็จไปแล้ว — สำหรับตั้ง
+    ค่าเริ่มต้นของ progress bar ตอน resume (ไม่ให้เริ่มจาก 0 ทั้งที่ทำไปเยอะแล้ว)"""
+    count = 0
+    for y in years:
+        for d, _shot in planting_dates_for_year(settings, y):
+            if (y, f"{d:%m%d}") in done_set:
+                count += 1
+    return count
+
+
+def scan_output_progress(settings: Settings) -> dict:
+    """รายงานความคืบหน้าไฟล์ output แบบละเอียด: ต่อปีทำไปกี่/จากกี่วันปลูก + รวมทั้งหมด
+    + จำนวน screenshot ที่มีจริง — ให้ผู้ใช้เห็นว่า 'ทำถึงไหนแล้ว' และเหลืออะไรบ้าง
+    (คิดจากแผนช่วงปี default × ปฏิทินปัจจุบัน เทียบกับไฟล์ .txt ที่มีจริง)"""
+    done_set = _done_candidates(settings)
+    years = list(range(settings.default_start_year, settings.default_end_year + 1))
+
+    per_year = []
+    total_expected = 0
+    total_done = 0
+    for y in years:
+        planned = planting_dates_for_year(settings, y)
+        expected = len(planned)
+        done = sum(1 for d, _s in planned if (y, f"{d:%m%d}") in done_set)
+        total_expected += expected
+        total_done += done
+        if expected == 0 and done == 0:
+            continue
+        status = "done" if done >= expected and expected > 0 else ("partial" if done > 0 else "todo")
+        per_year.append({"year": y, "done": done, "expected": expected, "status": status})
+
+    shot_dir = screenshot_dir(settings)
+    screenshot_count = len(list(shot_dir.glob("*.png"))) if shot_dir.is_dir() else 0
+
+    return {
+        "total_done": total_done,
+        "total_expected": total_expected,
+        "screenshot_count": screenshot_count,
+        "years": per_year,
+    }
 
 
 def is_run_active() -> bool:
@@ -142,19 +204,20 @@ def _run_years(years: list[int], settings: Settings) -> None:
         run_state.end_run()
         return
 
+    # resume: สแกนไฟล์ .txt ที่ทำเสร็จไปแล้ว เพื่อ "ทำต่อจากจุดที่ค้าง" — วันปลูก
+    # ที่มีไฟล์อยู่แล้วข้ามได้เลย ปีที่ครบแล้วข้ามทั้งปีไม่ต้องเปิด CropWat ด้วยซ้ำ
+    done_set = _done_candidates(settings)
+
     # progress ระดับ "วันปลูก" (ละเอียดกว่าระดับปี) ให้ bar เดินสม่ำเสมอไม่ดูค้าง —
-    # นับรวมทุกปีก่อนเริ่ม แล้วอัปเดตหลังจบแต่ละวันปลูกผ่าน callback ของ run_year
+    # นับรวมทุกปีก่อนเริ่ม โดยเริ่มนับจากที่ทำเสร็จไปแล้ว (resume) ไม่ใช่ 0
     total_candidates = sum(len(planting_dates_for_year(settings, y)) for y in years)
-    run_state.set_candidate_progress(0, total_candidates)
-    candidates_before_year = 0
+    completed = {"n": _count_done_in_plan(settings, years, done_set)}
+    run_state.set_candidate_progress(completed["n"], total_candidates)
 
     for year in years:
         if run_state.is_stop_requested():
             run_state.set_year_status(year, YearRunStatus.QUEUED)
             continue
-
-        run_state.set_current_year(year)
-        run_state.set_year_status(year, YearRunStatus.RUNNING)
 
         try:
             date_flags = planting_dates_for_year(settings, year)
@@ -162,9 +225,18 @@ def _run_years(years: list[int], settings: Settings) -> None:
                 raise ValueError(
                     "ไม่มีวันปลูกที่ทดลองตั้งไว้เลย (ตั้งค่าปฏิทินในหน้า Dashboard ก่อน)"
                 )
+            # ข้ามวันปลูกที่มีไฟล์ .txt อยู่แล้ว (ทำเสร็จไปแล้วจากรอบก่อน)
+            remaining = [
+                (d, shot) for d, shot in date_flags if (year, f"{d:%m%d}") not in done_set
+            ]
+            if not remaining:
+                # ปีนี้ครบแล้ว — ข้ามทั้งปี ไม่ต้องเปิด CropWat/climate/rain เลย
+                run_state.set_year_status(year, YearRunStatus.DONE)
+                continue
+
             tasks = [
                 PlantingDateTask(planting_date=d, capture_screenshot=shot)
-                for d, shot in date_flags
+                for d, shot in remaining
             ]
 
             # ยืนยันจาก screenshot จริงของผู้ใช้แล้ว: ทั้งปีใช้ไฟล์ climate/rain
@@ -176,16 +248,14 @@ def _run_years(years: list[int], settings: Settings) -> None:
             rain_file = rain_index.resolve(year, earliest_month)
         except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
             run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
-            # นับวันปลูกของปีที่ error เป็น "ผ่านไปแล้ว" ให้ bar เดินถึง 100% ตอนจบ
-            candidates_before_year += len(planting_dates_for_year(settings, year))
-            run_state.set_candidate_progress(candidates_before_year, total_candidates)
             continue
 
-        done_in_year = {"n": 0}
+        run_state.set_current_year(year)
+        run_state.set_year_status(year, YearRunStatus.RUNNING)
 
-        def _on_candidate_done(_result, _counter=done_in_year, _base=candidates_before_year):
-            _counter["n"] += 1
-            run_state.set_candidate_progress(_base + _counter["n"], total_candidates)
+        def _on_candidate_done(_result, _c=completed):
+            _c["n"] += 1
+            run_state.set_candidate_progress(_c["n"], total_candidates)
 
         result = engine.run_year(
             year=year,
@@ -197,10 +267,6 @@ def _run_years(years: list[int], settings: Settings) -> None:
             on_candidate_done=_on_candidate_done,
             should_stop=run_state.is_stop_requested,
         )
-        # ปีที่ล้มก่อนถึงลูปวันปลูก (เช่น เปิด climate/rain ไม่ได้) ต้องนับวันปลูก
-        # ของปีนั้นเป็น "ผ่านไปแล้ว" ด้วย ไม่งั้น bar ค้างไม่ถึง 100% ตอนจบ
-        candidates_before_year += len(tasks)
-        run_state.set_candidate_progress(candidates_before_year, total_candidates)
 
         if result.stopped:
             # ถูกสั่งหยุดกลางปี — คืนสถานะเป็น "รอคิว" ให้กด "รันปีที่ค้างใหม่"/

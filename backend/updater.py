@@ -84,7 +84,13 @@ def check_for_update() -> dict:
 # แล้วเท่านั้น — Windows lock ไฟล์ .exe ที่กำลังรันไว้) แล้วเปิดตัวใหม่ ลบตัวเองทิ้ง
 # ping 127.0.0.1 = วิธี sleep ~1 วินาทีแบบพกพาของ .bat (timeout ใช้ใน non-console
 # ไม่ได้เสมอไป) — จำกัด 60 รอบ (~1 นาที) กันวนไม่รู้จบถ้ามีอะไรผิดปกติ
+#
+# สำคัญ (v0.4.2): "set _MEIPASS2=" ล้าง env var ที่ bootloader ของ PyInstaller
+# onefile ตั้งไว้ชี้ไปโฟลเดอร์ temp ของ .exe ตัวเก่า — ถ้าไม่ล้าง ตัวใหม่ที่เปิด
+# จะสืบทอดค่านี้มา แล้วเข้าใจผิดว่าตัวเองแตกไฟล์ไว้ที่โฟลเดอร์เก่า (ซึ่งถูกลบไป
+# แล้วตอนตัวเก่าปิด) → error "Failed to load Python DLL ..._MEIxxxx\python3xx.dll"
 _UPDATER_BAT = """@echo off
+set "_MEIPASS2="
 set RETRIES=0
 :loop
 ping -n 2 127.0.0.1 >nul
@@ -141,11 +147,17 @@ def apply_update() -> None:
 
     DETACHED_PROCESS = 0x00000008
     CREATE_NEW_PROCESS_GROUP = 0x00000200
+    # ล้าง env ของ PyInstaller ก่อน spawn (ดูเหตุผลใน _UPDATER_BAT) — ทำทั้ง 2 ชั้น
+    # (ที่นี่และในตัว .bat) กันพลาด เพราะ child สืบทอด env จาก Popen นี้โดยตรง
+    child_env = os.environ.copy()
+    child_env.pop("_MEIPASS2", None)
+    child_env.pop("_PYI_APPLICATION_HOME_DIR", None)
     subprocess.Popen(
         ["cmd", "/c", str(bat_path)],
         creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
         close_fds=True,
         cwd=str(target_exe.parent),
+        env=child_env,
     )
     logger.info("วางสคริปต์อัปเดตแล้ว — ปิดโปรแกรมใน 1 วินาที ตัวใหม่จะเปิดเอง")
     # หน่วง 1 วิ ให้ HTTP response ของ endpoint ส่งกลับถึงหน้าจอก่อนค่อยปิดตัวเอง

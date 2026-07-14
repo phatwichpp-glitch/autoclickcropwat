@@ -97,6 +97,17 @@
             <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
             <div class="progress-txt" id="progress-txt">0 / 0 ปี</div>
           </div>
+
+          <div class="output-scan" id="output-scan">
+            <div class="os-head">
+              <span class="os-title">ไฟล์ที่ทำเสร็จแล้ว (ทำต่อจากที่ค้างได้)</span>
+              <button id="btn-rescan" class="btn btn-ghost sm" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>ตรวจไฟล์อีกครั้ง</button>
+            </div>
+            <div class="os-summary" id="os-summary">—</div>
+            <div class="os-grid" id="os-grid"><!-- filled by JS --></div>
+            <div class="os-note">กด "เริ่มรันทั้งหมด" อีกครั้งเมื่อไหร่ก็ได้ ระบบจะข้ามวันปลูกที่มีไฟล์แล้ว ทำต่อเฉพาะที่ยังไม่เสร็จให้เอง</div>
+          </div>
+
           <div id="year-list" class="year-list"><!-- filled by JS --></div>
         </div>
       </div>
