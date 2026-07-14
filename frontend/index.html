@@ -170,6 +170,17 @@
         </div>
 
         <div class="card">
+          <div class="card-head"><h2>โหมดเบื้องหลัง (ทดลอง)</h2></div>
+          <div class="card-body stack">
+            <label class="dontshow" style="font-size:13px; color:var(--text)">
+              <input type="checkbox" id="background-mode" />
+              รันแบบเบื้องหลัง — ใช้คอมทำงานอื่นได้ระหว่างรัน
+            </label>
+            <span class="note">ควบคุม CropWat ด้วยการส่งคำสั่งตรง ไม่แตะเมาส์/คีย์บอร์ด/focus ของเครื่องเลย CropWat อยู่หลังหน้าต่างอื่นได้ <b>แต่ห้ามย่อ (minimize) หน้าต่าง CropWat</b> — ถ้ารันแล้วมีปัญหา ให้ติ๊กออกเพื่อกลับไปโหมดปกติ (ดึงหน้าต่างขึ้นมาระหว่างรัน) แล้วบันทึกการตั้งค่า</span>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="card-head"><h2>⏱ เวลาทำมือเทียบเท่า</h2></div>
           <div class="card-body stack">
             <span class="note">ใช้คำนวณตัวเลข "ชม. ทำมือเทียบเท่า" ใน Dashboard — นาทีต่อวันปลูก 1 วัน (รวมทุกขั้นตอน: หาไฟล์ รัน print ถ่ายภาพ กรอก Excel) × จำนวนวันปลูกทั้งหมด</span>
@@ -232,7 +243,7 @@
         </li>
         <li>
           <b>เริ่มรัน (แท็บ "Dashboard")</b>
-          <div>เลือกช่วงปี + วันปลูกในปฏิทิน &rarr; กด <b>เริ่มรันทั้งหมด</b> (หรือกด <kbd>Ctrl+Alt+F9</kbd> จากที่ไหนก็ได้) — ระหว่างรันอย่าใช้เมาส์/คีย์บอร์ดแทรก ปล่อยเครื่องทิ้งไว้ได้เลย ดูความคืบหน้าจากแถบลอยมุมขวาล่างจอ (<kbd>Ctrl+Alt+F10</kbd> = หยุด)</div>
+          <div>เลือกช่วงปี + วันปลูกในปฏิทิน &rarr; กด <b>เริ่มรันทั้งหมด</b> (หรือกด <kbd>Ctrl+Alt+F9</kbd> จากที่ไหนก็ได้) — โหมดเบื้องหลัง (ค่าเริ่มต้น) ใช้คอมทำงานอื่นไปได้เลยระหว่างรัน แค่<b>อย่าย่อ (minimize) หน้าต่าง CropWat</b> วางไว้หลังหน้าต่างอื่นได้ ดูความคืบหน้าจากแถบลอยมุมขวาล่างจอ (<kbd>Ctrl+Alt+F10</kbd> = หยุด)</div>
         </li>
         <li>
           <b>เสร็จแล้วสร้างไฟล์ผลลัพธ์</b>
@@ -242,6 +253,23 @@
       <div class="modal-foot">
         <label class="dontshow"><input type="checkbox" id="guide-dontshow" /> ไม่ต้องแสดงอีกตอนเปิดโปรแกรม</label>
         <button class="btn btn-primary" id="guide-close" type="button">เข้าใจแล้ว เริ่มเลย</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= UPDATE NOTICE MODAL (เด้งทุกครั้งที่มีเวอร์ชันใหม่) ================= -->
+  <div class="modal-backdrop" id="update-modal" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2>มีเวอร์ชันใหม่ <span id="upd-ver"></span></h2>
+        <button class="modal-close" id="upd-close-x" type="button">&times;</button>
+      </div>
+      <div class="upd-notes" id="upd-notes"></div>
+      <div class="os-note">แนะนำให้อัปเดตทันทีเพื่อได้ตัวแก้บั๊กล่าสุด — โปรแกรมจะปิดและเปิดใหม่เองอัตโนมัติ<br>
+      ⚠ ถ้าอัปเดตแล้วเกิดข้อผิดพลาดหรือโปรแกรมไม่เปิดขึ้นมาเอง: ปิดโปรแกรม (ปุ่ม ✕ บนแถบลอย หรือดับเบิลคลิกไอคอนโปรแกรมอีกครั้ง) แล้วเปิดใหม่ จากนั้นลองกดอัปเดตอีกครั้ง</div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" id="upd-later" type="button">ไว้ก่อน</button>
+        <button class="btn btn-primary" id="upd-now" type="button">อัปเดตเลย</button>
       </div>
     </div>
   </div>

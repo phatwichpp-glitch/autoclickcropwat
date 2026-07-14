@@ -104,6 +104,12 @@ class Settings(BaseModel):
     # ใน Dashboard (ค่า default ตามที่ผู้ใช้กำหนดเอง = 0.5 นาที/วันปลูก)
     manual_minutes_per_candidate: float = 0.5
 
+    # โหมดเบื้องหลัง (ทดลอง, v0.5.0): ควบคุม CropWat ด้วย message ล้วน ไม่แตะ
+    # focus/เมาส์/คีย์บอร์ดของระบบเลย — ใช้คอมทำงานอื่นระหว่างรันได้ CropWat อยู่
+    # หลังหน้าต่างอื่นได้ (ห้าม minimize) — ปิดได้ถ้าเจอปัญหา (กลับไปแบบเดิมที่
+    # ดึงหน้าต่างขึ้นมา ซึ่งพิสูจน์แล้วว่าเสถียร)
+    background_mode: bool = True
+
 
 def _ensure_data_dir() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)

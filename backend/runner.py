@@ -214,7 +214,7 @@ def _resolve_single_file(root: Path, ext: str, override: str) -> Path:
 
 def _run_years(years: list[int], settings: Settings) -> None:
     run_state.begin_run()
-    engine = CropWatEngine()
+    engine = CropWatEngine(background_mode=settings.background_mode)
     try:
         engine.connect()
     except CropWatAutomationError as exc:

@@ -99,11 +99,27 @@ class YearRunResult:
 
 class CropWatEngine:
     """ห่อ pywinauto Application ของ CropWat ไว้ 1 ตัว ใช้ตลอดการรันหลายปีต่อกัน
-    (เปิด CropWat ครั้งเดียว ไม่เปิดใหม่ทุกปี เพื่อความเร็วและลดจุดพัง)"""
+    (เปิด CropWat ครั้งเดียว ไม่เปิดใหม่ทุกปี เพื่อความเร็วและลดจุดพัง)
 
-    def __init__(self) -> None:
+    background_mode (v0.5.0, ทดลอง): ควบคุม CropWat แบบ "message ล้วน 100%" โดย
+    ไม่แตะ focus/เมาส์/คีย์บอร์ดของระบบเลยแม้แต่ครั้งเดียว — CropWat อยู่หลัง
+    หน้าต่างอื่นได้ ผู้ใช้ทำงานอื่นบนเครื่องไปพร้อมกันได้ (ห้าม minimize CropWat
+    เท่านั้น เพราะ PrintWindow ถ่ายภาพหน้าต่างที่ยุบอยู่ไม่ได้) — 4 จุดที่ต่างจาก
+    โหมดปกติ:
+      1. สลับโมดูล: ส่ง WM_MDIACTIVATE ตรงไปที่ MDIClient (สถานะ active ของ MDI
+         child เป็นเรื่องภายในโปรแกรม ไม่เกี่ยวกับ foreground ของระบบ)
+      2. เรียกเมนู: หา id ของ menu item แล้ว post WM_COMMAND ตรงไปที่หน้าต่างหลัก
+         (menu_select ของ pywinauto จะ set_focus ก่อนเสมอ ใช้ไม่ได้)
+      3. ยืนยันค่าวันปลูก: ส่ง CM_EXIT (message ภายในของ Delphi VCL, 0xB011) ให้
+         ช่องรัน logic "ออกจากช่อง" (validate+commit) แทนการกด Tab จริง
+      4. Screenshot: PrintWindow (PW_RENDERFULLCONTENT) ถ่ายจากตัวหน้าต่างตรงๆ
+         แม้ถูกบังอยู่ — ไม่ใช่ถ่ายจากพิกเซลบนจอ (ข้อดีพลอยได้: overlay ไม่ติดมา
+         ในภาพ ไม่ต้องซ่อน)"""
+
+    def __init__(self, background_mode: bool = False) -> None:
         self.app: Optional[Application] = None
         self.main_window = None
+        self.background_mode = background_mode
 
     # ------------------------------------------------------------------
     # Step 0: ต่อเข้ากับ CropWat ที่เปิดอยู่แล้ว (ผู้ใช้เปิดโปรแกรมเองก่อนหน้านี้)
@@ -173,12 +189,30 @@ class CropWatEngine:
 
         window = self.app.window(class_name=class_name, top_level_only=False)
         window.wait("exists enabled visible ready", timeout=10)
-        window.set_focus()
-        # เผื่อเวลาให้ Windows ประมวลผลการเปลี่ยน focus จริงๆ ก่อน — เจอจริงว่าถ้า
+        if self.background_mode:
+            # สั่ง MDI activate ผ่าน message ตรงไปที่ MDIClient — ไม่แตะ foreground
+            # ของระบบเลย (สถานะ "MDI child ไหน active" เป็นเรื่องภายในโปรแกรม)
+            WM_MDIACTIVATE = 0x0222
+            mdiclient = self.main_window.child_window(class_name="MDIClient")
+            win32gui.SendMessage(mdiclient.handle, WM_MDIACTIVATE, window.handle, 0)
+        else:
+            window.set_focus()
+        # เผื่อเวลาให้ CropWat ประมวลผลการเปลี่ยนหน้าต่าง active ก่อน — เจอจริงว่าถ้า
         # ยิงคำสั่งเมนูต่อทันทีโดยไม่รอเลย บางครั้ง CropWat ยังทำงานกับหน้าต่างเดิม
-        # ที่ active อยู่ก่อนหน้า ไม่ใช่ตัวที่เพิ่ง set_focus() ไป
+        # ที่ active อยู่ก่อนหน้า ไม่ใช่ตัวที่เพิ่งสั่ง activate ไป
         time.sleep(0.2)
         return window
+
+    def _invoke_menu(self, menu_path: str) -> None:
+        """เรียกเมนูของหน้าต่างหลัก — โหมดปกติใช้ menu_select ของ pywinauto (ซึ่ง
+        set_focus ดึงหน้าต่างขึ้นมาก่อนเสมอ) โหมดเบื้องหลังหา id ของ menu item จาก
+        โครงสร้างเมนู (อ่านได้โดยไม่ต้อง focus) แล้ว post WM_COMMAND ตรงไปที่
+        หน้าต่างหลักแบบเดียวกับที่ Windows ส่งให้ตอนผู้ใช้คลิกเมนูจริง"""
+        if not self.background_mode:
+            self.main_window.menu_select(menu_path)
+            return
+        item = self.main_window.menu().get_menu_path(menu_path)[-1]
+        win32gui.PostMessage(self.main_window.handle, win32con.WM_COMMAND, item.id(), 0)
 
     def _ensure_module_window(self, class_name: str, new_menu_path: Optional[str], module_label: str):
         """คืนหน้าต่างโมดูล (focused) — ถ้ายังไม่มีเลย (CropWat เพิ่งเปิดมาเปล่าๆ)
@@ -196,7 +230,7 @@ class CropWatEngine:
                     f"File->New สำหรับสร้าง — เปิดไฟล์ {module_label} เองก่อนหนึ่งครั้ง"
                 )
             logger.info("%s: ยังไม่มีหน้าต่างโมดูล — สร้างฟอร์มเปล่าผ่าน %s", module_label, new_menu_path)
-            self.main_window.menu_select(new_menu_path)
+            self._invoke_menu(new_menu_path)
         return self._focus_mdi_child(class_name)
 
     def _close_stale_module_windows(
@@ -309,7 +343,7 @@ class CropWatEngine:
         if not file_path.exists():
             raise FileNotFoundError(f"ไม่พบไฟล์: {file_path}")
 
-        self.main_window.menu_select("File->Open")
+        self._invoke_menu("File->Open")
 
         # ยืนยันจาก screenshot จริงของผู้ใช้ (v0.1.12): ก่อน dialog เปิดไฟล์จะโผล่
         # CropWat อาจเด้งถาม "Save changes to current climate/rain data ?"
@@ -417,7 +451,13 @@ class CropWatEngine:
         date_str = planting_date.strftime("%d/%m")
         field = crop_window.child_window(class_name=cfg.planting_date_field_class_name)
         field.set_edit_text(date_str)
-        if cfg.confirm_key:
+        if self.background_mode:
+            # CM_EXIT (0xB011 = CM_BASE+17, message ภายในของ Delphi VCL) สั่งให้
+            # control รัน logic "ออกจากช่อง" (validate + commit ค่า + OnExit) โดยตรง
+            # — ผลเหมือนกด Tab แต่ไม่ต้องยุ่งกับ focus/คีย์บอร์ดจริงของระบบเลย
+            CM_EXIT = 0xB011
+            win32gui.SendMessage(field.handle, CM_EXIT, 0, 0)
+        elif cfg.confirm_key:
             field.type_keys(cfg.confirm_key)
 
         self._raise_if_error_dialog(f"ตั้งวันปลูก {date_str}")
@@ -436,7 +476,7 @@ class CropWatEngine:
         เด้ง error dialog ขึ้นมาเลยทันที) เช็ค error หนึ่งรอบสั้นๆ ก็พอ"""
         self._require_connected()
         cfg = controls.CALCULATE
-        self.main_window.menu_select(cfg.crop_water_requirements_menu_path)
+        self._invoke_menu(cfg.crop_water_requirements_menu_path)
         self._raise_if_error_dialog("คำนวณ Crop Water Requirements")
 
     # ------------------------------------------------------------------
@@ -451,7 +491,7 @@ class CropWatEngine:
         อยู่แล้ว (timeout 10 วิ) เป็นการยืนยันว่าคำนวณสำเร็จจริงในตัวเอง"""
         self._require_connected()
         cfg = controls.CALCULATE
-        self.main_window.menu_select(cfg.irrigation_scheduling_menu_path)
+        self._invoke_menu(cfg.irrigation_scheduling_menu_path)
         self._raise_if_error_dialog("คำนวณ Irrigation Scheduling")
 
         sched_cfg = controls.IRRIGATION_SCHEDULE
@@ -486,7 +526,7 @@ class CropWatEngine:
         # button เลย ไม่ต้องพึ่งพิกัดเมาส์จริงบนหน้าจอ (ดู bulk note ที่ _open_file_via_dialog)
         schedule_window[cfg.table_format_daily_soil_moisture_radio].click()
 
-        self.main_window.menu_select(cfg.print_menu_path)
+        self._invoke_menu(cfg.print_menu_path)
 
         options = self.app.window(title_re=cfg.print_options_dialog_title_re)
         options.wait("exists enabled visible ready", timeout=10)
@@ -532,14 +572,15 @@ class CropWatEngine:
         screenshot_dir.mkdir(parents=True, exist_ok=True)
         stem = f"{year}_{planting_date:%m%d}"
 
-        # ซ่อน overlay progress ลอยชั่วคราวระหว่าง capture — capture_as_image
-        # ถ่ายจากพิกเซลจริงบนจอ ถ้า overlay ลอยทับหน้าต่าง CropWat อยู่จะติดมา
-        # ในภาพด้วย (overlay refresh ทุก 0.4 วิ เลยรอ 0.8 วิให้ซ่อนเสร็จก่อนแน่ๆ)
+        # โหมดปกติ: ซ่อน overlay ลอยชั่วคราวระหว่าง capture (ถ่ายจากพิกเซลจริงบนจอ
+        # overlay จะติดมาในภาพ) — โหมดเบื้องหลังไม่ต้อง เพราะ PrintWindow ถ่ายจาก
+        # ตัวหน้าต่าง CropWat ตรงๆ ไม่ใช่จากจอ
         pause = None
-        try:
-            from overlay import capture_pause as pause
-        except Exception:  # noqa: BLE001 -- overlay เป็น optional ไม่มีก็ capture ได้
-            pass
+        if not self.background_mode:
+            try:
+                from overlay import capture_pause as pause
+            except Exception:  # noqa: BLE001 -- overlay เป็น optional ไม่มีก็ capture ได้
+                pass
         if pause is not None:
             pause.set()
             time.sleep(0.8)
@@ -547,7 +588,7 @@ class CropWatEngine:
         try:
             self._focus_mdi_child(cfg.window_class_name)
             schedule_path = screenshot_dir / f"{stem}_schedule.png"
-            self.main_window.capture_as_image().save(schedule_path)
+            self._capture_main_window(schedule_path)
 
             # ปิดหน้าต่างกราฟเก่าทิ้งแล้วเปิดใหม่ผ่านเมนู "ทุกครั้ง" — ยืนยันจาก
             # การรันจริง (v0.2.1): หน้าต่างกราฟที่เปิดค้างไว้ไม่รีเฟรชตามผลคำนวณ
@@ -556,15 +597,59 @@ class CropWatEngine:
             self._close_stale_module_windows(
                 cfg.graph_window_class_name, None, "irrigation schedule graph"
             )
-            self.main_window.menu_select(cfg.graph_menu_path)
+            self._invoke_menu(cfg.graph_menu_path)
             self._focus_mdi_child(cfg.graph_window_class_name)
             graph_path = screenshot_dir / f"{stem}_graph.png"
-            self.main_window.capture_as_image().save(graph_path)
+            self._capture_main_window(graph_path)
         finally:
             if pause is not None:
                 pause.clear()
 
         return schedule_path, graph_path
+
+    def _capture_main_window(self, save_path: Path) -> None:
+        """ถ่ายภาพหน้าต่างหลัก CropWat ทั้งบาน — โหมดปกติถ่ายจากพิกเซลบนจอ
+        (ต้องเห็นหน้าต่าง) โหมดเบื้องหลังใช้ PrintWindow สั่งให้ตัวโปรแกรมวาด
+        เนื้อหาของตัวเองลง bitmap โดยตรง ใช้ได้แม้หน้าต่างถูกบานอื่นบังมิดอยู่
+        (แต่ใช้ไม่ได้ถ้า minimize — เนื้อหาไม่ถูกวาดเลย จึงห้ามยุบ CropWat)"""
+        if not self.background_mode:
+            self.main_window.capture_as_image().save(save_path)
+            return
+
+        import ctypes
+
+        import win32ui
+        from PIL import Image
+
+        hwnd = self.main_window.handle
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+        width, height = right - left, bottom - top
+        hwnd_dc = win32gui.GetWindowDC(hwnd)
+        mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
+        save_dc = mfc_dc.CreateCompatibleDC()
+        bmp = win32ui.CreateBitmap()
+        try:
+            bmp.CreateCompatibleBitmap(mfc_dc, width, height)
+            save_dc.SelectObject(bmp)
+            PW_RENDERFULLCONTENT = 2  # จำเป็นสำหรับหน้าต่างที่ถูกบัง (Win 8.1+)
+            ok = ctypes.windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), PW_RENDERFULLCONTENT)
+            if not ok:
+                # บางหน้าต่าง/ไดรเวอร์ไม่รองรับ PrintWindow → ถอยไปถ่ายจากจอแทน
+                # (ภาพอาจมีอย่างอื่นบัง แต่ดีกว่าไม่มีภาพเลย)
+                logger.warning("PrintWindow ล้มเหลว — ถอยไปถ่ายจากหน้าจอแทน (ภาพอาจถูกบัง)")
+                self.main_window.capture_as_image().save(save_path)
+                return
+            info = bmp.GetInfo()
+            pixels = bmp.GetBitmapBits(True)
+            img = Image.frombuffer(
+                "RGB", (info["bmWidth"], info["bmHeight"]), pixels, "raw", "BGRX", 0, 1
+            )
+            img.save(save_path)
+        finally:
+            win32gui.DeleteObject(bmp.GetHandle())
+            save_dc.DeleteDC()
+            mfc_dc.DeleteDC()
+            win32gui.ReleaseDC(hwnd, hwnd_dc)
 
     # ------------------------------------------------------------------
     # จัดการ prompt คำถาม Yes/No ของ CropWat (เช่น "Save changes to current

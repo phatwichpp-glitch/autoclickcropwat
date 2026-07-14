@@ -55,6 +55,7 @@ async function loadConfig() {
   document.getElementById("crop-file").value = settings.crop_file || "";
   document.getElementById("soil-file").value = settings.soil_file || "";
   document.getElementById("manual-per-candidate").value = settings.manual_minutes_per_candidate;
+  document.getElementById("background-mode").checked = !!settings.background_mode;
   document.getElementById("brand-sub").textContent = settings.input_dir
     ? settings.input_dir
     : "ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง";
@@ -112,6 +113,7 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
     crop_file: document.getElementById("crop-file").value,
     soil_file: document.getElementById("soil-file").value,
     manual_minutes_per_candidate: Number(document.getElementById("manual-per-candidate").value) || 0,
+    background_mode: document.getElementById("background-mode").checked,
   });
   updateSummary();
   if (ok) {
@@ -560,6 +562,8 @@ function connectWebSocket() {
 // เช็คอัปเดตตอนเปิดโปรแกรม — มีเวอร์ชันใหม่ = โชว์ปุ่มอัปเดตที่มุมบน กดแล้ว
 // backend ดาวน์โหลด+สลับไฟล์+restart ตัวเองให้ทั้งหมด (ดู backend/updater.py)
 // ---------------------------------------------------------------------------
+const updateModal = document.getElementById("update-modal");
+
 async function checkUpdate() {
   try {
     const res = await fetch("/api/update/check");
@@ -569,29 +573,44 @@ async function checkUpdate() {
       const btn = document.getElementById("btn-update");
       btn.hidden = false;
       btn.lastChild.textContent = `อัปเดตเป็น v${info.latest}`;
+      // เด้งแจ้งเตือนเต็มจอ "ทุกครั้ง" ที่เปิดโปรแกรมแล้วมีเวอร์ชันใหม่ (จงใจไม่มี
+      // ปุ่ม "ไม่ต้องเตือนอีก" — กันคนใช้เวอร์ชันเก่าค้างไว้ทั้งที่ตัวแก้บั๊กออกแล้ว)
+      document.getElementById("upd-ver").textContent = `v${info.latest}`;
+      document.getElementById("upd-notes").textContent = (info.notes || "").trim();
+      updateModal.hidden = false;
     }
   } catch { /* ออฟไลน์/เช็คไม่ได้ = ไม่ต้องโชว์อะไร */ }
 }
 
-document.getElementById("btn-update").addEventListener("click", async (e) => {
-  const btn = e.currentTarget;
-  if (!confirm("โปรแกรมจะปิดและเปิดขึ้นมาใหม่เป็นเวอร์ชันล่าสุดโดยอัตโนมัติ อัปเดตเลยหรือไม่?")) return;
+async function applyUpdate() {
+  updateModal.hidden = true;
+  const btn = document.getElementById("btn-update");
   btn.disabled = true;
   try {
     const res = await fetch("/api/update/apply", { method: "POST" });
     const data = await res.json();
     if (!res.ok) {
-      alert(data.detail || "อัปเดตไม่สำเร็จ");
+      alert(
+        (data.detail || "อัปเดตไม่สำเร็จ") +
+        "\n\nถ้ายังไม่สำเร็จ: ปิดโปรแกรม (ปุ่ม ✕ บนแถบลอย) แล้วเปิดใหม่ จากนั้นลองอัปเดตอีกครั้ง"
+      );
       btn.disabled = false;
       return;
     }
     document.getElementById("conn-label").textContent = "กำลังอัปเดต...";
     // จากนี้ backend จะปิดตัวเอง → WS หลุด → พอตัวใหม่เปิด หน้าจะ reload เอง
   } catch {
-    alert("อัปเดตไม่สำเร็จ (เชื่อมต่อ backend ไม่ได้)");
+    alert("อัปเดตไม่สำเร็จ (เชื่อมต่อ backend ไม่ได้)\n\nปิดโปรแกรมแล้วเปิดใหม่ จากนั้นลองอัปเดตอีกครั้ง");
     btn.disabled = false;
   }
+}
+
+document.getElementById("btn-update").addEventListener("click", () => {
+  if (confirm("โปรแกรมจะปิดและเปิดขึ้นมาใหม่เป็นเวอร์ชันล่าสุดโดยอัตโนมัติ อัปเดตเลยหรือไม่?")) applyUpdate();
 });
+document.getElementById("upd-now").addEventListener("click", applyUpdate);
+document.getElementById("upd-later").addEventListener("click", () => { updateModal.hidden = true; });
+document.getElementById("upd-close-x").addEventListener("click", () => { updateModal.hidden = true; });
 
 // ---------------------------------------------------------------------------
 // Quick-start guide modal — โชว์อัตโนมัติตอนเปิดโปรแกรม จนกว่าผู้ใช้จะติ๊ก
