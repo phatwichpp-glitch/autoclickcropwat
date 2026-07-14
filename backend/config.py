@@ -101,8 +101,8 @@ class Settings(BaseModel):
 
     # "นาทีต่อวันปลูกถ้าทำมือ" (รวมทุกขั้นตอนจบในตัวเลขเดียว: หาไฟล์/รัน/print/
     # ถ่ายภาพ/กรอก Excel) — ใช้คูณจำนวนวันปลูกทั้ง batch แล้วแสดงเป็น "ชั่วโมง"
-    # ใน Dashboard (ผู้ใช้ระบุเองว่าขอตัวเลขเดียวง่ายๆ = 12 นาที/วันปลูก)
-    manual_minutes_per_candidate: float = 12.0
+    # ใน Dashboard (ค่า default ตามที่ผู้ใช้กำหนดเอง = 0.5 นาที/วันปลูก)
+    manual_minutes_per_candidate: float = 0.5
 
 
 def _ensure_data_dir() -> None:

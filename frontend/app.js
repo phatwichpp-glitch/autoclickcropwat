@@ -513,6 +513,35 @@ function connectWebSocket() {
 }
 
 // ---------------------------------------------------------------------------
+// Quick-start guide modal — โชว์อัตโนมัติตอนเปิดโปรแกรม จนกว่าผู้ใช้จะติ๊ก
+// "ไม่ต้องแสดงอีก" (จำใน localStorage) — เรียกดูซ้ำได้ตลอดจากปุ่ม "วิธีใช้"
+// ---------------------------------------------------------------------------
+const guideModal = document.getElementById("guide-modal");
+
+function showGuide() {
+  guideModal.hidden = false;
+  document.getElementById("guide-dontshow").checked =
+    localStorage.getItem("cw-hide-guide") === "1";
+}
+
+function closeGuide() {
+  localStorage.setItem(
+    "cw-hide-guide",
+    document.getElementById("guide-dontshow").checked ? "1" : "0"
+  );
+  guideModal.hidden = true;
+}
+
+document.getElementById("btn-help").addEventListener("click", showGuide);
+document.getElementById("guide-close").addEventListener("click", closeGuide);
+document.getElementById("guide-close-x").addEventListener("click", closeGuide);
+guideModal.addEventListener("click", (e) => {
+  if (e.target === guideModal) closeGuide();
+});
+
+if (localStorage.getItem("cw-hide-guide") !== "1") showGuide();
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 loadConfig();

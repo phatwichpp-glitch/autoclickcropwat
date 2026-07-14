@@ -19,6 +19,7 @@
     <nav class="tabs">
       <button class="tab-btn active" data-tab="dash">Dashboard</button>
       <button class="tab-btn" data-tab="setup">ตั้งค่า</button>
+      <button class="tab-btn" id="btn-help" type="button"><svg class="ic-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg> วิธีใช้</button>
     </nav>
     <div class="conn">
       <span class="dot" id="conn-dot"></span>
@@ -194,6 +195,42 @@
         <button id="btn-save-setup" class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>บันทึกการตั้งค่า</button>
       </div>
     </section>
+  </div>
+
+  <!-- ================= QUICK-START GUIDE MODAL ================= -->
+  <div class="modal-backdrop" id="guide-modal" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2>เริ่มใช้งานยังไง</h2>
+        <button class="modal-close" id="guide-close-x" type="button">&times;</button>
+      </div>
+      <ol class="guide-steps">
+        <li>
+          <b>เตรียมข้อมูลไว้ในโฟลเดอร์เดียว</b>
+          <div>ข้างในมี: โฟลเดอร์สถานี <code>Clim_*</code> (ไฟล์ .PED), <code>Rain_*</code> (ไฟล์ .CRD), ไฟล์พืช <code>.CRO</code> และไฟล์ดิน <code>.SOI</code> — จะซ้อนโฟลเดอร์ย่อยยังไงก็ได้ ระบบสแกนหาเองจากชื่อไฟล์</div>
+        </li>
+        <li>
+          <b>ตั้งค่าครั้งแรก (แท็บ "ตั้งค่า")</b>
+          <div>วาง path โฟลเดอร์ข้อมูล &rarr; กด <b>สแกน</b> ให้ระบบตรวจว่าเจอครบ &rarr; วาง path โฟลเดอร์ผลลัพธ์ &rarr; กด <b>บันทึกการตั้งค่า</b> (ทำครั้งเดียว ค่าอยู่ถาวร)</div>
+        </li>
+        <li>
+          <b>เปิดโปรแกรม CropWat 8.0 ทิ้งไว้</b>
+          <div>แค่เปิดโปรแกรมเปล่าๆ พอ ไม่ต้องเปิดไฟล์อะไรเลย — ระบบเปิดไฟล์ให้เองทั้งหมด</div>
+        </li>
+        <li>
+          <b>เริ่มรัน (แท็บ "Dashboard")</b>
+          <div>เลือกช่วงปี + วันปลูกในปฏิทิน &rarr; กด <b>เริ่มรันทั้งหมด</b> (หรือกด <kbd>Ctrl+Alt+F9</kbd> จากที่ไหนก็ได้) — ระหว่างรันอย่าใช้เมาส์/คีย์บอร์ดแทรก ปล่อยเครื่องทิ้งไว้ได้เลย ดูความคืบหน้าจากแถบลอยมุมขวาล่างจอ (<kbd>Ctrl+Alt+F10</kbd> = หยุด)</div>
+        </li>
+        <li>
+          <b>เสร็จแล้วสร้างไฟล์ผลลัพธ์</b>
+          <div>กด <b>สร้าง/อัปเดต Excel</b> (ตาราง Result) และ <b>สร้างไฟล์ Word (ภาพ)</b> (รวม screenshot) — กดซ้ำได้ทุกเมื่อ สร้างใหม่จากข้อมูลที่มีอยู่</div>
+        </li>
+      </ol>
+      <div class="modal-foot">
+        <label class="dontshow"><input type="checkbox" id="guide-dontshow" /> ไม่ต้องแสดงอีกตอนเปิดโปรแกรม</label>
+        <button class="btn btn-primary" id="guide-close" type="button">เข้าใจแล้ว เริ่มเลย</button>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
