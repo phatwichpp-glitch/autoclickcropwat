@@ -42,7 +42,7 @@ from pathlib import Path
 from typing import Optional
 
 from pywinauto import Application
-from pywinauto.findwindows import ElementNotFoundError
+from pywinauto.findwindows import ElementAmbiguousError, ElementNotFoundError
 from pywinauto.timings import TimeoutError as PywinautoTimeoutError
 
 import cropwat_controls as controls
@@ -110,14 +110,24 @@ class CropWatEngine:
             )
         try:
             self.app = Application(backend=controls.PYWINAUTO_BACKEND).connect(
-                title_re=controls.MAIN_WINDOW_TITLE_RE
+                title_re=controls.MAIN_WINDOW_TITLE_RE,
+                class_name=controls.MAIN_WINDOW_CLASS_NAME,
             )
-            self.main_window = self.app.window(title_re=controls.MAIN_WINDOW_TITLE_RE)
+            self.main_window = self.app.window(
+                title_re=controls.MAIN_WINDOW_TITLE_RE,
+                class_name=controls.MAIN_WINDOW_CLASS_NAME,
+            )
             self.main_window.wait("exists enabled visible ready", timeout=10)
         except (ElementNotFoundError, PywinautoTimeoutError) as exc:
             raise CropWatNotRunningError(
                 f"หา CropWat ไม่เจอ (title_re={controls.MAIN_WINDOW_TITLE_RE!r}) "
                 "ตรวจสอบว่าเปิดโปรแกรมค้างไว้อยู่หรือยัง"
+            ) from exc
+        except ElementAmbiguousError as exc:
+            raise CropWatNotRunningError(
+                f"เจอหน้าต่างที่ตรงกับ title_re={controls.MAIN_WINDOW_TITLE_RE!r} + "
+                f"class_name={controls.MAIN_WINDOW_CLASS_NAME!r} มากกว่า 1 หน้าต่าง "
+                "(อาจมี CropWat เปิดค้างมากกว่า 1 session พร้อมกัน — ปิดให้เหลือ session เดียว)"
             ) from exc
 
     def _require_connected(self) -> None:
@@ -376,6 +386,12 @@ class CropWatEngine:
             return message
         except ElementNotFoundError:
             return None
+        except ElementAmbiguousError:
+            # เจอ dialog ที่ title ตรงกับ error/warning มากกว่า 1 อัน — ไม่กล้าเดา
+            # กดปุ่มปิดมั่วๆ (เสี่ยงกดผิดตัว) แค่รายงานว่ามีปัญหาให้ candidate นี้
+            # ถูก mark error ไว้ตรวจสอบเอง ดีกว่าปล่อยให้ exception หลุดออกไปทำให้
+            # ทั้ง batch ล้ม
+            return "เจอ dialog error/warning มากกว่า 1 อันพร้อมกัน (ไม่สามารถระบุได้ว่าอันไหน)"
 
     def _raise_if_error_dialog(self, context: str) -> None:
         cfg = controls.ERROR_DIALOG

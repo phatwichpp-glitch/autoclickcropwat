@@ -58,6 +58,12 @@ from dataclasses import dataclass, fields
 # (ส่วนท้ายเปลี่ยนตามชื่อไฟล์ session ที่เปิด) ใช้ regex กว้างๆ ให้ครอบคลุมทุก session
 MAIN_WINDOW_TITLE_RE: str | None = r"CROPWAT.*"
 
+# ยืนยันจาก inspect_cropwat.py แล้ว: หน้าต่างหลักจริงมี class นี้ ("TMainForm")
+# จำเป็นต้องใช้คู่กับ title_re เสมอ — เจอจากการทดสอบจริงว่า title_re เพียวๆ
+# match ได้ 2 หน้าต่าง (ElementAmbiguousError) คาดว่ามีหน้าต่างซ่อน/helper อีกตัว
+# ที่ title ขึ้นต้นด้วย "CROPWAT" เหมือนกัน — ระบุ class_name เพิ่มกันความกำกวม
+MAIN_WINDOW_CLASS_NAME: str | None = "TMainForm"
+
 # ชื่อ backend ของ pywinauto ที่ใช้ต่อกับโปรแกรม ("uia" หรือ "win32")
 # ยืนยันแล้ว: CropWat เป็นแอป Delphi (VCL) เก่า — uia backend ใช้ไม่ได้
 # ("UIAWrapper' object has no attribute 'print_control_identifiers'")
@@ -285,6 +291,8 @@ def require_configured() -> list[str]:
     missing: list[str] = []
     if MAIN_WINDOW_TITLE_RE is None:
         missing.append("MAIN_WINDOW_TITLE_RE")
+    if MAIN_WINDOW_CLASS_NAME is None:
+        missing.append("MAIN_WINDOW_CLASS_NAME")
     missing += _unfilled_fields(CLIMATE_SCREEN)
     missing += _unfilled_fields(RAIN_SCREEN)
     missing += _unfilled_fields(CROP_SCREEN)
