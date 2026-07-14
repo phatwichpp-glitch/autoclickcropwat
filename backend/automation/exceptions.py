@@ -22,3 +22,8 @@ class StepTimeoutError(CropWatAutomationError):
 
 class CropWatReportedError(CropWatAutomationError):
     """CropWat เด้ง error/warning dialog ขึ้นมาระหว่างขั้นตอนใดขั้นตอนหนึ่ง"""
+
+
+class DuplicateWindowError(CropWatAutomationError):
+    """เจอ MDI child window ของโมดูลเดียวกัน (class เดียวกัน) เปิดค้างพร้อมกันมากกว่า
+    1 หน้าต่าง — ระบุไม่ได้ว่าอันไหนคืออันที่ถูกต้อง ต้องให้ผู้ใช้ปิดส่วนเกินเอง"""

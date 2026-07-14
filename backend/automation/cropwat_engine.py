@@ -41,8 +41,9 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
+import win32gui
 from pywinauto import Application
-from pywinauto.findwindows import ElementAmbiguousError, ElementNotFoundError
+from pywinauto.findwindows import ElementAmbiguousError, ElementNotFoundError, find_windows
 from pywinauto.timings import TimeoutError as PywinautoTimeoutError
 
 import cropwat_controls as controls
@@ -50,6 +51,7 @@ from automation.exceptions import (
     ControlsNotConfiguredError,
     CropWatNotRunningError,
     CropWatReportedError,
+    DuplicateWindowError,
     StepTimeoutError,
 )
 
@@ -142,7 +144,29 @@ class CropWatEngine:
         สำคัญ: ต้องระบุ top_level_only=False เสมอ — ยืนยันจากการทดสอบจริงแล้วว่า
         Application.window() แบบ default (top_level_only=True) หา MDI child ไม่
         เจอเลย เพราะ MDI child (เช่น TCropForm) เป็น child window ของ MDIClient
-        ไม่ใช่ top-level window ของ process ทั้งที่หน้าตาดูเหมือนหน้าต่างแยก"""
+        ไม่ใช่ top-level window ของ process ทั้งที่หน้าตาดูเหมือนหน้าต่างแยก
+
+        สำคัญ (v0.1.10): เช็คจำนวนหน้าต่างที่ตรงกับ class_name ก่อนเสมอ แทนที่จะ
+        ปล่อยให้ pywinauto โยน ElementAmbiguousError ดิบๆ ออกไปตรงๆ (ข้อความเดิม
+        "There are 2 elements that match..." ไม่บอกอะไรเลยว่าอันไหนคืออันไหน) —
+        ยืนยันจากผู้ใช้แล้วว่าเจอ TDayEToPMForm ซ้ำ 2 หน้าต่าง คาดว่าเกิดจาก
+        File->Open ของโมดูล Climate/Rain ไม่ได้แทนที่ไฟล์ในหน้าต่างเดิม แต่สร้าง
+        MDI child ใหม่ทุกครั้งที่เปิดไฟล์ (ต่างจาก Crop/Soil ที่ยืนยันแล้วว่าเป็น
+        หน้าต่างเดียวคงที่) — ถ้าจริง จะพอกซ้ำขึ้นเรื่อยๆ ทุกปีที่รัน ดังนั้นถ้าเจอ
+        มากกว่า 1 หน้าต่าง ให้แจ้ง title ของทุกหน้าต่างที่ซ้ำ (มักมีชื่อไฟล์ที่โหลด
+        อยู่ในนั้น) เพื่อให้ผู้ใช้ไปดูเมนู Window ใน CropWat แล้วปิดส่วนเกินเอง
+        แทนที่จะเดาว่าอันไหนถูก"""
+        handles = find_windows(
+            class_name=class_name, top_level_only=False, process=self.app.process
+        )
+        if len(handles) > 1:
+            titles = [win32gui.GetWindowText(h) or "(ไม่มีชื่อ)" for h in handles]
+            raise DuplicateWindowError(
+                f"เจอหน้าต่างโมดูลนี้ ({class_name}) เปิดค้างพร้อมกัน {len(handles)} "
+                f"หน้าต่าง: {', '.join(titles)} — ระบุไม่ได้ว่าอันไหนถูกต้อง กรุณาเปิด "
+                "เมนู Window ใน CropWat แล้วปิดหน้าต่างที่ซ้ำให้เหลือแค่บานเดียวก่อนรันใหม่"
+            )
+
         window = self.app.window(class_name=class_name, top_level_only=False)
         window.wait("exists enabled visible ready", timeout=10)
         window.set_focus()
