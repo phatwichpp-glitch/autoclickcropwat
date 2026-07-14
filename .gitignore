@@ -20,3 +20,9 @@ Maize_C425201_R450006SandLo 231068.xlsx
 
 # ไฟล์ output ที่ระบบสร้างขึ้นตอนรันจริง (ถ้าตั้ง output_dir ไว้ในโฟลเดอร์นี้)
 output/
+
+# PyInstaller build artifacts — ตัว .exe แจกผ่าน GitHub Releases แทน ไม่ commit
+# ไฟล์ binary ใหญ่ๆ ลง git โดยตรง
+backend/build/
+backend/dist/
+backend/*.spec

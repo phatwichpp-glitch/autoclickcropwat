@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -31,7 +32,17 @@ from state import run_state
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("app")
 
-FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+
+def _frontend_dir() -> Path:
+    """ตอนถูก build เป็น .exe ด้วย PyInstaller (--onefile) ไฟล์ frontend/ ที่ bundle
+    ไปด้วยจะถูกแตกไปไว้ที่ sys._MEIPASS (temp dir ชั่วคราวต่อการรันแต่ละครั้ง) —
+    ต่างจากตอน dev ที่ frontend/ อยู่เป็นโฟลเดอร์พี่น้องของ backend/ ตามปกติ"""
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)) / "frontend"
+    return Path(__file__).parent.parent / "frontend"
+
+
+FRONTEND_DIR = _frontend_dir()
 
 app = FastAPI(title="CropWat Auto-runner")
 

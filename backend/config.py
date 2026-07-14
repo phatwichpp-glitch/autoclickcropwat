@@ -22,13 +22,26 @@ capture ทุกวันนั้น)
 from __future__ import annotations
 
 import json
+import sys
 import threading
 from datetime import date
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-DATA_DIR = Path(__file__).parent / "data"
+
+def _app_base_dir() -> Path:
+    """โฟลเดอร์ฐานสำหรับเก็บ config — ตอนรันแบบ dev (python) ใช้โฟลเดอร์ backend/
+    ตามปกติ แต่ตอนถูก build เป็น .exe ด้วย PyInstaller (--onefile) ห้ามใช้
+    Path(__file__) เพราะจะชี้ไปที่ temp extraction dir (sys._MEIPASS) ที่ถูกลบทิ้ง
+    ทุกครั้งที่ปิดโปรแกรม — ต้องเก็บไว้ข้างๆ ตัว .exe เองแทนเพื่อให้ค่าที่ตั้งไว้อยู่ถาวร
+    ข้ามการเปิดโปรแกรมแต่ละครั้ง"""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
+
+DATA_DIR = _app_base_dir() / "data"
 CONFIG_PATH = DATA_DIR / "config.json"
 
 _lock = threading.RLock()
