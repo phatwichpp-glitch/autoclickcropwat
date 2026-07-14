@@ -137,8 +137,13 @@ class CropWatEngine:
     def _focus_mdi_child(self, class_name: str):
         """หา MDI child window ด้วย class_name (คงที่ไม่ว่าจะโหลดไฟล์ไหนอยู่) แล้ว
         ดึงขึ้นมา active — ต้องทำก่อนเรียกเมนู File->Open/File->Print เสมอ เพราะ
-        เมนูพวกนี้ทำงานกับ MDI child ที่ active อยู่ตอนนั้น"""
-        window = self.app.window(class_name=class_name)
+        เมนูพวกนี้ทำงานกับ MDI child ที่ active อยู่ตอนนั้น
+
+        สำคัญ: ต้องระบุ top_level_only=False เสมอ — ยืนยันจากการทดสอบจริงแล้วว่า
+        Application.window() แบบ default (top_level_only=True) หา MDI child ไม่
+        เจอเลย เพราะ MDI child (เช่น TCropForm) เป็น child window ของ MDIClient
+        ไม่ใช่ top-level window ของ process ทั้งที่หน้าตาดูเหมือนหน้าต่างแยก"""
+        window = self.app.window(class_name=class_name, top_level_only=False)
         window.wait("exists enabled visible ready", timeout=10)
         window.set_focus()
         return window
