@@ -1,0 +1,13 @@
+
+======================================================================
+โครงสร้างของหน้าต่าง: Error
+======================================================================
+Control Identifiers:
+
+TMessageForm - 'Error'    (L-1133, T472, R-788, B608)
+['TMessageForm', 'ErrorTMessageForm', 'Error']
+child_window(title="Error", class_name="TMessageForm")
+   | 
+   | Button - 'OK'    (L-998, T564, R-923, B590)
+   | ['Button', 'OKButton', 'OK']
+   | child_window(title="OK", class_name="TButton")

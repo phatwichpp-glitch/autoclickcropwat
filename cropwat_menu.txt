@@ -1,0 +1,85 @@
+
+======================================================================
+เมนูของหน้าต่าง: CROPWAT - Session: untitled
+======================================================================
+File
+File -> New Session
+File -> Open Session
+File -> Save Session
+File -> Save Session As...
+File -> Close Session
+File -> (no text)
+File -> New
+File -> New -> Climate / ETo
+File -> New -> Climate / ETo -> Monthly ETo Penman Monteith
+File -> New -> Climate / ETo -> Decade ETo Penman Monteith
+File -> New -> Climate / ETo -> Daily ETo Penman Monteith
+File -> New -> Climate / ETo -> (no text)
+File -> New -> Climate / ETo -> Monthly measured ETo
+File -> New -> Climate / ETo -> Decade measured ETo
+File -> New -> Climate / ETo -> Daily measured ETo
+File -> New -> Rain
+File -> New -> Rain -> Monthly
+File -> New -> Rain -> Decade
+File -> New -> Rain -> Daily
+File -> New -> Crop
+File -> New -> Crop -> Dry crop
+File -> New -> Crop -> Rice
+File -> New -> Soil
+File -> New -> Cropping Pattern
+File -> Open
+File -> Save
+File -> Save As...
+File -> Save All
+File -> (no text)
+File -> Print 
+File -> Printer Setup
+File -> (no text)
+File -> Exit
+Edit
+Edit -> Undo	Ctrl+Z
+Edit -> (no text)
+Edit -> Cut	Ctrl+X
+Edit -> Copy	Ctrl+C
+Edit -> Paste	Ctrl+V
+Edit -> (no text)
+Edit -> Copy Table
+Edit -> Copy Table -> Data only
+Edit -> Copy Table -> Data and Headers
+Edit -> Paste Table
+Edit -> (no text)
+Edit -> Copy chart
+Edit -> Copy chart -> As Bitmap
+Edit -> Copy chart -> As Enhanced Meta File
+Calculations
+Calculations -> Crop Water Requirements
+Calculations -> Irrigation Scheduling
+Calculations -> Scheme Supply
+Charts
+Charts -> Climate / ETo / Rain
+Charts -> Crop Water Requirements
+Charts -> Irrigation Schedule
+Settings
+Settings -> Options
+Settings -> File Locations
+Settings -> (no text)
+Settings -> Save as default
+Settings -> Load default
+Window
+Window -> Cascade
+Window -> Tile Horizontal
+Window -> Tile Vertical
+Window -> (no text)
+Window -> Centre Window
+Window -> Centre All Windows
+Window -> (no text)
+Window -> Close All
+Language
+Language -> English
+Language -> French
+Language -> Russian
+Language -> Spanish
+Help
+Help -> Help topics
+Help -> About CROPWAT
+Help -> CROPWAT opening screen

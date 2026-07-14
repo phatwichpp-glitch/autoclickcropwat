@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CropWat Auto-runner</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark">CW</div>
+      <div>
+        <h1>CropWat Auto-runner</h1>
+        <div class="sub" id="brand-sub">&nbsp;</div>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="dash">Dashboard</button>
+      <button class="tab-btn" data-tab="setup">ตั้งค่า</button>
+    </nav>
+    <div class="conn">
+      <span class="dot" id="conn-dot"></span>
+      <span id="conn-label">กำลังเชื่อมต่อ...</span>
+    </div>
+  </header>
+
+  <div class="shell">
+    <!-- ================= DASHBOARD VIEW ================= -->
+    <section class="view active" id="view-dash">
+
+      <div class="card">
+        <div class="card-head">
+          <h2>ตั้งค่าการรัน</h2>
+          <span class="hint">กำหนดช่วงปีและวันปลูกที่จะทดลอง</span>
+        </div>
+        <div class="card-body stack">
+          <div class="range-row">
+            <label class="field">
+              <span class="lbl">ปีเริ่มต้น</span>
+              <input type="number" id="start-year" value="1981" class="tabular" />
+            </label>
+            <span class="arrow">&rarr;</span>
+            <label class="field">
+              <span class="lbl">ปีสิ้นสุด</span>
+              <input type="number" id="end-year" value="2025" class="tabular" />
+            </label>
+          </div>
+
+          <div id="month-grid" class="month-grid"><!-- filled by JS --></div>
+
+          <div class="summary-bar">
+            <div class="summary-stats">
+              <div>
+                <div class="num tabular" id="sum-days">0</div>
+                <div class="lbl">วันปลูกที่ทดลอง / ปี</div>
+              </div>
+              <div>
+                <div class="num tabular" id="sum-total">0</div>
+                <div class="lbl">รอบคำนวณทั้งหมด</div>
+              </div>
+              <div>
+                <div class="num tabular" id="sum-shots" style="color:var(--warn)">0</div>
+                <div class="lbl">📷 screenshot / ปี</div>
+              </div>
+            </div>
+            <div class="summary-actions">
+              <button id="btn-save-calendar" class="btn btn-ghost sm">บันทึกปฏิทิน</button>
+              <button id="btn-start" class="btn btn-primary">เริ่มรันทั้งหมด</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>ความคืบหน้า</h2>
+          <div class="row" style="gap:8px">
+            <button id="btn-retry" class="btn btn-ghost sm">รันปีที่ค้างใหม่</button>
+            <button id="btn-build-excel" class="btn btn-ghost sm">🔄 สร้าง/อัปเดต Excel</button>
+            <a id="btn-download" class="btn btn-ghost sm" href="/api/download">ดาวน์โหลด Result.xlsx</a>
+            <button id="btn-stop" class="btn btn-danger-ghost sm">หยุด</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="progress-wrap">
+            <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+            <div class="progress-txt" id="progress-txt">0 / 0 ปี</div>
+          </div>
+          <div id="year-list" class="year-list"><!-- filled by JS --></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SETUP VIEW ================= -->
+    <section class="view" id="view-setup">
+
+      <div class="readiness-strip" id="readiness-strip"><!-- filled by JS --></div>
+
+      <div class="setup-grid">
+        <div class="card">
+          <div class="card-head">
+            <h2>โฟลเดอร์ข้อมูลต้นทาง</h2>
+            <span class="badge neutral" id="scan-badge">ยังไม่ได้สแกน</span>
+          </div>
+          <div class="card-body stack">
+            <label class="field">
+              <span class="lbl">เลือกโฟลเดอร์เดียว ที่รวมทุกอย่างไว้ข้างใน</span>
+              <div class="path-field">
+                <input type="text" id="input-dir" placeholder="เช่น D:\Cropwat\autoclickcropwat\cropwat" />
+                <button id="btn-scan" class="btn btn-ghost sm">สแกน</button>
+              </div>
+              <span class="note">วาง climate, rain, crop, soil ไว้ในนี้แบบไหนก็ได้ ระบบหาและจัดเรียงให้เอง</span>
+            </label>
+            <div id="scan-results"><!-- filled by JS --></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>โฟลเดอร์ผลลัพธ์</h2></div>
+          <div class="card-body stack">
+            <label class="field">
+              <span class="lbl">เลือกโฟลเดอร์เดียวสำหรับผลลัพธ์ทั้งหมด</span>
+              <div class="path-field">
+                <input type="text" id="output-dir" placeholder="เช่น D:\Cropwat\autoclickcropwat\output" />
+              </div>
+              <span class="note">ระบบสร้างโครงสร้างข้างในให้เองตามนี้:</span>
+            </label>
+            <div class="tree">
+<b>output/</b><br>
+&nbsp;&nbsp;txt/<span class="tree-note">&nbsp;&nbsp;&larr; ไฟล์ .txt ดิบจาก CropWat (เฟส 1)</span><br>
+&nbsp;&nbsp;screenshots/<span class="tree-note">&nbsp;&larr; ภาพหน้าจอ (เฉพาะวันที่เลือก capture)</span><br>
+&nbsp;&nbsp;<b>Result.xlsx</b><span class="tree-note">&nbsp;&larr; รวมทุกไฟล์ .txt (เฟส 2)</span>
+            </div>
+            <div class="phase-flow">
+              <div class="phase-step">
+                <div class="ph-eyebrow">เฟส 1</div>
+                <div class="ph-title">รัน CropWat</div>
+                <div class="ph-desc">วนทุกปี ทุกวันปลูกที่ทดลอง &rarr; ได้ไฟล์ .txt ครบ</div>
+              </div>
+              <div class="phase-arrow">&rarr;</div>
+              <div class="phase-step">
+                <div class="ph-eyebrow">เฟส 2</div>
+                <div class="ph-title">สร้าง/อัปเดต Excel</div>
+                <div class="ph-desc">อ่าน .txt ทั้งหมด &rarr; เขียนลง Result.xlsx กดใหม่ได้ทุกเมื่อ</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Override การเลือกสถานี/ไฟล์ (ถ้าจำเป็น)</h2></div>
+          <div class="card-body stack">
+            <span class="note">เว้นว่างไว้ถ้าสแกนแล้วเจอตัวเลือกเดียว ระบบจะเลือกให้เองอัตโนมัติ — กรอกตรงนี้เฉพาะตอนเจอมากกว่า 1 ตัวเลือกแล้วต้องระบุเอง</span>
+            <label class="field">
+              <span class="lbl">โฟลเดอร์สถานี Climate/ETo</span>
+              <input type="text" id="climate-station-dir" />
+            </label>
+            <label class="field">
+              <span class="lbl">โฟลเดอร์สถานี Rain</span>
+              <input type="text" id="rain-station-dir" />
+            </label>
+            <label class="field">
+              <span class="lbl">ไฟล์ Crop (.CRO)</span>
+              <input type="text" id="crop-file" />
+            </label>
+            <label class="field">
+              <span class="lbl">ไฟล์ Soil (.SOI)</span>
+              <input type="text" id="soil-file" />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-actions">
+        <button id="btn-save-setup" class="btn btn-primary">บันทึกการตั้งค่า</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

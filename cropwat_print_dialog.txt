@@ -1,0 +1,709 @@
+
+======================================================================
+โครงสร้างของหน้าต่าง: Print
+======================================================================
+Control Identifiers:
+
+TPrintForm - 'Print'    (L-1053, T301, R-508, B703)
+['PrintTPrintForm', 'TPrintForm', 'Print']
+child_window(title="Print", class_name="TPrintForm")
+   | 
+   | TPageControl - ''    (L-1050, T327, R-511, B700)
+   | ['Climate / EToTPageControl', 'TPageControl']
+   | child_window(class_name="TPageControl")
+   |    | 
+   |    | TTabSheet - 'Data'    (L-1046, T333, R-515, B696)
+   |    | ['DataTTabSheet', 'TTabSheet', 'Data']
+   |    | child_window(title="Data", class_name="TTabSheet")
+   |    |    | 
+   |    |    | Button - 'Help'    (L-600, T665, R-525, B690)
+   |    |    | ['Button', 'HelpButton', 'Help', 'Button0', 'Button1']
+   |    |    | child_window(title="Help", class_name="TButton")
+   |    |    | 
+   |    |    | Button - 'Font'    (L-1042, T665, R-942, B690)
+   |    |    | ['Button2', 'Font', 'FontButton']
+   |    |    | child_window(title="Font", class_name="TButton")
+   |    |    | 
+   |    |    | Button - 'Preview'    (L-938, T665, R-838, B690)
+   |    |    | ['Button3', 'PreviewButton', 'Preview']
+   |    |    | child_window(title="Preview", class_name="TButton")
+   |    |    | 
+   |    |    | Button - 'Cancel'    (L-680, T665, R-605, B690)
+   |    |    | ['Button4', 'CancelButton', 'Cancel']
+   |    |    | child_window(title="Cancel", class_name="TButton")
+   |    |    | 
+   |    |    | Button - 'OK'    (L-760, T665, R-685, B690)
+   |    |    | ['Button5', 'OKButton', 'OK']
+   |    |    | child_window(title="OK", class_name="TButton")
+   |    |    | 
+   |    |    | TGroupBox - ' Print destination '    (L-1042, T565, R-517, B650)
+   |    |    | [' Print destination TGroupBox', ' Print destination ', 'TGroupBox', 'TGroupBox0', 'TGroupBox1']
+   |    |    | child_window(title=" Print destination ", class_name="TGroupBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Use commas for column separation in tables'    (L-858, T625, R-625, B642)
+   |    |    |    | ['CheckBox', 'Use commas for column separation in tables', 'Use commas for column separation in tablesCheckBox', 'CheckBox0', 'CheckBox1']
+   |    |    |    | child_window(title="Use commas for column separation in tables", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | Button - 'Printer Setup'    (L-858, T585, R-738, B610)
+   |    |    |    | ['Button6', 'Printer Setup', 'Printer SetupButton']
+   |    |    |    | child_window(title="Printer Setup", class_name="TButton")
+   |    |    |    | 
+   |    |    |    | RadioButton - 'ASCII file (text only)'    (L-1022, T625, R-909, B642)
+   |    |    |    | ['RadioButton', 'ASCII file (text only)', 'ASCII file (text only)RadioButton', 'RadioButton0', 'RadioButton1']
+   |    |    |    | child_window(title="ASCII file (text only)", class_name="TRadioButton")
+   |    |    |    | 
+   |    |    |    | RadioButton - 'Printer'    (L-1022, T589, R-909, B606)
+   |    |    |    | ['RadioButton2', 'Printer', 'PrinterRadioButton']
+   |    |    |    | child_window(title="Printer", class_name="TRadioButton")
+   |    |    | 
+   |    |    | CheckBox - 'Use commas for column separation in tables'    (L-858, T625, R-625, B642)
+   |    |    | ['CheckBox', 'Use commas for column separation in tables', 'Use commas for column separation in tablesCheckBox', 'CheckBox0', 'CheckBox1']
+   |    |    | child_window(title="Use commas for column separation in tables", class_name="TCheckBox")
+   |    |    | 
+   |    |    | Button - 'Printer Setup'    (L-858, T585, R-738, B610)
+   |    |    | ['Button6', 'Printer Setup', 'Printer SetupButton']
+   |    |    | child_window(title="Printer Setup", class_name="TButton")
+   |    |    | 
+   |    |    | RadioButton - 'ASCII file (text only)'    (L-1022, T625, R-909, B642)
+   |    |    | ['RadioButton', 'ASCII file (text only)', 'ASCII file (text only)RadioButton', 'RadioButton0', 'RadioButton1']
+   |    |    | child_window(title="ASCII file (text only)", class_name="TRadioButton")
+   |    |    | 
+   |    |    | RadioButton - 'Printer'    (L-1022, T589, R-909, B606)
+   |    |    | ['RadioButton2', 'Printer', 'PrinterRadioButton']
+   |    |    | child_window(title="Printer", class_name="TRadioButton")
+   |    |    | 
+   |    |    | TGroupBox - ' Data to print '    (L-1042, T341, R-517, B558)
+   |    |    | [' Data to print ', ' Data to print TGroupBox', 'TGroupBox2']
+   |    |    | child_window(title=" Data to print ", class_name="TGroupBox")
+   |    |    |    | 
+   |    |    |    | RadioButton - 'All months'    (L-906, T373, R-793, B390)
+   |    |    |    | ['RadioButton3', 'All months', 'All monthsRadioButton']
+   |    |    |    | child_window(title="All months", class_name="TRadioButton")
+   |    |    |    | 
+   |    |    |    | RadioButton - 'Current month'    (L-906, T357, R-793, B374)
+   |    |    |    | ['RadioButton4', 'Current monthRadioButton', 'Current month']
+   |    |    |    | child_window(title="Current month", class_name="TRadioButton")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Irrigation schedule chart'    (L-754, T445, R-577, B462)
+   |    |    |    | ['Irrigation schedule chartCheckBox', 'CheckBox2', 'Irrigation schedule chart']
+   |    |    |    | child_window(title="Irrigation schedule chart", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Crop Water Requirements chart'    (L-754, T405, R-577, B422)
+   |    |    |    | ['CheckBox3', 'Crop Water Requirements chartCheckBox', 'Crop Water Requirements chart']
+   |    |    |    | child_window(title="Crop Water Requirements chart", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Climate / ETo / Rain chart'    (L-754, T365, R-593, B382)
+   |    |    |    | ['CheckBox4', 'Climate / ETo / Rain chart', 'Climate / ETo / Rain chartCheckBox']
+   |    |    |    | child_window(title="Climate / ETo / Rain chart", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | Button - 'Select all '    (L-774, T505, R-657, B530)
+   |    |    |    | ['Button7', 'Select all Button', 'Select all ']
+   |    |    |    | child_window(title="Select all ", class_name="TButton")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Scheme supply'    (L-1018, T531, R-858, B548)
+   |    |    |    | ['Scheme supplyCheckBox', 'CheckBox5', 'Scheme supply']
+   |    |    |    | child_window(title="Scheme supply", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Irrigation schedule'    (L-1018, T507, R-858, B524)
+   |    |    |    | ['CheckBox6', 'Irrigation schedule', 'Irrigation scheduleCheckBox']
+   |    |    |    | child_window(title="Irrigation schedule", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Crop water requirements'    (L-1018, T483, R-858, B500)
+   |    |    |    | ['Crop water requirementsCheckBox', 'Crop water requirements', 'CheckBox7']
+   |    |    |    | child_window(title="Crop water requirements", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Cropping pattern'    (L-1018, T461, R-921, B478)
+   |    |    |    | ['CheckBox8', 'Cropping patternCheckBox', 'Cropping pattern']
+   |    |    |    | child_window(title="Cropping pattern", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Soil'    (L-1018, T437, R-921, B454)
+   |    |    |    | ['CheckBox9', 'SoilCheckBox', 'Soil']
+   |    |    |    | child_window(title="Soil", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Crop'    (L-1018, T413, R-921, B430)
+   |    |    |    | ['CheckBox10', 'Crop', 'CropCheckBox']
+   |    |    |    | child_window(title="Crop", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Rainfall'    (L-1018, T389, R-921, B406)
+   |    |    |    | ['Rainfall', 'CheckBox11', 'RainfallCheckBox']
+   |    |    |    | child_window(title="Rainfall", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Climate / ETo'    (L-1018, T365, R-921, B382)
+   |    |    |    | ['CheckBox12', 'Climate / ETo', 'Climate / EToCheckBox']
+   |    |    |    | child_window(title="Climate / ETo", class_name="TCheckBox")
+   |    |    | 
+   |    |    | RadioButton - 'All months'    (L-906, T373, R-793, B390)
+   |    |    | ['RadioButton3', 'All months', 'All monthsRadioButton']
+   |    |    | child_window(title="All months", class_name="TRadioButton")
+   |    |    | 
+   |    |    | RadioButton - 'Current month'    (L-906, T357, R-793, B374)
+   |    |    | ['RadioButton4', 'Current monthRadioButton', 'Current month']
+   |    |    | child_window(title="Current month", class_name="TRadioButton")
+   |    |    | 
+   |    |    | CheckBox - 'Irrigation schedule chart'    (L-754, T445, R-577, B462)
+   |    |    | ['Irrigation schedule chartCheckBox', 'CheckBox2', 'Irrigation schedule chart']
+   |    |    | child_window(title="Irrigation schedule chart", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Crop Water Requirements chart'    (L-754, T405, R-577, B422)
+   |    |    | ['CheckBox3', 'Crop Water Requirements chartCheckBox', 'Crop Water Requirements chart']
+   |    |    | child_window(title="Crop Water Requirements chart", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Climate / ETo / Rain chart'    (L-754, T365, R-593, B382)
+   |    |    | ['CheckBox4', 'Climate / ETo / Rain chart', 'Climate / ETo / Rain chartCheckBox']
+   |    |    | child_window(title="Climate / ETo / Rain chart", class_name="TCheckBox")
+   |    |    | 
+   |    |    | Button - 'Select all '    (L-774, T505, R-657, B530)
+   |    |    | ['Button7', 'Select all Button', 'Select all ']
+   |    |    | child_window(title="Select all ", class_name="TButton")
+   |    |    | 
+   |    |    | CheckBox - 'Scheme supply'    (L-1018, T531, R-858, B548)
+   |    |    | ['Scheme supplyCheckBox', 'CheckBox5', 'Scheme supply']
+   |    |    | child_window(title="Scheme supply", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Irrigation schedule'    (L-1018, T507, R-858, B524)
+   |    |    | ['CheckBox6', 'Irrigation schedule', 'Irrigation scheduleCheckBox']
+   |    |    | child_window(title="Irrigation schedule", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Crop water requirements'    (L-1018, T483, R-858, B500)
+   |    |    | ['Crop water requirementsCheckBox', 'Crop water requirements', 'CheckBox7']
+   |    |    | child_window(title="Crop water requirements", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Cropping pattern'    (L-1018, T461, R-921, B478)
+   |    |    | ['CheckBox8', 'Cropping patternCheckBox', 'Cropping pattern']
+   |    |    | child_window(title="Cropping pattern", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Soil'    (L-1018, T437, R-921, B454)
+   |    |    | ['CheckBox9', 'SoilCheckBox', 'Soil']
+   |    |    | child_window(title="Soil", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Crop'    (L-1018, T413, R-921, B430)
+   |    |    | ['CheckBox10', 'Crop', 'CropCheckBox']
+   |    |    | child_window(title="Crop", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Rainfall'    (L-1018, T389, R-921, B406)
+   |    |    | ['Rainfall', 'CheckBox11', 'RainfallCheckBox']
+   |    |    | child_window(title="Rainfall", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Climate / ETo'    (L-1018, T365, R-921, B382)
+   |    |    | ['CheckBox12', 'Climate / ETo', 'Climate / EToCheckBox']
+   |    |    | child_window(title="Climate / ETo", class_name="TCheckBox")
+   |    | 
+   |    | Button - 'Help'    (L-600, T665, R-525, B690)
+   |    | ['Button', 'HelpButton', 'Help', 'Button0', 'Button1']
+   |    | child_window(title="Help", class_name="TButton")
+   |    | 
+   |    | Button - 'Font'    (L-1042, T665, R-942, B690)
+   |    | ['Button2', 'Font', 'FontButton']
+   |    | child_window(title="Font", class_name="TButton")
+   |    | 
+   |    | Button - 'Preview'    (L-938, T665, R-838, B690)
+   |    | ['Button3', 'PreviewButton', 'Preview']
+   |    | child_window(title="Preview", class_name="TButton")
+   |    | 
+   |    | Button - 'Cancel'    (L-680, T665, R-605, B690)
+   |    | ['Button4', 'CancelButton', 'Cancel']
+   |    | child_window(title="Cancel", class_name="TButton")
+   |    | 
+   |    | Button - 'OK'    (L-760, T665, R-685, B690)
+   |    | ['Button5', 'OKButton', 'OK']
+   |    | child_window(title="OK", class_name="TButton")
+   |    | 
+   |    | TGroupBox - ' Print destination '    (L-1042, T565, R-517, B650)
+   |    | [' Print destination TGroupBox', ' Print destination ', 'TGroupBox', 'TGroupBox0', 'TGroupBox1']
+   |    | child_window(title=" Print destination ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | CheckBox - 'Use commas for column separation in tables'    (L-858, T625, R-625, B642)
+   |    |    | ['CheckBox', 'Use commas for column separation in tables', 'Use commas for column separation in tablesCheckBox', 'CheckBox0', 'CheckBox1']
+   |    |    | child_window(title="Use commas for column separation in tables", class_name="TCheckBox")
+   |    |    | 
+   |    |    | Button - 'Printer Setup'    (L-858, T585, R-738, B610)
+   |    |    | ['Button6', 'Printer Setup', 'Printer SetupButton']
+   |    |    | child_window(title="Printer Setup", class_name="TButton")
+   |    |    | 
+   |    |    | RadioButton - 'ASCII file (text only)'    (L-1022, T625, R-909, B642)
+   |    |    | ['RadioButton', 'ASCII file (text only)', 'ASCII file (text only)RadioButton', 'RadioButton0', 'RadioButton1']
+   |    |    | child_window(title="ASCII file (text only)", class_name="TRadioButton")
+   |    |    | 
+   |    |    | RadioButton - 'Printer'    (L-1022, T589, R-909, B606)
+   |    |    | ['RadioButton2', 'Printer', 'PrinterRadioButton']
+   |    |    | child_window(title="Printer", class_name="TRadioButton")
+   |    | 
+   |    | CheckBox - 'Use commas for column separation in tables'    (L-858, T625, R-625, B642)
+   |    | ['CheckBox', 'Use commas for column separation in tables', 'Use commas for column separation in tablesCheckBox', 'CheckBox0', 'CheckBox1']
+   |    | child_window(title="Use commas for column separation in tables", class_name="TCheckBox")
+   |    | 
+   |    | Button - 'Printer Setup'    (L-858, T585, R-738, B610)
+   |    | ['Button6', 'Printer Setup', 'Printer SetupButton']
+   |    | child_window(title="Printer Setup", class_name="TButton")
+   |    | 
+   |    | RadioButton - 'ASCII file (text only)'    (L-1022, T625, R-909, B642)
+   |    | ['RadioButton', 'ASCII file (text only)', 'ASCII file (text only)RadioButton', 'RadioButton0', 'RadioButton1']
+   |    | child_window(title="ASCII file (text only)", class_name="TRadioButton")
+   |    | 
+   |    | RadioButton - 'Printer'    (L-1022, T589, R-909, B606)
+   |    | ['RadioButton2', 'Printer', 'PrinterRadioButton']
+   |    | child_window(title="Printer", class_name="TRadioButton")
+   |    | 
+   |    | TGroupBox - ' Data to print '    (L-1042, T341, R-517, B558)
+   |    | [' Data to print ', ' Data to print TGroupBox', 'TGroupBox2']
+   |    | child_window(title=" Data to print ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | RadioButton - 'All months'    (L-906, T373, R-793, B390)
+   |    |    | ['RadioButton3', 'All months', 'All monthsRadioButton']
+   |    |    | child_window(title="All months", class_name="TRadioButton")
+   |    |    | 
+   |    |    | RadioButton - 'Current month'    (L-906, T357, R-793, B374)
+   |    |    | ['RadioButton4', 'Current monthRadioButton', 'Current month']
+   |    |    | child_window(title="Current month", class_name="TRadioButton")
+   |    |    | 
+   |    |    | CheckBox - 'Irrigation schedule chart'    (L-754, T445, R-577, B462)
+   |    |    | ['Irrigation schedule chartCheckBox', 'CheckBox2', 'Irrigation schedule chart']
+   |    |    | child_window(title="Irrigation schedule chart", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Crop Water Requirements chart'    (L-754, T405, R-577, B422)
+   |    |    | ['CheckBox3', 'Crop Water Requirements chartCheckBox', 'Crop Water Requirements chart']
+   |    |    | child_window(title="Crop Water Requirements chart", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Climate / ETo / Rain chart'    (L-754, T365, R-593, B382)
+   |    |    | ['CheckBox4', 'Climate / ETo / Rain chart', 'Climate / ETo / Rain chartCheckBox']
+   |    |    | child_window(title="Climate / ETo / Rain chart", class_name="TCheckBox")
+   |    |    | 
+   |    |    | Button - 'Select all '    (L-774, T505, R-657, B530)
+   |    |    | ['Button7', 'Select all Button', 'Select all ']
+   |    |    | child_window(title="Select all ", class_name="TButton")
+   |    |    | 
+   |    |    | CheckBox - 'Scheme supply'    (L-1018, T531, R-858, B548)
+   |    |    | ['Scheme supplyCheckBox', 'CheckBox5', 'Scheme supply']
+   |    |    | child_window(title="Scheme supply", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Irrigation schedule'    (L-1018, T507, R-858, B524)
+   |    |    | ['CheckBox6', 'Irrigation schedule', 'Irrigation scheduleCheckBox']
+   |    |    | child_window(title="Irrigation schedule", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Crop water requirements'    (L-1018, T483, R-858, B500)
+   |    |    | ['Crop water requirementsCheckBox', 'Crop water requirements', 'CheckBox7']
+   |    |    | child_window(title="Crop water requirements", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Cropping pattern'    (L-1018, T461, R-921, B478)
+   |    |    | ['CheckBox8', 'Cropping patternCheckBox', 'Cropping pattern']
+   |    |    | child_window(title="Cropping pattern", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Soil'    (L-1018, T437, R-921, B454)
+   |    |    | ['CheckBox9', 'SoilCheckBox', 'Soil']
+   |    |    | child_window(title="Soil", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Crop'    (L-1018, T413, R-921, B430)
+   |    |    | ['CheckBox10', 'Crop', 'CropCheckBox']
+   |    |    | child_window(title="Crop", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Rainfall'    (L-1018, T389, R-921, B406)
+   |    |    | ['Rainfall', 'CheckBox11', 'RainfallCheckBox']
+   |    |    | child_window(title="Rainfall", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Climate / ETo'    (L-1018, T365, R-921, B382)
+   |    |    | ['CheckBox12', 'Climate / ETo', 'Climate / EToCheckBox']
+   |    |    | child_window(title="Climate / ETo", class_name="TCheckBox")
+   |    | 
+   |    | RadioButton - 'All months'    (L-906, T373, R-793, B390)
+   |    | ['RadioButton3', 'All months', 'All monthsRadioButton']
+   |    | child_window(title="All months", class_name="TRadioButton")
+   |    | 
+   |    | RadioButton - 'Current month'    (L-906, T357, R-793, B374)
+   |    | ['RadioButton4', 'Current monthRadioButton', 'Current month']
+   |    | child_window(title="Current month", class_name="TRadioButton")
+   |    | 
+   |    | CheckBox - 'Irrigation schedule chart'    (L-754, T445, R-577, B462)
+   |    | ['Irrigation schedule chartCheckBox', 'CheckBox2', 'Irrigation schedule chart']
+   |    | child_window(title="Irrigation schedule chart", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Crop Water Requirements chart'    (L-754, T405, R-577, B422)
+   |    | ['CheckBox3', 'Crop Water Requirements chartCheckBox', 'Crop Water Requirements chart']
+   |    | child_window(title="Crop Water Requirements chart", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Climate / ETo / Rain chart'    (L-754, T365, R-593, B382)
+   |    | ['CheckBox4', 'Climate / ETo / Rain chart', 'Climate / ETo / Rain chartCheckBox']
+   |    | child_window(title="Climate / ETo / Rain chart", class_name="TCheckBox")
+   |    | 
+   |    | Button - 'Select all '    (L-774, T505, R-657, B530)
+   |    | ['Button7', 'Select all Button', 'Select all ']
+   |    | child_window(title="Select all ", class_name="TButton")
+   |    | 
+   |    | CheckBox - 'Scheme supply'    (L-1018, T531, R-858, B548)
+   |    | ['Scheme supplyCheckBox', 'CheckBox5', 'Scheme supply']
+   |    | child_window(title="Scheme supply", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Irrigation schedule'    (L-1018, T507, R-858, B524)
+   |    | ['CheckBox6', 'Irrigation schedule', 'Irrigation scheduleCheckBox']
+   |    | child_window(title="Irrigation schedule", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Crop water requirements'    (L-1018, T483, R-858, B500)
+   |    | ['Crop water requirementsCheckBox', 'Crop water requirements', 'CheckBox7']
+   |    | child_window(title="Crop water requirements", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Cropping pattern'    (L-1018, T461, R-921, B478)
+   |    | ['CheckBox8', 'Cropping patternCheckBox', 'Cropping pattern']
+   |    | child_window(title="Cropping pattern", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Soil'    (L-1018, T437, R-921, B454)
+   |    | ['CheckBox9', 'SoilCheckBox', 'Soil']
+   |    | child_window(title="Soil", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Crop'    (L-1018, T413, R-921, B430)
+   |    | ['CheckBox10', 'Crop', 'CropCheckBox']
+   |    | child_window(title="Crop", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Rainfall'    (L-1018, T389, R-921, B406)
+   |    | ['Rainfall', 'CheckBox11', 'RainfallCheckBox']
+   |    | child_window(title="Rainfall", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Climate / ETo'    (L-1018, T365, R-921, B382)
+   |    | ['CheckBox12', 'Climate / ETo', 'Climate / EToCheckBox']
+   |    | child_window(title="Climate / ETo", class_name="TCheckBox")
+   | 
+   | TTabSheet - 'Data'    (L-1046, T333, R-515, B696)
+   | ['DataTTabSheet', 'TTabSheet', 'Data']
+   | child_window(title="Data", class_name="TTabSheet")
+   |    | 
+   |    | Button - 'Help'    (L-600, T665, R-525, B690)
+   |    | ['Button', 'HelpButton', 'Help', 'Button0', 'Button1']
+   |    | child_window(title="Help", class_name="TButton")
+   |    | 
+   |    | Button - 'Font'    (L-1042, T665, R-942, B690)
+   |    | ['Button2', 'Font', 'FontButton']
+   |    | child_window(title="Font", class_name="TButton")
+   |    | 
+   |    | Button - 'Preview'    (L-938, T665, R-838, B690)
+   |    | ['Button3', 'PreviewButton', 'Preview']
+   |    | child_window(title="Preview", class_name="TButton")
+   |    | 
+   |    | Button - 'Cancel'    (L-680, T665, R-605, B690)
+   |    | ['Button4', 'CancelButton', 'Cancel']
+   |    | child_window(title="Cancel", class_name="TButton")
+   |    | 
+   |    | Button - 'OK'    (L-760, T665, R-685, B690)
+   |    | ['Button5', 'OKButton', 'OK']
+   |    | child_window(title="OK", class_name="TButton")
+   |    | 
+   |    | TGroupBox - ' Print destination '    (L-1042, T565, R-517, B650)
+   |    | [' Print destination TGroupBox', ' Print destination ', 'TGroupBox', 'TGroupBox0', 'TGroupBox1']
+   |    | child_window(title=" Print destination ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | CheckBox - 'Use commas for column separation in tables'    (L-858, T625, R-625, B642)
+   |    |    | ['CheckBox', 'Use commas for column separation in tables', 'Use commas for column separation in tablesCheckBox', 'CheckBox0', 'CheckBox1']
+   |    |    | child_window(title="Use commas for column separation in tables", class_name="TCheckBox")
+   |    |    | 
+   |    |    | Button - 'Printer Setup'    (L-858, T585, R-738, B610)
+   |    |    | ['Button6', 'Printer Setup', 'Printer SetupButton']
+   |    |    | child_window(title="Printer Setup", class_name="TButton")
+   |    |    | 
+   |    |    | RadioButton - 'ASCII file (text only)'    (L-1022, T625, R-909, B642)
+   |    |    | ['RadioButton', 'ASCII file (text only)', 'ASCII file (text only)RadioButton', 'RadioButton0', 'RadioButton1']
+   |    |    | child_window(title="ASCII file (text only)", class_name="TRadioButton")
+   |    |    | 
+   |    |    | RadioButton - 'Printer'    (L-1022, T589, R-909, B606)
+   |    |    | ['RadioButton2', 'Printer', 'PrinterRadioButton']
+   |    |    | child_window(title="Printer", class_name="TRadioButton")
+   |    | 
+   |    | CheckBox - 'Use commas for column separation in tables'    (L-858, T625, R-625, B642)
+   |    | ['CheckBox', 'Use commas for column separation in tables', 'Use commas for column separation in tablesCheckBox', 'CheckBox0', 'CheckBox1']
+   |    | child_window(title="Use commas for column separation in tables", class_name="TCheckBox")
+   |    | 
+   |    | Button - 'Printer Setup'    (L-858, T585, R-738, B610)
+   |    | ['Button6', 'Printer Setup', 'Printer SetupButton']
+   |    | child_window(title="Printer Setup", class_name="TButton")
+   |    | 
+   |    | RadioButton - 'ASCII file (text only)'    (L-1022, T625, R-909, B642)
+   |    | ['RadioButton', 'ASCII file (text only)', 'ASCII file (text only)RadioButton', 'RadioButton0', 'RadioButton1']
+   |    | child_window(title="ASCII file (text only)", class_name="TRadioButton")
+   |    | 
+   |    | RadioButton - 'Printer'    (L-1022, T589, R-909, B606)
+   |    | ['RadioButton2', 'Printer', 'PrinterRadioButton']
+   |    | child_window(title="Printer", class_name="TRadioButton")
+   |    | 
+   |    | TGroupBox - ' Data to print '    (L-1042, T341, R-517, B558)
+   |    | [' Data to print ', ' Data to print TGroupBox', 'TGroupBox2']
+   |    | child_window(title=" Data to print ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | RadioButton - 'All months'    (L-906, T373, R-793, B390)
+   |    |    | ['RadioButton3', 'All months', 'All monthsRadioButton']
+   |    |    | child_window(title="All months", class_name="TRadioButton")
+   |    |    | 
+   |    |    | RadioButton - 'Current month'    (L-906, T357, R-793, B374)
+   |    |    | ['RadioButton4', 'Current monthRadioButton', 'Current month']
+   |    |    | child_window(title="Current month", class_name="TRadioButton")
+   |    |    | 
+   |    |    | CheckBox - 'Irrigation schedule chart'    (L-754, T445, R-577, B462)
+   |    |    | ['Irrigation schedule chartCheckBox', 'CheckBox2', 'Irrigation schedule chart']
+   |    |    | child_window(title="Irrigation schedule chart", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Crop Water Requirements chart'    (L-754, T405, R-577, B422)
+   |    |    | ['CheckBox3', 'Crop Water Requirements chartCheckBox', 'Crop Water Requirements chart']
+   |    |    | child_window(title="Crop Water Requirements chart", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Climate / ETo / Rain chart'    (L-754, T365, R-593, B382)
+   |    |    | ['CheckBox4', 'Climate / ETo / Rain chart', 'Climate / ETo / Rain chartCheckBox']
+   |    |    | child_window(title="Climate / ETo / Rain chart", class_name="TCheckBox")
+   |    |    | 
+   |    |    | Button - 'Select all '    (L-774, T505, R-657, B530)
+   |    |    | ['Button7', 'Select all Button', 'Select all ']
+   |    |    | child_window(title="Select all ", class_name="TButton")
+   |    |    | 
+   |    |    | CheckBox - 'Scheme supply'    (L-1018, T531, R-858, B548)
+   |    |    | ['Scheme supplyCheckBox', 'CheckBox5', 'Scheme supply']
+   |    |    | child_window(title="Scheme supply", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Irrigation schedule'    (L-1018, T507, R-858, B524)
+   |    |    | ['CheckBox6', 'Irrigation schedule', 'Irrigation scheduleCheckBox']
+   |    |    | child_window(title="Irrigation schedule", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Crop water requirements'    (L-1018, T483, R-858, B500)
+   |    |    | ['Crop water requirementsCheckBox', 'Crop water requirements', 'CheckBox7']
+   |    |    | child_window(title="Crop water requirements", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Cropping pattern'    (L-1018, T461, R-921, B478)
+   |    |    | ['CheckBox8', 'Cropping patternCheckBox', 'Cropping pattern']
+   |    |    | child_window(title="Cropping pattern", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Soil'    (L-1018, T437, R-921, B454)
+   |    |    | ['CheckBox9', 'SoilCheckBox', 'Soil']
+   |    |    | child_window(title="Soil", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Crop'    (L-1018, T413, R-921, B430)
+   |    |    | ['CheckBox10', 'Crop', 'CropCheckBox']
+   |    |    | child_window(title="Crop", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Rainfall'    (L-1018, T389, R-921, B406)
+   |    |    | ['Rainfall', 'CheckBox11', 'RainfallCheckBox']
+   |    |    | child_window(title="Rainfall", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Climate / ETo'    (L-1018, T365, R-921, B382)
+   |    |    | ['CheckBox12', 'Climate / ETo', 'Climate / EToCheckBox']
+   |    |    | child_window(title="Climate / ETo", class_name="TCheckBox")
+   |    | 
+   |    | RadioButton - 'All months'    (L-906, T373, R-793, B390)
+   |    | ['RadioButton3', 'All months', 'All monthsRadioButton']
+   |    | child_window(title="All months", class_name="TRadioButton")
+   |    | 
+   |    | RadioButton - 'Current month'    (L-906, T357, R-793, B374)
+   |    | ['RadioButton4', 'Current monthRadioButton', 'Current month']
+   |    | child_window(title="Current month", class_name="TRadioButton")
+   |    | 
+   |    | CheckBox - 'Irrigation schedule chart'    (L-754, T445, R-577, B462)
+   |    | ['Irrigation schedule chartCheckBox', 'CheckBox2', 'Irrigation schedule chart']
+   |    | child_window(title="Irrigation schedule chart", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Crop Water Requirements chart'    (L-754, T405, R-577, B422)
+   |    | ['CheckBox3', 'Crop Water Requirements chartCheckBox', 'Crop Water Requirements chart']
+   |    | child_window(title="Crop Water Requirements chart", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Climate / ETo / Rain chart'    (L-754, T365, R-593, B382)
+   |    | ['CheckBox4', 'Climate / ETo / Rain chart', 'Climate / ETo / Rain chartCheckBox']
+   |    | child_window(title="Climate / ETo / Rain chart", class_name="TCheckBox")
+   |    | 
+   |    | Button - 'Select all '    (L-774, T505, R-657, B530)
+   |    | ['Button7', 'Select all Button', 'Select all ']
+   |    | child_window(title="Select all ", class_name="TButton")
+   |    | 
+   |    | CheckBox - 'Scheme supply'    (L-1018, T531, R-858, B548)
+   |    | ['Scheme supplyCheckBox', 'CheckBox5', 'Scheme supply']
+   |    | child_window(title="Scheme supply", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Irrigation schedule'    (L-1018, T507, R-858, B524)
+   |    | ['CheckBox6', 'Irrigation schedule', 'Irrigation scheduleCheckBox']
+   |    | child_window(title="Irrigation schedule", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Crop water requirements'    (L-1018, T483, R-858, B500)
+   |    | ['Crop water requirementsCheckBox', 'Crop water requirements', 'CheckBox7']
+   |    | child_window(title="Crop water requirements", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Cropping pattern'    (L-1018, T461, R-921, B478)
+   |    | ['CheckBox8', 'Cropping patternCheckBox', 'Cropping pattern']
+   |    | child_window(title="Cropping pattern", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Soil'    (L-1018, T437, R-921, B454)
+   |    | ['CheckBox9', 'SoilCheckBox', 'Soil']
+   |    | child_window(title="Soil", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Crop'    (L-1018, T413, R-921, B430)
+   |    | ['CheckBox10', 'Crop', 'CropCheckBox']
+   |    | child_window(title="Crop", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Rainfall'    (L-1018, T389, R-921, B406)
+   |    | ['Rainfall', 'CheckBox11', 'RainfallCheckBox']
+   |    | child_window(title="Rainfall", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Climate / ETo'    (L-1018, T365, R-921, B382)
+   |    | ['CheckBox12', 'Climate / ETo', 'Climate / EToCheckBox']
+   |    | child_window(title="Climate / ETo", class_name="TCheckBox")
+   | 
+   | Button - 'Help'    (L-600, T665, R-525, B690)
+   | ['Button', 'HelpButton', 'Help', 'Button0', 'Button1']
+   | child_window(title="Help", class_name="TButton")
+   | 
+   | Button - 'Font'    (L-1042, T665, R-942, B690)
+   | ['Button2', 'Font', 'FontButton']
+   | child_window(title="Font", class_name="TButton")
+   | 
+   | Button - 'Preview'    (L-938, T665, R-838, B690)
+   | ['Button3', 'PreviewButton', 'Preview']
+   | child_window(title="Preview", class_name="TButton")
+   | 
+   | Button - 'Cancel'    (L-680, T665, R-605, B690)
+   | ['Button4', 'CancelButton', 'Cancel']
+   | child_window(title="Cancel", class_name="TButton")
+   | 
+   | Button - 'OK'    (L-760, T665, R-685, B690)
+   | ['Button5', 'OKButton', 'OK']
+   | child_window(title="OK", class_name="TButton")
+   | 
+   | TGroupBox - ' Print destination '    (L-1042, T565, R-517, B650)
+   | [' Print destination TGroupBox', ' Print destination ', 'TGroupBox', 'TGroupBox0', 'TGroupBox1']
+   | child_window(title=" Print destination ", class_name="TGroupBox")
+   |    | 
+   |    | CheckBox - 'Use commas for column separation in tables'    (L-858, T625, R-625, B642)
+   |    | ['CheckBox', 'Use commas for column separation in tables', 'Use commas for column separation in tablesCheckBox', 'CheckBox0', 'CheckBox1']
+   |    | child_window(title="Use commas for column separation in tables", class_name="TCheckBox")
+   |    | 
+   |    | Button - 'Printer Setup'    (L-858, T585, R-738, B610)
+   |    | ['Button6', 'Printer Setup', 'Printer SetupButton']
+   |    | child_window(title="Printer Setup", class_name="TButton")
+   |    | 
+   |    | RadioButton - 'ASCII file (text only)'    (L-1022, T625, R-909, B642)
+   |    | ['RadioButton', 'ASCII file (text only)', 'ASCII file (text only)RadioButton', 'RadioButton0', 'RadioButton1']
+   |    | child_window(title="ASCII file (text only)", class_name="TRadioButton")
+   |    | 
+   |    | RadioButton - 'Printer'    (L-1022, T589, R-909, B606)
+   |    | ['RadioButton2', 'Printer', 'PrinterRadioButton']
+   |    | child_window(title="Printer", class_name="TRadioButton")
+   | 
+   | CheckBox - 'Use commas for column separation in tables'    (L-858, T625, R-625, B642)
+   | ['CheckBox', 'Use commas for column separation in tables', 'Use commas for column separation in tablesCheckBox', 'CheckBox0', 'CheckBox1']
+   | child_window(title="Use commas for column separation in tables", class_name="TCheckBox")
+   | 
+   | Button - 'Printer Setup'    (L-858, T585, R-738, B610)
+   | ['Button6', 'Printer Setup', 'Printer SetupButton']
+   | child_window(title="Printer Setup", class_name="TButton")
+   | 
+   | RadioButton - 'ASCII file (text only)'    (L-1022, T625, R-909, B642)
+   | ['RadioButton', 'ASCII file (text only)', 'ASCII file (text only)RadioButton', 'RadioButton0', 'RadioButton1']
+   | child_window(title="ASCII file (text only)", class_name="TRadioButton")
+   | 
+   | RadioButton - 'Printer'    (L-1022, T589, R-909, B606)
+   | ['RadioButton2', 'Printer', 'PrinterRadioButton']
+   | child_window(title="Printer", class_name="TRadioButton")
+   | 
+   | TGroupBox - ' Data to print '    (L-1042, T341, R-517, B558)
+   | [' Data to print ', ' Data to print TGroupBox', 'TGroupBox2']
+   | child_window(title=" Data to print ", class_name="TGroupBox")
+   |    | 
+   |    | RadioButton - 'All months'    (L-906, T373, R-793, B390)
+   |    | ['RadioButton3', 'All months', 'All monthsRadioButton']
+   |    | child_window(title="All months", class_name="TRadioButton")
+   |    | 
+   |    | RadioButton - 'Current month'    (L-906, T357, R-793, B374)
+   |    | ['RadioButton4', 'Current monthRadioButton', 'Current month']
+   |    | child_window(title="Current month", class_name="TRadioButton")
+   |    | 
+   |    | CheckBox - 'Irrigation schedule chart'    (L-754, T445, R-577, B462)
+   |    | ['Irrigation schedule chartCheckBox', 'CheckBox2', 'Irrigation schedule chart']
+   |    | child_window(title="Irrigation schedule chart", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Crop Water Requirements chart'    (L-754, T405, R-577, B422)
+   |    | ['CheckBox3', 'Crop Water Requirements chartCheckBox', 'Crop Water Requirements chart']
+   |    | child_window(title="Crop Water Requirements chart", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Climate / ETo / Rain chart'    (L-754, T365, R-593, B382)
+   |    | ['CheckBox4', 'Climate / ETo / Rain chart', 'Climate / ETo / Rain chartCheckBox']
+   |    | child_window(title="Climate / ETo / Rain chart", class_name="TCheckBox")
+   |    | 
+   |    | Button - 'Select all '    (L-774, T505, R-657, B530)
+   |    | ['Button7', 'Select all Button', 'Select all ']
+   |    | child_window(title="Select all ", class_name="TButton")
+   |    | 
+   |    | CheckBox - 'Scheme supply'    (L-1018, T531, R-858, B548)
+   |    | ['Scheme supplyCheckBox', 'CheckBox5', 'Scheme supply']
+   |    | child_window(title="Scheme supply", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Irrigation schedule'    (L-1018, T507, R-858, B524)
+   |    | ['CheckBox6', 'Irrigation schedule', 'Irrigation scheduleCheckBox']
+   |    | child_window(title="Irrigation schedule", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Crop water requirements'    (L-1018, T483, R-858, B500)
+   |    | ['Crop water requirementsCheckBox', 'Crop water requirements', 'CheckBox7']
+   |    | child_window(title="Crop water requirements", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Cropping pattern'    (L-1018, T461, R-921, B478)
+   |    | ['CheckBox8', 'Cropping patternCheckBox', 'Cropping pattern']
+   |    | child_window(title="Cropping pattern", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Soil'    (L-1018, T437, R-921, B454)
+   |    | ['CheckBox9', 'SoilCheckBox', 'Soil']
+   |    | child_window(title="Soil", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Crop'    (L-1018, T413, R-921, B430)
+   |    | ['CheckBox10', 'Crop', 'CropCheckBox']
+   |    | child_window(title="Crop", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Rainfall'    (L-1018, T389, R-921, B406)
+   |    | ['Rainfall', 'CheckBox11', 'RainfallCheckBox']
+   |    | child_window(title="Rainfall", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Climate / ETo'    (L-1018, T365, R-921, B382)
+   |    | ['CheckBox12', 'Climate / ETo', 'Climate / EToCheckBox']
+   |    | child_window(title="Climate / ETo", class_name="TCheckBox")
+   | 
+   | RadioButton - 'All months'    (L-906, T373, R-793, B390)
+   | ['RadioButton3', 'All months', 'All monthsRadioButton']
+   | child_window(title="All months", class_name="TRadioButton")
+   | 
+   | RadioButton - 'Current month'    (L-906, T357, R-793, B374)
+   | ['RadioButton4', 'Current monthRadioButton', 'Current month']
+   | child_window(title="Current month", class_name="TRadioButton")
+   | 
+   | CheckBox - 'Irrigation schedule chart'    (L-754, T445, R-577, B462)
+   | ['Irrigation schedule chartCheckBox', 'CheckBox2', 'Irrigation schedule chart']
+   | child_window(title="Irrigation schedule chart", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Crop Water Requirements chart'    (L-754, T405, R-577, B422)
+   | ['CheckBox3', 'Crop Water Requirements chartCheckBox', 'Crop Water Requirements chart']
+   | child_window(title="Crop Water Requirements chart", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Climate / ETo / Rain chart'    (L-754, T365, R-593, B382)
+   | ['CheckBox4', 'Climate / ETo / Rain chart', 'Climate / ETo / Rain chartCheckBox']
+   | child_window(title="Climate / ETo / Rain chart", class_name="TCheckBox")
+   | 
+   | Button - 'Select all '    (L-774, T505, R-657, B530)
+   | ['Button7', 'Select all Button', 'Select all ']
+   | child_window(title="Select all ", class_name="TButton")
+   | 
+   | CheckBox - 'Scheme supply'    (L-1018, T531, R-858, B548)
+   | ['Scheme supplyCheckBox', 'CheckBox5', 'Scheme supply']
+   | child_window(title="Scheme supply", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Irrigation schedule'    (L-1018, T507, R-858, B524)
+   | ['CheckBox6', 'Irrigation schedule', 'Irrigation scheduleCheckBox']
+   | child_window(title="Irrigation schedule", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Crop water requirements'    (L-1018, T483, R-858, B500)
+   | ['Crop water requirementsCheckBox', 'Crop water requirements', 'CheckBox7']
+   | child_window(title="Crop water requirements", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Cropping pattern'    (L-1018, T461, R-921, B478)
+   | ['CheckBox8', 'Cropping patternCheckBox', 'Cropping pattern']
+   | child_window(title="Cropping pattern", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Soil'    (L-1018, T437, R-921, B454)
+   | ['CheckBox9', 'SoilCheckBox', 'Soil']
+   | child_window(title="Soil", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Crop'    (L-1018, T413, R-921, B430)
+   | ['CheckBox10', 'Crop', 'CropCheckBox']
+   | child_window(title="Crop", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Rainfall'    (L-1018, T389, R-921, B406)
+   | ['Rainfall', 'CheckBox11', 'RainfallCheckBox']
+   | child_window(title="Rainfall", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Climate / ETo'    (L-1018, T365, R-921, B382)
+   | ['CheckBox12', 'Climate / ETo', 'Climate / EToCheckBox']
+   | child_window(title="Climate / ETo", class_name="TCheckBox")

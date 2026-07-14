@@ -1,0 +1,97 @@
+
+======================================================================
+โครงสร้างของหน้าต่าง: Open
+======================================================================
+Control Identifiers:
+
+Dialog - 'Open'    (L-1047, T475, R-611, B753)
+['Dialog', 'Open', 'OpenDialog']
+child_window(title="Open", class_name="#32770")
+   | 
+   | Static - 'Look &in:'    (L-1028, T516, R-987, B529)
+   | ['Look &in:', 'Look &in:Static', 'Static', 'Static0', 'Static1']
+   | child_window(title="Look &in:", class_name="Static")
+   | 
+   | ComboBox - '06_Jun'    (L-985, T511, R-763, B533)
+   | ['ComboBox', 'Look &in:ComboBox', 'ComboBox0', 'ComboBox1']
+   | child_window(title="06_Jun", class_name="ComboBox")
+   | 
+   | Static - ''    (L-760, T511, R-628, B537)
+   | ['OpenStatic', 'Static2']
+   | child_window(class_name="Static")
+   | 
+   | Toolbar - ''    (L-760, T511, R-628, B537)
+   | ['Toolbar', 'OpenToolbar']
+   | child_window(class_name="ToolbarWindow32")
+   | 
+   | ListBox - ''    (L-1033, T539, R-625, B677)
+   | ['Look &in:ListBox', 'ListBox']
+   | child_window(class_name="ListBox")
+   | 
+   | SHELLDLL_DefView - ''    (L-1033, T539, R-625, B677)
+   | ['SHELLDLL_DefView', 'Look &in:SHELLDLL_DefView']
+   | child_window(class_name="SHELLDLL_DefView")
+   |    | 
+   |    | ListView - 'FolderView'    (L-1033, T539, R-625, B677)
+   |    | ['FolderView', 'FolderViewListView', 'ListView']
+   |    | child_window(title="FolderView", class_name="SysListView32")
+   |    |    | 
+   |    |    | Header - ''    (L-1033, T539, R-642, B563)
+   |    |    | ['Look &in:Header', 'Header']
+   |    |    | child_window(class_name="SysHeader32")
+   |    | 
+   |    | Header - ''    (L-1033, T539, R-642, B563)
+   |    | ['Look &in:Header', 'Header']
+   |    | child_window(class_name="SysHeader32")
+   | 
+   | ListView - 'FolderView'    (L-1033, T539, R-625, B677)
+   | ['FolderView', 'FolderViewListView', 'ListView']
+   | child_window(title="FolderView", class_name="SysListView32")
+   |    | 
+   |    | Header - ''    (L-1033, T539, R-642, B563)
+   |    | ['Look &in:Header', 'Header']
+   |    | child_window(class_name="SysHeader32")
+   | 
+   | Header - ''    (L-1033, T539, R-642, B563)
+   | ['Look &in:Header', 'Header']
+   | child_window(class_name="SysHeader32")
+   | 
+   | Static - 'File &name:'    (L-1031, T688, R-959, B701)
+   | ['File &name:Static', 'File &name:', 'Static3']
+   | child_window(title="File &name:", class_name="Static")
+   | 
+   | Edit - ''    (L-958, T686, R-725, B706)
+   | ['File &name:Edit', 'Edit']
+   | child_window(class_name="Edit")
+   | 
+   | Static - 'Files of &type:'    (L-1031, T719, R-959, B732)
+   | ['Files of &type:Static', 'Files of &type:', 'Static4']
+   | child_window(title="Files of &type:", class_name="Static")
+   | 
+   | ComboBox - 'All ETo files'    (L-958, T716, R-725, B737)
+   | ['ComboBox2', 'Files of &type:ComboBox']
+   | child_window(title="All ETo files", class_name="ComboBox")
+   | 
+   | CheckBox - 'Open as &read-only'    (L-958, T747, R-847, B763)
+   | ['Open as &read-only', 'CheckBox', 'Open as &read-onlyCheckBox']
+   | child_window(title="Open as &read-only", class_name="Button")
+   | 
+   | Button - '&Open'    (L-706, T685, R-631, B708)
+   | ['Button', '&OpenButton', '&Open', 'Button0', 'Button1']
+   | child_window(title="&Open", class_name="Button")
+   | 
+   | Button - 'Cancel'    (L-706, T714, R-631, B737)
+   | ['Button2', 'Cancel', 'CancelButton']
+   | child_window(title="Cancel", class_name="Button")
+   | 
+   | Button - '&Help'    (L-706, T742, R-631, B765)
+   | ['Button3', '&Help', '&HelpButton']
+   | child_window(title="&Help", class_name="Button")
+   | 
+   | ScrollBar - ''    (L-636, T728, R-619, B745)
+   | ['ScrollBar', 'CancelScrollBar']
+   | child_window(class_name="ScrollBar")
+   | 
+   | #32770 - ''    (L-1039, T506, R-1039, B745)
+   | ['Open#32770', '#32770']
+   | child_window(class_name="#32770")

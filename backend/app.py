@@ -1,0 +1,214 @@
+"""
+app.py
+======
+FastAPI entrypoint — REST API + WebSocket ให้ frontend (localhost) เรียกใช้
+
+รันด้วย:
+    uvicorn app:app --host 127.0.0.1 --port 8000
+(รันจากภายในโฟลเดอร์ backend/ — อย่าใช้ --reload ตอนใช้งานจริง เพราะ background
+thread ที่คุม pywinauto จะไม่รอด reload)
+
+หน้าเว็บ (frontend/) ถูก mount ไว้ที่ "/" อยู่แล้ว เปิด http://127.0.0.1:8000 ได้เลย
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+import runner
+from config import Settings, excel_path, load_settings, save_settings
+from file_engine import paths as file_paths
+from models import RunRequest, ScanResult, StateSnapshot, StationScan, YearRunStatus
+from state import run_state
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("app")
+
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+
+app = FastAPI(title="CropWat Auto-runner")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+async def on_startup() -> None:
+    run_state.bind_loop(asyncio.get_running_loop())
+    settings = load_settings()
+    run_state.init_years(settings.default_start_year, settings.default_end_year)
+
+
+# ---------------------------------------------------------------------------
+# Config (หน้าตั้งค่า path ไฟล์ต่างๆ — ขั้นที่ 5 จะทำหน้า UI มาเรียก endpoint นี้)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/config", response_model=Settings)
+async def get_config() -> Settings:
+    return load_settings()
+
+
+@app.put("/api/config", response_model=Settings)
+async def update_config(settings: Settings) -> Settings:
+    save_settings(settings)
+    return settings
+
+
+# ---------------------------------------------------------------------------
+# Scan โฟลเดอร์ต้นทาง (หน้าตั้งค่า) — หา climate/rain station, crop, soil ให้เอง
+# และรายงานว่าปีไหนมีไฟล์ครบ/ขาดบ้าง ก่อนเริ่มรันจริง
+# ---------------------------------------------------------------------------
+
+def _scan_station(root: Path, prefix: str, index_fn) -> tuple[list[str], StationScan | None, list[str]]:
+    folders = file_paths.find_station_folders(root, prefix)
+    names = [str(p) for p in folders]
+    if len(folders) != 1:
+        return names, None, []
+    index = index_fn(folders[0])
+    years = index.available_years()
+    if not years:
+        return names, StationScan(folder=str(folders[0]), years=[], missing_years=[]), []
+    missing = [y for y in range(years[0], years[-1] + 1) if y not in years]
+    return names, StationScan(folder=str(folders[0]), years=years, missing_years=missing), []
+
+
+@app.get("/api/scan", response_model=ScanResult)
+async def scan_input_dir() -> ScanResult:
+    settings = load_settings()
+    if not settings.input_dir:
+        return ScanResult(errors=["ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง"])
+
+    root = Path(settings.input_dir)
+    if not root.is_dir():
+        return ScanResult(errors=[f"ไม่พบโฟลเดอร์: {root}"])
+
+    climate_folders, climate_scan, _ = _scan_station(root, "Clim_", file_paths.index_climate_station)
+    rain_folders, rain_scan, _ = _scan_station(root, "Rain_", file_paths.index_rain_station)
+    crop_files = [str(p) for p in file_paths.find_files_by_extension(root, ".cro")]
+    soil_files = [str(p) for p in file_paths.find_files_by_extension(root, ".soi")]
+
+    return ScanResult(
+        climate_station_folders=climate_folders,
+        rain_station_folders=rain_folders,
+        crop_files=crop_files,
+        soil_files=soil_files,
+        climate=climate_scan,
+        rain=rain_scan,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Status (Dashboard หลัก)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/status", response_model=StateSnapshot)
+async def get_status() -> StateSnapshot:
+    return run_state.snapshot()
+
+
+# ---------------------------------------------------------------------------
+# Run control
+# ---------------------------------------------------------------------------
+
+@app.post("/api/run/start", response_model=StateSnapshot)
+async def start_run(req: RunRequest) -> StateSnapshot:
+    if req.start_year > req.end_year:
+        raise HTTPException(400, "start_year ต้องไม่มากกว่า end_year")
+    if runner.is_run_active():
+        raise HTTPException(409, "มีการรันอยู่แล้ว กรุณารอให้เสร็จหรือกดหยุดก่อน")
+
+    settings = load_settings()
+    run_state.init_years(req.start_year, req.end_year)
+    years = list(range(req.start_year, req.end_year + 1))
+    runner.start_run(years, settings)
+    return run_state.snapshot()
+
+
+@app.post("/api/run/retry", response_model=StateSnapshot)
+async def retry_errors() -> StateSnapshot:
+    if runner.is_run_active():
+        raise HTTPException(409, "มีการรันอยู่แล้ว กรุณารอให้เสร็จหรือกดหยุดก่อน")
+
+    error_years = run_state.get_error_years()
+    if not error_years:
+        raise HTTPException(400, "ไม่มีปีที่สถานะ 'มีปัญหา' ให้รันใหม่")
+
+    settings = load_settings()
+    runner.start_run(error_years, settings)
+    return run_state.snapshot()
+
+
+@app.post("/api/run/year/{year}", response_model=StateSnapshot)
+async def run_one_year(year: int) -> StateSnapshot:
+    if runner.is_run_active():
+        raise HTTPException(409, "มีการรันอยู่แล้ว กรุณารอให้เสร็จหรือกดหยุดก่อน")
+
+    settings = load_settings()
+    runner.start_run([year], settings)
+    return run_state.snapshot()
+
+
+@app.post("/api/run/stop", response_model=StateSnapshot)
+async def stop_run() -> StateSnapshot:
+    run_state.request_stop()
+    return run_state.snapshot()
+
+
+# ---------------------------------------------------------------------------
+# เฟส 2: สร้าง/อัปเดต Excel — อ่าน .txt ทั้งหมดที่มีอยู่จริง เขียนทับ sheet Result
+# ใหม่ทั้งแผ่น เรียกซ้ำได้ทุกเมื่อ ไม่ต้องรอเฟส 1 (รัน CropWat) เสร็จก่อน
+# ---------------------------------------------------------------------------
+
+@app.post("/api/build-excel")
+async def build_excel() -> dict:
+    settings = load_settings()
+    if not settings.output_dir:
+        raise HTTPException(400, "ยังไม่ได้ตั้งค่าโฟลเดอร์ผลลัพธ์")
+    try:
+        years_written = await asyncio.to_thread(runner.build_excel, settings)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"years_written": years_written, "path": str(excel_path(settings))}
+
+
+@app.get("/api/download")
+async def download_excel_master() -> FileResponse:
+    settings = load_settings()
+    path = excel_path(settings)
+    if not settings.output_dir or not path.exists():
+        raise HTTPException(404, "ยังไม่พบไฟล์ Result.xlsx (ลองกด 'สร้าง/อัปเดต Excel' ก่อน)")
+    return FileResponse(path, filename=path.name)
+
+
+# ---------------------------------------------------------------------------
+# WebSocket: push สถานะแบบ real-time ทุกครั้งที่มีการเปลี่ยนแปลง
+# ---------------------------------------------------------------------------
+
+@app.websocket("/ws")
+async def ws_status(websocket: WebSocket) -> None:
+    await websocket.accept()
+    queue = run_state.subscribe()
+    try:
+        await websocket.send_json(run_state.snapshot().model_dump())
+        while True:
+            snapshot = await queue.get()
+            await websocket.send_json(snapshot.model_dump())
+    except WebSocketDisconnect:
+        pass
+    finally:
+        run_state.unsubscribe(queue)
+
+
+# frontend เว็บหน้าเดียว — mount ทีหลังสุดเพื่อไม่ให้บัง /api และ /ws
+app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

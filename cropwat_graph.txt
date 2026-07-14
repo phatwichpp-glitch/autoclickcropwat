@@ -1,0 +1,1765 @@
+
+======================================================================
+โครงสร้างของหน้าต่าง: CROPWAT - Session: untitled
+======================================================================
+Control Identifiers:
+
+TMainForm - 'CROPWAT - Session: untitled'    (L-1928, T-8, R8, B1040)
+['CROPWAT - Session: untitled', 'CROPWAT - Session: untitledTMainForm', 'TMainForm']
+child_window(title="CROPWAT - Session: untitled", class_name="TMainForm")
+   | 
+   | Static - ''    (L-1920, T86, R-1831, B972)
+   | ['CROPWAT - Session: untitledStatic', 'Static', 'Static0', 'Static1']
+   | child_window(class_name="TPanel")
+   | 
+   | StatusBar - ''    (L-1920, T1013, R0, B1032)
+   | ['StatusBar', '425201clim_1981jun.pedStatusBar']
+   | child_window(class_name="TStatusBar")
+   | 
+   | Static - ''    (L-1920, T43, R0, B86)
+   | ['Static2']
+   | child_window(class_name="TPanel")
+   |    | 
+   |    | Toolbar - 'MainToolbar'    (L-1834, T45, R-1476, B83)
+   |    | ['MainToolbarToolbar', 'MainToolbar', 'Toolbar']
+   |    | child_window(title="MainToolbar", class_name="TToolBar")
+   | 
+   | Toolbar - 'MainToolbar'    (L-1834, T45, R-1476, B83)
+   | ['MainToolbarToolbar', 'MainToolbar', 'Toolbar']
+   | child_window(title="MainToolbar", class_name="TToolBar")
+   | 
+   | Static - ''    (L-1920, T972, R0, B1013)
+   | ['Static3', '425201clim_1981jun.pedStatic', '425201clim_1981jun.pedStatic0', '425201clim_1981jun.pedStatic1']
+   | child_window(class_name="TPanel")
+   |    | 
+   |    | Static - ''    (L-1675, T974, R-1432, B1011)
+   |    | ['Static4', '425201clim_1981jun.pedStatic2']
+   |    | child_window(class_name="TPanel")
+   |    |    | 
+   |    |    | Static - 'rain_450006_1981jun.crd'    (L-1673, T994, R-1434, B1009)
+   |    |    | ['rain_450006_1981jun.crd', 'Static5', 'rain_450006_1981jun.crdStatic', 'rain_450006_1981jun.crdStatic0', 'rain_450006_1981jun.crdStatic1']
+   |    |    | child_window(title="rain_450006_1981jun.crd", class_name="TPanel")
+   |    | 
+   |    | Static - 'rain_450006_1981jun.crd'    (L-1673, T994, R-1434, B1009)
+   |    | ['rain_450006_1981jun.crd', 'Static5', 'rain_450006_1981jun.crdStatic', 'rain_450006_1981jun.crdStatic0', 'rain_450006_1981jun.crdStatic1']
+   |    | child_window(title="rain_450006_1981jun.crd", class_name="TPanel")
+   |    | 
+   |    | Static - ''    (L-1918, T974, R-1675, B1011)
+   |    | ['Static6', '425201clim_1981jun.pedStatic3']
+   |    | child_window(class_name="TPanel")
+   |    |    | 
+   |    |    | Static - '425201clim_1981jun.ped'    (L-1916, T994, R-1677, B1009)
+   |    |    | ['425201clim_1981jun.ped', 'Static7', '425201clim_1981jun.pedStatic4']
+   |    |    | child_window(title="425201clim_1981jun.ped", class_name="TPanel")
+   |    | 
+   |    | Static - '425201clim_1981jun.ped'    (L-1916, T994, R-1677, B1009)
+   |    | ['425201clim_1981jun.ped', 'Static7', '425201clim_1981jun.pedStatic4']
+   |    | child_window(title="425201clim_1981jun.ped", class_name="TPanel")
+   |    | 
+   |    | Static - ''    (L-1432, T974, R-1189, B1011)
+   |    | ['Static8', '425201clim_1981jun.pedStatic5', 'rain_450006_1981jun.crdStatic2']
+   |    | child_window(class_name="TPanel")
+   |    |    | 
+   |    |    | Static - 'maize_120.cro'    (L-1430, T994, R-1191, B1009)
+   |    |    | ['maize_120.cro', 'maize_120.croStatic', 'Static9', 'maize_120.croStatic0', 'maize_120.croStatic1']
+   |    |    | child_window(title="maize_120.cro", class_name="TPanel")
+   |    | 
+   |    | Static - 'maize_120.cro'    (L-1430, T994, R-1191, B1009)
+   |    | ['maize_120.cro', 'maize_120.croStatic', 'Static9', 'maize_120.croStatic0', 'maize_120.croStatic1']
+   |    | child_window(title="maize_120.cro", class_name="TPanel")
+   |    | 
+   |    | Static - ''    (L-1189, T974, R-946, B1011)
+   |    | ['maize_120.croStatic2', 'Static10']
+   |    | child_window(class_name="TPanel")
+   |    |    | 
+   |    |    | Static - 'sandy loam.soi'    (L-1187, T994, R-948, B1009)
+   |    |    | ['sandy loam.soiStatic', 'Static11', 'sandy loam.soi', 'sandy loam.soiStatic0', 'sandy loam.soiStatic1']
+   |    |    | child_window(title="sandy loam.soi", class_name="TPanel")
+   |    | 
+   |    | Static - 'sandy loam.soi'    (L-1187, T994, R-948, B1009)
+   |    | ['sandy loam.soiStatic', 'Static11', 'sandy loam.soi', 'sandy loam.soiStatic0', 'sandy loam.soiStatic1']
+   |    | child_window(title="sandy loam.soi", class_name="TPanel")
+   |    | 
+   |    | Static - ''    (L-946, T974, R-703, B1011)
+   |    | ['sandy loam.soiStatic2', 'Static12']
+   |    | child_window(class_name="TPanel")
+   |    |    | 
+   |    |    | Static - '01/04'    (L-944, T994, R-705, B1009)
+   |    |    | ['01/04Static', 'Static13', '01/04', '01/04Static0', '01/04Static1']
+   |    |    | child_window(title="01/04", class_name="TPanel")
+   |    | 
+   |    | Static - '01/04'    (L-944, T994, R-705, B1009)
+   |    | ['01/04Static', 'Static13', '01/04', '01/04Static0', '01/04Static1']
+   |    | child_window(title="01/04", class_name="TPanel")
+   |    | 
+   |    | Static - ''    (L-703, T974, R-460, B1011)
+   |    | ['01/04Static2', 'Static14']
+   |    | child_window(class_name="TPanel")
+   |    |    | 
+   |    |    | Static - ''    (L-701, T994, R-462, B1009)
+   |    |    | ['01/04Static3', 'Static15']
+   |    |    | child_window(class_name="TPanel")
+   |    | 
+   |    | Static - ''    (L-701, T994, R-462, B1009)
+   |    | ['01/04Static3', 'Static15']
+   |    | child_window(class_name="TPanel")
+   |    | 
+   |    | Static - ''    (L-460, T974, R-217, B1011)
+   |    | ['01/04Static4', 'Static16']
+   |    | child_window(class_name="TPanel")
+   |    |    | 
+   |    |    | Static - ''    (L-458, T994, R-219, B1009)
+   |    |    | ['01/04Static5', 'Static17']
+   |    |    | child_window(class_name="TPanel")
+   |    | 
+   |    | Static - ''    (L-458, T994, R-219, B1009)
+   |    | ['01/04Static5', 'Static17']
+   |    | child_window(class_name="TPanel")
+   | 
+   | Static - ''    (L-1675, T974, R-1432, B1011)
+   | ['Static4', '425201clim_1981jun.pedStatic2']
+   | child_window(class_name="TPanel")
+   |    | 
+   |    | Static - 'rain_450006_1981jun.crd'    (L-1673, T994, R-1434, B1009)
+   |    | ['rain_450006_1981jun.crd', 'Static5', 'rain_450006_1981jun.crdStatic', 'rain_450006_1981jun.crdStatic0', 'rain_450006_1981jun.crdStatic1']
+   |    | child_window(title="rain_450006_1981jun.crd", class_name="TPanel")
+   | 
+   | Static - 'rain_450006_1981jun.crd'    (L-1673, T994, R-1434, B1009)
+   | ['rain_450006_1981jun.crd', 'Static5', 'rain_450006_1981jun.crdStatic', 'rain_450006_1981jun.crdStatic0', 'rain_450006_1981jun.crdStatic1']
+   | child_window(title="rain_450006_1981jun.crd", class_name="TPanel")
+   | 
+   | Static - ''    (L-1918, T974, R-1675, B1011)
+   | ['Static6', '425201clim_1981jun.pedStatic3']
+   | child_window(class_name="TPanel")
+   |    | 
+   |    | Static - '425201clim_1981jun.ped'    (L-1916, T994, R-1677, B1009)
+   |    | ['425201clim_1981jun.ped', 'Static7', '425201clim_1981jun.pedStatic4']
+   |    | child_window(title="425201clim_1981jun.ped", class_name="TPanel")
+   | 
+   | Static - '425201clim_1981jun.ped'    (L-1916, T994, R-1677, B1009)
+   | ['425201clim_1981jun.ped', 'Static7', '425201clim_1981jun.pedStatic4']
+   | child_window(title="425201clim_1981jun.ped", class_name="TPanel")
+   | 
+   | Static - ''    (L-1432, T974, R-1189, B1011)
+   | ['Static8', '425201clim_1981jun.pedStatic5', 'rain_450006_1981jun.crdStatic2']
+   | child_window(class_name="TPanel")
+   |    | 
+   |    | Static - 'maize_120.cro'    (L-1430, T994, R-1191, B1009)
+   |    | ['maize_120.cro', 'maize_120.croStatic', 'Static9', 'maize_120.croStatic0', 'maize_120.croStatic1']
+   |    | child_window(title="maize_120.cro", class_name="TPanel")
+   | 
+   | Static - 'maize_120.cro'    (L-1430, T994, R-1191, B1009)
+   | ['maize_120.cro', 'maize_120.croStatic', 'Static9', 'maize_120.croStatic0', 'maize_120.croStatic1']
+   | child_window(title="maize_120.cro", class_name="TPanel")
+   | 
+   | Static - ''    (L-1189, T974, R-946, B1011)
+   | ['maize_120.croStatic2', 'Static10']
+   | child_window(class_name="TPanel")
+   |    | 
+   |    | Static - 'sandy loam.soi'    (L-1187, T994, R-948, B1009)
+   |    | ['sandy loam.soiStatic', 'Static11', 'sandy loam.soi', 'sandy loam.soiStatic0', 'sandy loam.soiStatic1']
+   |    | child_window(title="sandy loam.soi", class_name="TPanel")
+   | 
+   | Static - 'sandy loam.soi'    (L-1187, T994, R-948, B1009)
+   | ['sandy loam.soiStatic', 'Static11', 'sandy loam.soi', 'sandy loam.soiStatic0', 'sandy loam.soiStatic1']
+   | child_window(title="sandy loam.soi", class_name="TPanel")
+   | 
+   | Static - ''    (L-946, T974, R-703, B1011)
+   | ['sandy loam.soiStatic2', 'Static12']
+   | child_window(class_name="TPanel")
+   |    | 
+   |    | Static - '01/04'    (L-944, T994, R-705, B1009)
+   |    | ['01/04Static', 'Static13', '01/04', '01/04Static0', '01/04Static1']
+   |    | child_window(title="01/04", class_name="TPanel")
+   | 
+   | Static - '01/04'    (L-944, T994, R-705, B1009)
+   | ['01/04Static', 'Static13', '01/04', '01/04Static0', '01/04Static1']
+   | child_window(title="01/04", class_name="TPanel")
+   | 
+   | Static - ''    (L-703, T974, R-460, B1011)
+   | ['01/04Static2', 'Static14']
+   | child_window(class_name="TPanel")
+   |    | 
+   |    | Static - ''    (L-701, T994, R-462, B1009)
+   |    | ['01/04Static3', 'Static15']
+   |    | child_window(class_name="TPanel")
+   | 
+   | Static - ''    (L-701, T994, R-462, B1009)
+   | ['01/04Static3', 'Static15']
+   | child_window(class_name="TPanel")
+   | 
+   | Static - ''    (L-460, T974, R-217, B1011)
+   | ['01/04Static4', 'Static16']
+   | child_window(class_name="TPanel")
+   |    | 
+   |    | Static - ''    (L-458, T994, R-219, B1009)
+   |    | ['01/04Static5', 'Static17']
+   |    | child_window(class_name="TPanel")
+   | 
+   | Static - ''    (L-458, T994, R-219, B1009)
+   | ['01/04Static5', 'Static17']
+   | child_window(class_name="TPanel")
+   | 
+   | MDIClient - ''    (L-1831, T86, R0, B972)
+   | ['MDIClient', 'Irrigation scheduleMDIClient']
+   | child_window(class_name="MDIClient")
+   |    | 
+   |    | TCropScheduleGraph - 'Irrigation scheduling graph'    (L-1711, T92, R-103, B968)
+   |    | ['Irrigation scheduling graphTCropScheduleGraph', 'TCropScheduleGraph', 'Irrigation scheduling graph']
+   |    | child_window(title="Irrigation scheduling graph", class_name="TCropScheduleGraph")
+   |    |    | 
+   |    |    | TScrollBox - ''    (L-1703, T903, R-111, B960)
+   |    |    | ['DepletionTScrollBox', 'TScrollBox', 'TScrollBox0', 'TScrollBox1']
+   |    |    | child_window(class_name="TScrollBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'as Bar'    (L-1662, T935, R-1550, B952)
+   |    |    |    | ['CheckBox', 'as Bar', 'as BarCheckBox', 'CheckBox0', 'CheckBox1']
+   |    |    |    | child_window(title="as Bar", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - '3D'    (L-1176, T919, R-1124, B936)
+   |    |    |    | ['CheckBox2', '3DCheckBox', '3D']
+   |    |    |    | child_window(title="3D", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Total available moisture (TAM)'    (L-1474, T935, R-1318, B952)
+   |    |    |    | ['CheckBox3', 'Total available moisture (TAM)CheckBox', 'Total available moisture (TAM)']
+   |    |    |    | child_window(title="Total available moisture (TAM)", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Depletion'    (L-1686, T919, R-1574, B936)
+   |    |    |    | ['CheckBox4', 'DepletionCheckBox', 'Depletion']
+   |    |    |    | child_window(title="Depletion", class_name="TCheckBox")
+   |    |    |    | 
+   |    |    |    | CheckBox - 'Readily Available Moisture (RAM)'    (L-1474, T911, R-1302, B928)
+   |    |    |    | ['CheckBox5', 'Readily Available Moisture (RAM)CheckBox', 'Readily Available Moisture (RAM)']
+   |    |    |    | child_window(title="Readily Available Moisture (RAM)", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'as Bar'    (L-1662, T935, R-1550, B952)
+   |    |    | ['CheckBox', 'as Bar', 'as BarCheckBox', 'CheckBox0', 'CheckBox1']
+   |    |    | child_window(title="as Bar", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - '3D'    (L-1176, T919, R-1124, B936)
+   |    |    | ['CheckBox2', '3DCheckBox', '3D']
+   |    |    | child_window(title="3D", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Total available moisture (TAM)'    (L-1474, T935, R-1318, B952)
+   |    |    | ['CheckBox3', 'Total available moisture (TAM)CheckBox', 'Total available moisture (TAM)']
+   |    |    | child_window(title="Total available moisture (TAM)", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Depletion'    (L-1686, T919, R-1574, B936)
+   |    |    | ['CheckBox4', 'DepletionCheckBox', 'Depletion']
+   |    |    | child_window(title="Depletion", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Readily Available Moisture (RAM)'    (L-1474, T911, R-1302, B928)
+   |    |    | ['CheckBox5', 'Readily Available Moisture (RAM)CheckBox', 'Readily Available Moisture (RAM)']
+   |    |    | child_window(title="Readily Available Moisture (RAM)", class_name="TCheckBox")
+   |    |    | 
+   |    |    | TChart - ''    (L-1703, T123, R-111, B903)
+   |    |    | ['TChart', 'Irrigation scheduleTChart']
+   |    |    | child_window(class_name="TChart")
+   |    | 
+   |    | TScrollBox - ''    (L-1703, T903, R-111, B960)
+   |    | ['DepletionTScrollBox', 'TScrollBox', 'TScrollBox0', 'TScrollBox1']
+   |    | child_window(class_name="TScrollBox")
+   |    |    | 
+   |    |    | CheckBox - 'as Bar'    (L-1662, T935, R-1550, B952)
+   |    |    | ['CheckBox', 'as Bar', 'as BarCheckBox', 'CheckBox0', 'CheckBox1']
+   |    |    | child_window(title="as Bar", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - '3D'    (L-1176, T919, R-1124, B936)
+   |    |    | ['CheckBox2', '3DCheckBox', '3D']
+   |    |    | child_window(title="3D", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Total available moisture (TAM)'    (L-1474, T935, R-1318, B952)
+   |    |    | ['CheckBox3', 'Total available moisture (TAM)CheckBox', 'Total available moisture (TAM)']
+   |    |    | child_window(title="Total available moisture (TAM)", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Depletion'    (L-1686, T919, R-1574, B936)
+   |    |    | ['CheckBox4', 'DepletionCheckBox', 'Depletion']
+   |    |    | child_window(title="Depletion", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Readily Available Moisture (RAM)'    (L-1474, T911, R-1302, B928)
+   |    |    | ['CheckBox5', 'Readily Available Moisture (RAM)CheckBox', 'Readily Available Moisture (RAM)']
+   |    |    | child_window(title="Readily Available Moisture (RAM)", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'as Bar'    (L-1662, T935, R-1550, B952)
+   |    | ['CheckBox', 'as Bar', 'as BarCheckBox', 'CheckBox0', 'CheckBox1']
+   |    | child_window(title="as Bar", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - '3D'    (L-1176, T919, R-1124, B936)
+   |    | ['CheckBox2', '3DCheckBox', '3D']
+   |    | child_window(title="3D", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Total available moisture (TAM)'    (L-1474, T935, R-1318, B952)
+   |    | ['CheckBox3', 'Total available moisture (TAM)CheckBox', 'Total available moisture (TAM)']
+   |    | child_window(title="Total available moisture (TAM)", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Depletion'    (L-1686, T919, R-1574, B936)
+   |    | ['CheckBox4', 'DepletionCheckBox', 'Depletion']
+   |    | child_window(title="Depletion", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Readily Available Moisture (RAM)'    (L-1474, T911, R-1302, B928)
+   |    | ['CheckBox5', 'Readily Available Moisture (RAM)CheckBox', 'Readily Available Moisture (RAM)']
+   |    | child_window(title="Readily Available Moisture (RAM)", class_name="TCheckBox")
+   |    | 
+   |    | TChart - ''    (L-1703, T123, R-111, B903)
+   |    | ['TChart', 'Irrigation scheduleTChart']
+   |    | child_window(class_name="TChart")
+   |    | 
+   |    | TCropScheduleform - 'Crop irrigation schedule'    (L-1259, T91, R-555, B968)
+   |    | ['Crop irrigation schedule', 'TCropScheduleform', 'Crop irrigation scheduleTCropScheduleform']
+   |    | child_window(title="Crop irrigation schedule", class_name="TCropScheduleform")
+   |    |    | 
+   |    |    | Edit - '29/07'    (L-719, T150, R-669, B171)
+   |    |    | ['Edit', 'CROPWAT - Session: untitledEdit', 'Edit0', 'Edit1', 'CROPWAT - Session: untitledEdit0', 'CROPWAT - Session: untitledEdit1']
+   |    |    | child_window(title="29/07", class_name="TEdit")
+   |    |    | 
+   |    |    | Edit - ' 12.8 %'    (L-627, T146, R-574, B167)
+   |    |    | ['Edit2', 'CROPWAT - Session: untitledEdit2']
+   |    |    | child_window(title=" 12.8 %", class_name="TEdit")
+   |    |    | 
+   |    |    | Static - 'Panel1'    (L-1247, T258, R-570, B956)
+   |    |    | ['Panel1', 'Static18', 'Panel1Static']
+   |    |    | child_window(title="Panel1", class_name="TPanel")
+   |    |    |    | 
+   |    |    |    | TScrollBox - ''    (L-1246, T616, R-571, B955)
+   |    |    |    | ['Panel1TScrollBox', 'TScrollBox2']
+   |    |    |    | child_window(class_name="TScrollBox")
+   |    |    |    |    | 
+   |    |    |    |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    |    |    |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    |    |    |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    |    |    |    | 
+   |    |    |    |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    |    |    |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    |    |    |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    |    |    | 
+   |    |    |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    |    |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    |    |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    |    |    | 
+   |    |    |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    |    |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    |    |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    |    |    | 
+   |    |    |    | TStringAlignGrid - ''    (L-1246, T259, R-571, B608)
+   |    |    |    | ['TStringAlignGrid', 'Daily soil moisture balanceTStringAlignGrid', 'TStringAlignGrid0', 'TStringAlignGrid1', 'Daily soil moisture balanceTStringAlignGrid0', 'Daily soil moisture balanceTStringAlignGrid1']
+   |    |    |    | child_window(class_name="TStringAlignGrid")
+   |    |    | 
+   |    |    | TScrollBox - ''    (L-1246, T616, R-571, B955)
+   |    |    | ['Panel1TScrollBox', 'TScrollBox2']
+   |    |    | child_window(class_name="TScrollBox")
+   |    |    |    | 
+   |    |    |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    |    |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    |    |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    |    |    | 
+   |    |    |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    |    |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    |    |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TStringAlignGrid - ''    (L-1246, T259, R-571, B608)
+   |    |    | ['TStringAlignGrid', 'Daily soil moisture balanceTStringAlignGrid', 'TStringAlignGrid0', 'TStringAlignGrid1', 'Daily soil moisture balanceTStringAlignGrid0', 'Daily soil moisture balanceTStringAlignGrid1']
+   |    |    | child_window(class_name="TStringAlignGrid")
+   |    |    | 
+   |    |    | TGroupBox - ' Table format '    (L-1247, T181, R-1030, B251)
+   |    |    | [' Table format TGroupBox', 'TGroupBox3', ' Table format ']
+   |    |    | child_window(title=" Table format ", class_name="TGroupBox")
+   |    |    |    | 
+   |    |    |    | RadioButton - 'Daily soil moisture balance'    (L-1235, T221, R-1058, B238)
+   |    |    |    | ['Daily soil moisture balanceRadioButton', 'RadioButton', 'Daily soil moisture balance', 'RadioButton0', 'RadioButton1']
+   |    |    |    | child_window(title="Daily soil moisture balance", class_name="TRadioButton")
+   |    |    |    | 
+   |    |    |    | RadioButton - 'Irrigation schedule'    (L-1235, T201, R-1106, B218)
+   |    |    |    | ['Irrigation scheduleRadioButton', 'RadioButton2', 'Irrigation schedule']
+   |    |    |    | child_window(title="Irrigation schedule", class_name="TRadioButton")
+   |    |    | 
+   |    |    | RadioButton - 'Daily soil moisture balance'    (L-1235, T221, R-1058, B238)
+   |    |    | ['Daily soil moisture balanceRadioButton', 'RadioButton', 'Daily soil moisture balance', 'RadioButton0', 'RadioButton1']
+   |    |    | child_window(title="Daily soil moisture balance", class_name="TRadioButton")
+   |    |    | 
+   |    |    | RadioButton - 'Irrigation schedule'    (L-1235, T201, R-1106, B218)
+   |    |    | ['Irrigation scheduleRadioButton', 'RadioButton2', 'Irrigation schedule']
+   |    |    | child_window(title="Irrigation schedule", class_name="TRadioButton")
+   |    |    | 
+   |    |    | Edit - 'sandy loam'    (L-958, T150, R-837, B171)
+   |    |    | ['Edit3']
+   |    |    | child_window(title="sandy loam", class_name="TEdit")
+   |    |    | 
+   |    |    | Edit - '01/04'    (L-719, T126, R-669, B147)
+   |    |    | ['Edit4', 'CROPWAT - Session: untitledEdit3']
+   |    |    | child_window(title="01/04", class_name="TEdit")
+   |    |    | 
+   |    |    | Edit - 'MAIZE  (Grain)    '    (L-958, T126, R-837, B147)
+   |    |    | ['Edit5']
+   |    |    | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   |    |    | 
+   |    |    | Edit - '450006'    (L-1143, T150, R-1022, B171)
+   |    |    | ['Edit6']
+   |    |    | child_window(title="450006", class_name="TEdit")
+   |    |    | 
+   |    |    | Edit - '425201'    (L-1143, T126, R-1022, B147)
+   |    |    | ['Edit7']
+   |    |    | child_window(title="425201", class_name="TEdit")
+   |    | 
+   |    | Edit - '29/07'    (L-719, T150, R-669, B171)
+   |    | ['Edit', 'CROPWAT - Session: untitledEdit', 'Edit0', 'Edit1', 'CROPWAT - Session: untitledEdit0', 'CROPWAT - Session: untitledEdit1']
+   |    | child_window(title="29/07", class_name="TEdit")
+   |    | 
+   |    | Edit - ' 12.8 %'    (L-627, T146, R-574, B167)
+   |    | ['Edit2', 'CROPWAT - Session: untitledEdit2']
+   |    | child_window(title=" 12.8 %", class_name="TEdit")
+   |    | 
+   |    | Static - 'Panel1'    (L-1247, T258, R-570, B956)
+   |    | ['Panel1', 'Static18', 'Panel1Static']
+   |    | child_window(title="Panel1", class_name="TPanel")
+   |    |    | 
+   |    |    | TScrollBox - ''    (L-1246, T616, R-571, B955)
+   |    |    | ['Panel1TScrollBox', 'TScrollBox2']
+   |    |    | child_window(class_name="TScrollBox")
+   |    |    |    | 
+   |    |    |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    |    |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    |    |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    |    |    | 
+   |    |    |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    |    |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    |    |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TStringAlignGrid - ''    (L-1246, T259, R-571, B608)
+   |    |    | ['TStringAlignGrid', 'Daily soil moisture balanceTStringAlignGrid', 'TStringAlignGrid0', 'TStringAlignGrid1', 'Daily soil moisture balanceTStringAlignGrid0', 'Daily soil moisture balanceTStringAlignGrid1']
+   |    |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | TScrollBox - ''    (L-1246, T616, R-571, B955)
+   |    | ['Panel1TScrollBox', 'TScrollBox2']
+   |    | child_window(class_name="TScrollBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    | 
+   |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    | 
+   |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    | 
+   |    | TStringAlignGrid - ''    (L-1246, T259, R-571, B608)
+   |    | ['TStringAlignGrid', 'Daily soil moisture balanceTStringAlignGrid', 'TStringAlignGrid0', 'TStringAlignGrid1', 'Daily soil moisture balanceTStringAlignGrid0', 'Daily soil moisture balanceTStringAlignGrid1']
+   |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | TGroupBox - ' Table format '    (L-1247, T181, R-1030, B251)
+   |    | [' Table format TGroupBox', 'TGroupBox3', ' Table format ']
+   |    | child_window(title=" Table format ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | RadioButton - 'Daily soil moisture balance'    (L-1235, T221, R-1058, B238)
+   |    |    | ['Daily soil moisture balanceRadioButton', 'RadioButton', 'Daily soil moisture balance', 'RadioButton0', 'RadioButton1']
+   |    |    | child_window(title="Daily soil moisture balance", class_name="TRadioButton")
+   |    |    | 
+   |    |    | RadioButton - 'Irrigation schedule'    (L-1235, T201, R-1106, B218)
+   |    |    | ['Irrigation scheduleRadioButton', 'RadioButton2', 'Irrigation schedule']
+   |    |    | child_window(title="Irrigation schedule", class_name="TRadioButton")
+   |    | 
+   |    | RadioButton - 'Daily soil moisture balance'    (L-1235, T221, R-1058, B238)
+   |    | ['Daily soil moisture balanceRadioButton', 'RadioButton', 'Daily soil moisture balance', 'RadioButton0', 'RadioButton1']
+   |    | child_window(title="Daily soil moisture balance", class_name="TRadioButton")
+   |    | 
+   |    | RadioButton - 'Irrigation schedule'    (L-1235, T201, R-1106, B218)
+   |    | ['Irrigation scheduleRadioButton', 'RadioButton2', 'Irrigation schedule']
+   |    | child_window(title="Irrigation schedule", class_name="TRadioButton")
+   |    | 
+   |    | Edit - 'sandy loam'    (L-958, T150, R-837, B171)
+   |    | ['Edit3']
+   |    | child_window(title="sandy loam", class_name="TEdit")
+   |    | 
+   |    | Edit - '01/04'    (L-719, T126, R-669, B147)
+   |    | ['Edit4', 'CROPWAT - Session: untitledEdit3']
+   |    | child_window(title="01/04", class_name="TEdit")
+   |    | 
+   |    | Edit - 'MAIZE  (Grain)    '    (L-958, T126, R-837, B147)
+   |    | ['Edit5']
+   |    | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   |    | 
+   |    | Edit - '450006'    (L-1143, T150, R-1022, B171)
+   |    | ['Edit6']
+   |    | child_window(title="450006", class_name="TEdit")
+   |    | 
+   |    | Edit - '425201'    (L-1143, T126, R-1022, B147)
+   |    | ['Edit7']
+   |    | child_window(title="425201", class_name="TEdit")
+   |    | 
+   |    | Tcwrform - 'Crop Water Requirements'    (L-1261, T88, R-549, B971)
+   |    | ['Crop Water Requirements', 'Tcwrform', 'Crop Water RequirementsTcwrform']
+   |    | child_window(title="Crop Water Requirements", class_name="Tcwrform")
+   |    |    | 
+   |    |    | TStringAlignGrid - ''    (L-1247, T185, R-577, B959)
+   |    |    | ['Irrigation scheduleTStringAlignGrid', 'TStringAlignGrid2', 'Irrigation scheduleTStringAlignGrid0', 'Irrigation scheduleTStringAlignGrid1']
+   |    |    | child_window(class_name="TStringAlignGrid")
+   |    |    | 
+   |    |    | Edit - '01/04'    (L-682, T151, R-561, B172)
+   |    |    | ['Edit8', 'CROPWAT - Session: untitledEdit4']
+   |    |    | child_window(title="01/04", class_name="TEdit")
+   |    |    | 
+   |    |    | Edit - 'MAIZE  (Grain)    '    (L-682, T123, R-561, B144)
+   |    |    | ['Edit9', 'CROPWAT - Session: untitledEdit5']
+   |    |    | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   |    |    | 
+   |    |    | Edit - '450006'    (L-1133, T151, R-1012, B172)
+   |    |    | ['Edit10']
+   |    |    | child_window(title="450006", class_name="TEdit")
+   |    |    | 
+   |    |    | Edit - '425201'    (L-1133, T123, R-1012, B144)
+   |    |    | ['Edit11']
+   |    |    | child_window(title="425201", class_name="TEdit")
+   |    | 
+   |    | TStringAlignGrid - ''    (L-1247, T185, R-577, B959)
+   |    | ['Irrigation scheduleTStringAlignGrid', 'TStringAlignGrid2', 'Irrigation scheduleTStringAlignGrid0', 'Irrigation scheduleTStringAlignGrid1']
+   |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | Edit - '01/04'    (L-682, T151, R-561, B172)
+   |    | ['Edit8', 'CROPWAT - Session: untitledEdit4']
+   |    | child_window(title="01/04", class_name="TEdit")
+   |    | 
+   |    | Edit - 'MAIZE  (Grain)    '    (L-682, T123, R-561, B144)
+   |    | ['Edit9', 'CROPWAT - Session: untitledEdit5']
+   |    | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   |    | 
+   |    | Edit - '450006'    (L-1133, T151, R-1012, B172)
+   |    | ['Edit10']
+   |    | child_window(title="450006", class_name="TEdit")
+   |    | 
+   |    | Edit - '425201'    (L-1133, T123, R-1012, B144)
+   |    | ['Edit11']
+   |    | child_window(title="425201", class_name="TEdit")
+   |    | 
+   |    | Tsoilform - 'Soil - D:\Cropwat\autoclickcropwat\cropwat\sandy loam\sandy loam.SOI'    (L-1217, T412, R-596, B648)
+   |    | ['Soil - D:\\Cropwat\\autoclickcropwat\\cropwat\\sandy loam\\sandy loam.SOI', 'Soil - D:\\Cropwat\\autoclickcropwat\\cropwat\\sandy loam\\sandy loam.SOITsoilform', 'Tsoilform']
+   |    | child_window(title="Soil - D:\Cropwat\autoclickcropwat\cropwat\sandy loam\sandy loam.SOI", class_name="Tsoilform")
+   |    |    | 
+   |    |    | TGroupBox - ' Additional soil data for rice calculations '    (L-1203, T641, R-610, B810)
+   |    |    | ['TGroupBox4', ' Additional soil data for rice calculations TGroupBox', ' Additional soil data for rice calculations ']
+   |    |    | child_window(title=" Additional soil data for rice calculations ", class_name="TGroupBox")
+   |    |    |    | 
+   |    |    |    | ComboBox - ''    (L-771, T745, R-671, B766)
+   |    |    |    | ['Panel1ComboBox', 'ComboBox', 'ComboBox0', 'ComboBox1']
+   |    |    |    | child_window(class_name="TComboBox")
+   |    |    | 
+   |    |    | ComboBox - ''    (L-771, T745, R-671, B766)
+   |    |    | ['Panel1ComboBox', 'ComboBox', 'ComboBox0', 'ComboBox1']
+   |    |    | child_window(class_name="TComboBox")
+   |    |    | 
+   |    |    | TGroupBox - ' General soil data '    (L-1203, T473, R-610, B634)
+   |    |    | [' General soil data ', 'TGroupBox5', ' General soil data TGroupBox']
+   |    |    | child_window(title=" General soil data ", class_name="TGroupBox")
+   |    |    |    | 
+   |    |    |    | Edit - '110.0'    (L-843, T605, R-782, B626)
+   |    |    |    | ['Daily soil moisture balanceEdit', 'Edit12', 'Daily soil moisture balanceEdit0', 'Daily soil moisture balanceEdit1']
+   |    |    |    | child_window(title="110.0", class_name="TRealEdit")
+   |    |    |    | 
+   |    |    |    | Edit - '0'    (L-843, T577, R-782, B598)
+   |    |    |    | ['Daily soil moisture balanceEdit2', 'Edit13']
+   |    |    |    | child_window(title="0", class_name="TIntegerEdit")
+   |    |    |    | 
+   |    |    |    | Edit - '100'    (L-843, T549, R-782, B570)
+   |    |    |    | ['Daily soil moisture balanceEdit3', 'Edit14']
+   |    |    |    | child_window(title="100", class_name="TIntegerEdit")
+   |    |    |    | 
+   |    |    |    | Edit - '35'    (L-843, T521, R-782, B542)
+   |    |    |    | ['Daily soil moisture balanceEdit4', 'Edit15']
+   |    |    |    | child_window(title="35", class_name="TIntegerEdit")
+   |    |    |    | 
+   |    |    |    | Edit - '110.0'    (L-843, T493, R-782, B514)
+   |    |    |    | ['Daily soil moisture balanceEdit5', 'Edit16']
+   |    |    |    | child_window(title="110.0", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '110.0'    (L-843, T605, R-782, B626)
+   |    |    | ['Daily soil moisture balanceEdit', 'Edit12', 'Daily soil moisture balanceEdit0', 'Daily soil moisture balanceEdit1']
+   |    |    | child_window(title="110.0", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '0'    (L-843, T577, R-782, B598)
+   |    |    | ['Daily soil moisture balanceEdit2', 'Edit13']
+   |    |    | child_window(title="0", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '100'    (L-843, T549, R-782, B570)
+   |    |    | ['Daily soil moisture balanceEdit3', 'Edit14']
+   |    |    | child_window(title="100", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '35'    (L-843, T521, R-782, B542)
+   |    |    | ['Daily soil moisture balanceEdit4', 'Edit15']
+   |    |    | child_window(title="35", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '110.0'    (L-843, T493, R-782, B514)
+   |    |    | ['Daily soil moisture balanceEdit5', 'Edit16']
+   |    |    | child_window(title="110.0", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - 'sandy loam'    (L-927, T449, R-786, B470)
+   |    |    | ['Daily soil moisture balanceEdit6', 'Edit17']
+   |    |    | child_window(title="sandy loam", class_name="TEdit")
+   |    | 
+   |    | TGroupBox - ' Additional soil data for rice calculations '    (L-1203, T641, R-610, B810)
+   |    | ['TGroupBox4', ' Additional soil data for rice calculations TGroupBox', ' Additional soil data for rice calculations ']
+   |    | child_window(title=" Additional soil data for rice calculations ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | ComboBox - ''    (L-771, T745, R-671, B766)
+   |    |    | ['Panel1ComboBox', 'ComboBox', 'ComboBox0', 'ComboBox1']
+   |    |    | child_window(class_name="TComboBox")
+   |    | 
+   |    | ComboBox - ''    (L-771, T745, R-671, B766)
+   |    | ['Panel1ComboBox', 'ComboBox', 'ComboBox0', 'ComboBox1']
+   |    | child_window(class_name="TComboBox")
+   |    | 
+   |    | TGroupBox - ' General soil data '    (L-1203, T473, R-610, B634)
+   |    | [' General soil data ', 'TGroupBox5', ' General soil data TGroupBox']
+   |    | child_window(title=" General soil data ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | Edit - '110.0'    (L-843, T605, R-782, B626)
+   |    |    | ['Daily soil moisture balanceEdit', 'Edit12', 'Daily soil moisture balanceEdit0', 'Daily soil moisture balanceEdit1']
+   |    |    | child_window(title="110.0", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '0'    (L-843, T577, R-782, B598)
+   |    |    | ['Daily soil moisture balanceEdit2', 'Edit13']
+   |    |    | child_window(title="0", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '100'    (L-843, T549, R-782, B570)
+   |    |    | ['Daily soil moisture balanceEdit3', 'Edit14']
+   |    |    | child_window(title="100", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '35'    (L-843, T521, R-782, B542)
+   |    |    | ['Daily soil moisture balanceEdit4', 'Edit15']
+   |    |    | child_window(title="35", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '110.0'    (L-843, T493, R-782, B514)
+   |    |    | ['Daily soil moisture balanceEdit5', 'Edit16']
+   |    |    | child_window(title="110.0", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '110.0'    (L-843, T605, R-782, B626)
+   |    | ['Daily soil moisture balanceEdit', 'Edit12', 'Daily soil moisture balanceEdit0', 'Daily soil moisture balanceEdit1']
+   |    | child_window(title="110.0", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0'    (L-843, T577, R-782, B598)
+   |    | ['Daily soil moisture balanceEdit2', 'Edit13']
+   |    | child_window(title="0", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '100'    (L-843, T549, R-782, B570)
+   |    | ['Daily soil moisture balanceEdit3', 'Edit14']
+   |    | child_window(title="100", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '35'    (L-843, T521, R-782, B542)
+   |    | ['Daily soil moisture balanceEdit4', 'Edit15']
+   |    | child_window(title="35", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '110.0'    (L-843, T493, R-782, B514)
+   |    | ['Daily soil moisture balanceEdit5', 'Edit16']
+   |    | child_window(title="110.0", class_name="TRealEdit")
+   |    | 
+   |    | Edit - 'sandy loam'    (L-927, T449, R-786, B470)
+   |    | ['Daily soil moisture balanceEdit6', 'Edit17']
+   |    | child_window(title="sandy loam", class_name="TEdit")
+   |    | 
+   |    | TCropForm - 'Dry crop - D:\Cropwat\autoclickcropwat\cropwat\MAIZE_120\MAIZE_120.CRO'    (L-1242, T351, R-572, B709)
+   |    | ['Dry crop - D:\\Cropwat\\autoclickcropwat\\cropwat\\MAIZE_120\\MAIZE_120.CRO', 'TCropForm', 'Dry crop - D:\\Cropwat\\autoclickcropwat\\cropwat\\MAIZE_120\\MAIZE_120.CROTCropForm']
+   |    | child_window(title="Dry crop - D:\Cropwat\autoclickcropwat\cropwat\MAIZE_120\MAIZE_120.CRO", class_name="TCropForm")
+   |    |    | 
+   |    |    | Edit - '29/07'    (L-636, T388, R-599, B409)
+   |    |    | ['Panel1Edit', 'Edit18', 'Panel1Edit0', 'Panel1Edit1']
+   |    |    | child_window(title="29/07", class_name="TEdit")
+   |    |    | 
+   |    |    | Edit - '01/04'    (L-800, T388, R-763, B409)
+   |    |    | ['Panel1Edit2', 'Edit19']
+   |    |    | child_window(title="01/04", class_name="TMaskEdit")
+   |    |    | 
+   |    |    | Edit - '0.80'    (L-748, T624, R-699, B643)
+   |    |    | ['Panel1Edit3', 'Edit20']
+   |    |    | child_window(title="0.80", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '1.00'    (L-796, T588, R-747, B607)
+   |    |    | ['Panel1Edit4', 'Edit21']
+   |    |    | child_window(title="1.00", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '0.35'    (L-680, T476, R-631, B495)
+   |    |    | ['Panel1Edit5', 'Edit22']
+   |    |    | child_window(title="0.35", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '1.20'    (L-848, T432, R-799, B451)
+   |    |    | ['Daily soil moisture balanceEdit7', 'Edit23']
+   |    |    | child_window(title="1.20", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '2.00'    (L-848, T676, R-799, B695)
+   |    |    | ['Daily soil moisture balanceEdit8', 'Edit24']
+   |    |    | child_window(title="2.00", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '1.25'    (L-652, T648, R-603, B667)
+   |    |    | ['Panel1Edit6', 'Edit25']
+   |    |    | child_window(title="1.25", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '0.50'    (L-748, T648, R-699, B667)
+   |    |    | ['Panel1Edit7', 'Edit26']
+   |    |    | child_window(title="0.50", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '1.30'    (L-848, T648, R-799, B667)
+   |    |    | ['Daily soil moisture balanceEdit9', 'Edit27']
+   |    |    | child_window(title="1.30", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '0.40'    (L-944, T648, R-895, B667)
+   |    |    | ['Daily soil moisture balanceEdit10', 'Edit28']
+   |    |    | child_window(title="0.40", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '0.55'    (L-848, T624, R-799, B643)
+   |    |    | ['Daily soil moisture balanceEdit11', 'Edit29']
+   |    |    | child_window(title="0.55", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '0.40'    (L-1044, T648, R-995, B667)
+   |    |    | ['Daily soil moisture balanceEdit12', 'Edit30']
+   |    |    | child_window(title="0.40", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '0.55'    (L-1044, T624, R-995, B643)
+   |    |    | ['Daily soil moisture balanceEdit13', 'Edit31']
+   |    |    | child_window(title="0.55", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '0.30'    (L-1092, T560, R-1043, B579)
+   |    |    | ['Daily soil moisture balanceEdit14', 'Edit32']
+   |    |    | child_window(title="0.30", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '0.30'    (L-1044, T464, R-995, B483)
+   |    |    | ['Daily soil moisture balanceEdit15', 'Edit33']
+   |    |    | child_window(title="0.30", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '120'    (L-652, T524, R-603, B543)
+   |    |    | ['Panel1Edit8', 'Edit34']
+   |    |    | child_window(title="120", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '30'    (L-748, T524, R-699, B543)
+   |    |    | ['Panel1Edit9', 'Edit35']
+   |    |    | child_window(title="30", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '40'    (L-848, T524, R-799, B543)
+   |    |    | ['Daily soil moisture balanceEdit16', 'Edit36']
+   |    |    | child_window(title="40", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '30'    (L-948, T524, R-899, B543)
+   |    |    | ['Daily soil moisture balanceEdit17', 'Edit37']
+   |    |    | child_window(title="30", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '20'    (L-1044, T524, R-995, B543)
+   |    |    | ['Daily soil moisture balanceEdit18', 'Edit38']
+   |    |    | child_window(title="20", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - 'MAIZE  (Grain)    '    (L-1108, T388, R-959, B409)
+   |    |    | ['Irrigation scheduleEdit', 'Edit39']
+   |    |    | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   |    | 
+   |    | Edit - '29/07'    (L-636, T388, R-599, B409)
+   |    | ['Panel1Edit', 'Edit18', 'Panel1Edit0', 'Panel1Edit1']
+   |    | child_window(title="29/07", class_name="TEdit")
+   |    | 
+   |    | Edit - '01/04'    (L-800, T388, R-763, B409)
+   |    | ['Panel1Edit2', 'Edit19']
+   |    | child_window(title="01/04", class_name="TMaskEdit")
+   |    | 
+   |    | Edit - '0.80'    (L-748, T624, R-699, B643)
+   |    | ['Panel1Edit3', 'Edit20']
+   |    | child_window(title="0.80", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '1.00'    (L-796, T588, R-747, B607)
+   |    | ['Panel1Edit4', 'Edit21']
+   |    | child_window(title="1.00", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.35'    (L-680, T476, R-631, B495)
+   |    | ['Panel1Edit5', 'Edit22']
+   |    | child_window(title="0.35", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '1.20'    (L-848, T432, R-799, B451)
+   |    | ['Daily soil moisture balanceEdit7', 'Edit23']
+   |    | child_window(title="1.20", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '2.00'    (L-848, T676, R-799, B695)
+   |    | ['Daily soil moisture balanceEdit8', 'Edit24']
+   |    | child_window(title="2.00", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '1.25'    (L-652, T648, R-603, B667)
+   |    | ['Panel1Edit6', 'Edit25']
+   |    | child_window(title="1.25", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.50'    (L-748, T648, R-699, B667)
+   |    | ['Panel1Edit7', 'Edit26']
+   |    | child_window(title="0.50", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '1.30'    (L-848, T648, R-799, B667)
+   |    | ['Daily soil moisture balanceEdit9', 'Edit27']
+   |    | child_window(title="1.30", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.40'    (L-944, T648, R-895, B667)
+   |    | ['Daily soil moisture balanceEdit10', 'Edit28']
+   |    | child_window(title="0.40", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.55'    (L-848, T624, R-799, B643)
+   |    | ['Daily soil moisture balanceEdit11', 'Edit29']
+   |    | child_window(title="0.55", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.40'    (L-1044, T648, R-995, B667)
+   |    | ['Daily soil moisture balanceEdit12', 'Edit30']
+   |    | child_window(title="0.40", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.55'    (L-1044, T624, R-995, B643)
+   |    | ['Daily soil moisture balanceEdit13', 'Edit31']
+   |    | child_window(title="0.55", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.30'    (L-1092, T560, R-1043, B579)
+   |    | ['Daily soil moisture balanceEdit14', 'Edit32']
+   |    | child_window(title="0.30", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.30'    (L-1044, T464, R-995, B483)
+   |    | ['Daily soil moisture balanceEdit15', 'Edit33']
+   |    | child_window(title="0.30", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '120'    (L-652, T524, R-603, B543)
+   |    | ['Panel1Edit8', 'Edit34']
+   |    | child_window(title="120", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '30'    (L-748, T524, R-699, B543)
+   |    | ['Panel1Edit9', 'Edit35']
+   |    | child_window(title="30", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '40'    (L-848, T524, R-799, B543)
+   |    | ['Daily soil moisture balanceEdit16', 'Edit36']
+   |    | child_window(title="40", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '30'    (L-948, T524, R-899, B543)
+   |    | ['Daily soil moisture balanceEdit17', 'Edit37']
+   |    | child_window(title="30", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '20'    (L-1044, T524, R-995, B543)
+   |    | ['Daily soil moisture balanceEdit18', 'Edit38']
+   |    | child_window(title="20", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - 'MAIZE  (Grain)    '    (L-1108, T388, R-959, B409)
+   |    | ['Irrigation scheduleEdit', 'Edit39']
+   |    | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   |    | 
+   |    | TDayRainForm - 'Daily rain - D:\Cropwat\autoclickcropwat\cropwat\Rain_450006\06_Rain_450006Jun\Rain_450006_1981Jun.CRD'    (L-1715, T335, R-99, B724)
+   |    | ['TDayRainForm', 'Daily rain - D:\\Cropwat\\autoclickcropwat\\cropwat\\Rain_450006\\06_Rain_450006Jun\\Rain_450006_1981Jun.CRDTDayRainForm', 'Daily rain - D:\\Cropwat\\autoclickcropwat\\cropwat\\Rain_450006\\06_Rain_450006Jun\\Rain_450006_1981Jun.CRD']
+   |    | child_window(title="Daily rain - D:\Cropwat\autoclickcropwat\cropwat\Rain_450006\06_Rain_450006Jun\Rain_450006_1981Jun.CRD", class_name="TDayRainForm")
+   |    |    | 
+   |    |    | Edit - '1981'    (L-1390, T371, R-1341, B392)
+   |    |    | ['Edit40']
+   |    |    | child_window(title="1981", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | TStringAlignGrid - ''    (L-1702, T403, R-112, B711)
+   |    |    | ['TStringAlignGrid3', 'Daily soil moisture balanceTStringAlignGrid2']
+   |    |    | child_window(class_name="TStringAlignGrid")
+   |    |    | 
+   |    |    | Edit - 'FAO/AGLW formula'    (L-1178, T371, R-1035, B392)
+   |    |    | ['Daily soil moisture balanceEdit19', 'Edit41']
+   |    |    | child_window(title="FAO/AGLW formula", class_name="TEdit")
+   |    |    | 
+   |    |    | Edit - '450006'    (L-1614, T371, R-1469, B392)
+   |    |    | ['Edit42', 'CROPWAT - Session: untitledEdit6']
+   |    |    | child_window(title="450006", class_name="TEdit")
+   |    | 
+   |    | Edit - '1981'    (L-1390, T371, R-1341, B392)
+   |    | ['Edit40']
+   |    | child_window(title="1981", class_name="TIntegerEdit")
+   |    | 
+   |    | TStringAlignGrid - ''    (L-1702, T403, R-112, B711)
+   |    | ['TStringAlignGrid3', 'Daily soil moisture balanceTStringAlignGrid2']
+   |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | Edit - 'FAO/AGLW formula'    (L-1178, T371, R-1035, B392)
+   |    | ['Daily soil moisture balanceEdit19', 'Edit41']
+   |    | child_window(title="FAO/AGLW formula", class_name="TEdit")
+   |    | 
+   |    | Edit - '450006'    (L-1614, T371, R-1469, B392)
+   |    | ['Edit42', 'CROPWAT - Session: untitledEdit6']
+   |    | child_window(title="450006", class_name="TEdit")
+   |    | 
+   |    | TDayEToPMForm - 'Daily ETo Penman-Monteith - D:\Cropwat\autoclickcropwat\cropwat\Clim_425201\06_Jun\425201clim_1981jun.PED'    (L-1210, T89, R-603, B970)
+   |    | ['Daily ETo Penman-Monteith - D:\\Cropwat\\autoclickcropwat\\cropwat\\Clim_425201\\06_Jun\\425201clim_1981jun.PEDTDayEToPMForm', 'TDayEToPMForm', 'Daily ETo Penman-Monteith - D:\\Cropwat\\autoclickcropwat\\cropwat\\Clim_425201\\06_Jun\\425201clim_1981jun.PED']
+   |    | child_window(title="Daily ETo Penman-Monteith - D:\Cropwat\autoclickcropwat\cropwat\Clim_425201\06_Jun\425201clim_1981jun.PED", class_name="TDayEToPMForm")
+   |    |    | 
+   |    |    | Edit - '1981'    (L-668, T126, R-619, B147)
+   |    |    | ['Edit43', 'CROPWAT - Session: untitledEdit7']
+   |    |    | child_window(title="1981", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | TTabControl - ''    (L-1196, T182, R-617, B956)
+   |    |    | ['Irrigation scheduleTTabControl', 'TTabControl']
+   |    |    | child_window(class_name="TTabControl")
+   |    |    |    | 
+   |    |    |    | TStringAlignGrid - ''    (L-1189, T206, R-627, B950)
+   |    |    |    | ['Irrigation scheduleTStringAlignGrid2', 'TStringAlignGrid4']
+   |    |    |    | child_window(class_name="TStringAlignGrid")
+   |    |    | 
+   |    |    | TStringAlignGrid - ''    (L-1189, T206, R-627, B950)
+   |    |    | ['Irrigation scheduleTStringAlignGrid2', 'TStringAlignGrid4']
+   |    |    | child_window(class_name="TStringAlignGrid")
+   |    |    | 
+   |    |    | Edit - '100.00'    (L-712, T151, R-671, B172)
+   |    |    | ['Edit44', 'CROPWAT - Session: untitledEdit8']
+   |    |    | child_window(title="100.00", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '14.47'    (L-896, T151, R-855, B172)
+   |    |    | ['Edit45']
+   |    |    | child_window(title="14.47", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '7'    (L-1126, T151, R-1085, B172)
+   |    |    | ['Edit46']
+   |    |    | child_window(title="7", class_name="TRealEdit")
+   |    |    | 
+   |    |    | ComboBox - '°E'    (L-663, T151, R-617, B172)
+   |    |    | ['ComboBox2', 'CROPWAT - Session: untitledComboBox']
+   |    |    | child_window(title="°E", class_name="TComboBox")
+   |    |    | 
+   |    |    | ComboBox - '°N'    (L-848, T151, R-801, B172)
+   |    |    | ['ComboBox3']
+   |    |    | child_window(title="°N", class_name="TComboBox")
+   |    |    | 
+   |    |    | Edit - '425201'    (L-896, T126, R-749, B147)
+   |    |    | ['Edit47']
+   |    |    | child_window(title="425201", class_name="TEdit")
+   |    |    | 
+   |    |    | Edit - 'Thailand'    (L-1126, T126, R-967, B147)
+   |    |    | ['Edit48']
+   |    |    | child_window(title="Thailand", class_name="TEdit")
+   |    | 
+   |    | Edit - '1981'    (L-668, T126, R-619, B147)
+   |    | ['Edit43', 'CROPWAT - Session: untitledEdit7']
+   |    | child_window(title="1981", class_name="TIntegerEdit")
+   |    | 
+   |    | TTabControl - ''    (L-1196, T182, R-617, B956)
+   |    | ['Irrigation scheduleTTabControl', 'TTabControl']
+   |    | child_window(class_name="TTabControl")
+   |    |    | 
+   |    |    | TStringAlignGrid - ''    (L-1189, T206, R-627, B950)
+   |    |    | ['Irrigation scheduleTStringAlignGrid2', 'TStringAlignGrid4']
+   |    |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | TStringAlignGrid - ''    (L-1189, T206, R-627, B950)
+   |    | ['Irrigation scheduleTStringAlignGrid2', 'TStringAlignGrid4']
+   |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | Edit - '100.00'    (L-712, T151, R-671, B172)
+   |    | ['Edit44', 'CROPWAT - Session: untitledEdit8']
+   |    | child_window(title="100.00", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '14.47'    (L-896, T151, R-855, B172)
+   |    | ['Edit45']
+   |    | child_window(title="14.47", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '7'    (L-1126, T151, R-1085, B172)
+   |    | ['Edit46']
+   |    | child_window(title="7", class_name="TRealEdit")
+   |    | 
+   |    | ComboBox - '°E'    (L-663, T151, R-617, B172)
+   |    | ['ComboBox2', 'CROPWAT - Session: untitledComboBox']
+   |    | child_window(title="°E", class_name="TComboBox")
+   |    | 
+   |    | ComboBox - '°N'    (L-848, T151, R-801, B172)
+   |    | ['ComboBox3']
+   |    | child_window(title="°N", class_name="TComboBox")
+   |    | 
+   |    | Edit - '425201'    (L-896, T126, R-749, B147)
+   |    | ['Edit47']
+   |    | child_window(title="425201", class_name="TEdit")
+   |    | 
+   |    | Edit - 'Thailand'    (L-1126, T126, R-967, B147)
+   |    | ['Edit48']
+   |    | child_window(title="Thailand", class_name="TEdit")
+   | 
+   | TCropScheduleGraph - 'Irrigation scheduling graph'    (L-1711, T92, R-103, B968)
+   | ['Irrigation scheduling graphTCropScheduleGraph', 'TCropScheduleGraph', 'Irrigation scheduling graph']
+   | child_window(title="Irrigation scheduling graph", class_name="TCropScheduleGraph")
+   |    | 
+   |    | TScrollBox - ''    (L-1703, T903, R-111, B960)
+   |    | ['DepletionTScrollBox', 'TScrollBox', 'TScrollBox0', 'TScrollBox1']
+   |    | child_window(class_name="TScrollBox")
+   |    |    | 
+   |    |    | CheckBox - 'as Bar'    (L-1662, T935, R-1550, B952)
+   |    |    | ['CheckBox', 'as Bar', 'as BarCheckBox', 'CheckBox0', 'CheckBox1']
+   |    |    | child_window(title="as Bar", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - '3D'    (L-1176, T919, R-1124, B936)
+   |    |    | ['CheckBox2', '3DCheckBox', '3D']
+   |    |    | child_window(title="3D", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Total available moisture (TAM)'    (L-1474, T935, R-1318, B952)
+   |    |    | ['CheckBox3', 'Total available moisture (TAM)CheckBox', 'Total available moisture (TAM)']
+   |    |    | child_window(title="Total available moisture (TAM)", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Depletion'    (L-1686, T919, R-1574, B936)
+   |    |    | ['CheckBox4', 'DepletionCheckBox', 'Depletion']
+   |    |    | child_window(title="Depletion", class_name="TCheckBox")
+   |    |    | 
+   |    |    | CheckBox - 'Readily Available Moisture (RAM)'    (L-1474, T911, R-1302, B928)
+   |    |    | ['CheckBox5', 'Readily Available Moisture (RAM)CheckBox', 'Readily Available Moisture (RAM)']
+   |    |    | child_window(title="Readily Available Moisture (RAM)", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'as Bar'    (L-1662, T935, R-1550, B952)
+   |    | ['CheckBox', 'as Bar', 'as BarCheckBox', 'CheckBox0', 'CheckBox1']
+   |    | child_window(title="as Bar", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - '3D'    (L-1176, T919, R-1124, B936)
+   |    | ['CheckBox2', '3DCheckBox', '3D']
+   |    | child_window(title="3D", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Total available moisture (TAM)'    (L-1474, T935, R-1318, B952)
+   |    | ['CheckBox3', 'Total available moisture (TAM)CheckBox', 'Total available moisture (TAM)']
+   |    | child_window(title="Total available moisture (TAM)", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Depletion'    (L-1686, T919, R-1574, B936)
+   |    | ['CheckBox4', 'DepletionCheckBox', 'Depletion']
+   |    | child_window(title="Depletion", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Readily Available Moisture (RAM)'    (L-1474, T911, R-1302, B928)
+   |    | ['CheckBox5', 'Readily Available Moisture (RAM)CheckBox', 'Readily Available Moisture (RAM)']
+   |    | child_window(title="Readily Available Moisture (RAM)", class_name="TCheckBox")
+   |    | 
+   |    | TChart - ''    (L-1703, T123, R-111, B903)
+   |    | ['TChart', 'Irrigation scheduleTChart']
+   |    | child_window(class_name="TChart")
+   | 
+   | TScrollBox - ''    (L-1703, T903, R-111, B960)
+   | ['DepletionTScrollBox', 'TScrollBox', 'TScrollBox0', 'TScrollBox1']
+   | child_window(class_name="TScrollBox")
+   |    | 
+   |    | CheckBox - 'as Bar'    (L-1662, T935, R-1550, B952)
+   |    | ['CheckBox', 'as Bar', 'as BarCheckBox', 'CheckBox0', 'CheckBox1']
+   |    | child_window(title="as Bar", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - '3D'    (L-1176, T919, R-1124, B936)
+   |    | ['CheckBox2', '3DCheckBox', '3D']
+   |    | child_window(title="3D", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Total available moisture (TAM)'    (L-1474, T935, R-1318, B952)
+   |    | ['CheckBox3', 'Total available moisture (TAM)CheckBox', 'Total available moisture (TAM)']
+   |    | child_window(title="Total available moisture (TAM)", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Depletion'    (L-1686, T919, R-1574, B936)
+   |    | ['CheckBox4', 'DepletionCheckBox', 'Depletion']
+   |    | child_window(title="Depletion", class_name="TCheckBox")
+   |    | 
+   |    | CheckBox - 'Readily Available Moisture (RAM)'    (L-1474, T911, R-1302, B928)
+   |    | ['CheckBox5', 'Readily Available Moisture (RAM)CheckBox', 'Readily Available Moisture (RAM)']
+   |    | child_window(title="Readily Available Moisture (RAM)", class_name="TCheckBox")
+   | 
+   | CheckBox - 'as Bar'    (L-1662, T935, R-1550, B952)
+   | ['CheckBox', 'as Bar', 'as BarCheckBox', 'CheckBox0', 'CheckBox1']
+   | child_window(title="as Bar", class_name="TCheckBox")
+   | 
+   | CheckBox - '3D'    (L-1176, T919, R-1124, B936)
+   | ['CheckBox2', '3DCheckBox', '3D']
+   | child_window(title="3D", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Total available moisture (TAM)'    (L-1474, T935, R-1318, B952)
+   | ['CheckBox3', 'Total available moisture (TAM)CheckBox', 'Total available moisture (TAM)']
+   | child_window(title="Total available moisture (TAM)", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Depletion'    (L-1686, T919, R-1574, B936)
+   | ['CheckBox4', 'DepletionCheckBox', 'Depletion']
+   | child_window(title="Depletion", class_name="TCheckBox")
+   | 
+   | CheckBox - 'Readily Available Moisture (RAM)'    (L-1474, T911, R-1302, B928)
+   | ['CheckBox5', 'Readily Available Moisture (RAM)CheckBox', 'Readily Available Moisture (RAM)']
+   | child_window(title="Readily Available Moisture (RAM)", class_name="TCheckBox")
+   | 
+   | TChart - ''    (L-1703, T123, R-111, B903)
+   | ['TChart', 'Irrigation scheduleTChart']
+   | child_window(class_name="TChart")
+   | 
+   | TCropScheduleform - 'Crop irrigation schedule'    (L-1259, T91, R-555, B968)
+   | ['Crop irrigation schedule', 'TCropScheduleform', 'Crop irrigation scheduleTCropScheduleform']
+   | child_window(title="Crop irrigation schedule", class_name="TCropScheduleform")
+   |    | 
+   |    | Edit - '29/07'    (L-719, T150, R-669, B171)
+   |    | ['Edit', 'CROPWAT - Session: untitledEdit', 'Edit0', 'Edit1', 'CROPWAT - Session: untitledEdit0', 'CROPWAT - Session: untitledEdit1']
+   |    | child_window(title="29/07", class_name="TEdit")
+   |    | 
+   |    | Edit - ' 12.8 %'    (L-627, T146, R-574, B167)
+   |    | ['Edit2', 'CROPWAT - Session: untitledEdit2']
+   |    | child_window(title=" 12.8 %", class_name="TEdit")
+   |    | 
+   |    | Static - 'Panel1'    (L-1247, T258, R-570, B956)
+   |    | ['Panel1', 'Static18', 'Panel1Static']
+   |    | child_window(title="Panel1", class_name="TPanel")
+   |    |    | 
+   |    |    | TScrollBox - ''    (L-1246, T616, R-571, B955)
+   |    |    | ['Panel1TScrollBox', 'TScrollBox2']
+   |    |    | child_window(class_name="TScrollBox")
+   |    |    |    | 
+   |    |    |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    |    |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    |    |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    |    |    | 
+   |    |    |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    |    |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    |    |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TStringAlignGrid - ''    (L-1246, T259, R-571, B608)
+   |    |    | ['TStringAlignGrid', 'Daily soil moisture balanceTStringAlignGrid', 'TStringAlignGrid0', 'TStringAlignGrid1', 'Daily soil moisture balanceTStringAlignGrid0', 'Daily soil moisture balanceTStringAlignGrid1']
+   |    |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | TScrollBox - ''    (L-1246, T616, R-571, B955)
+   |    | ['Panel1TScrollBox', 'TScrollBox2']
+   |    | child_window(class_name="TScrollBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    | 
+   |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    | 
+   |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    | 
+   |    | TStringAlignGrid - ''    (L-1246, T259, R-571, B608)
+   |    | ['TStringAlignGrid', 'Daily soil moisture balanceTStringAlignGrid', 'TStringAlignGrid0', 'TStringAlignGrid1', 'Daily soil moisture balanceTStringAlignGrid0', 'Daily soil moisture balanceTStringAlignGrid1']
+   |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | TGroupBox - ' Table format '    (L-1247, T181, R-1030, B251)
+   |    | [' Table format TGroupBox', 'TGroupBox3', ' Table format ']
+   |    | child_window(title=" Table format ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | RadioButton - 'Daily soil moisture balance'    (L-1235, T221, R-1058, B238)
+   |    |    | ['Daily soil moisture balanceRadioButton', 'RadioButton', 'Daily soil moisture balance', 'RadioButton0', 'RadioButton1']
+   |    |    | child_window(title="Daily soil moisture balance", class_name="TRadioButton")
+   |    |    | 
+   |    |    | RadioButton - 'Irrigation schedule'    (L-1235, T201, R-1106, B218)
+   |    |    | ['Irrigation scheduleRadioButton', 'RadioButton2', 'Irrigation schedule']
+   |    |    | child_window(title="Irrigation schedule", class_name="TRadioButton")
+   |    | 
+   |    | RadioButton - 'Daily soil moisture balance'    (L-1235, T221, R-1058, B238)
+   |    | ['Daily soil moisture balanceRadioButton', 'RadioButton', 'Daily soil moisture balance', 'RadioButton0', 'RadioButton1']
+   |    | child_window(title="Daily soil moisture balance", class_name="TRadioButton")
+   |    | 
+   |    | RadioButton - 'Irrigation schedule'    (L-1235, T201, R-1106, B218)
+   |    | ['Irrigation scheduleRadioButton', 'RadioButton2', 'Irrigation schedule']
+   |    | child_window(title="Irrigation schedule", class_name="TRadioButton")
+   |    | 
+   |    | Edit - 'sandy loam'    (L-958, T150, R-837, B171)
+   |    | ['Edit3']
+   |    | child_window(title="sandy loam", class_name="TEdit")
+   |    | 
+   |    | Edit - '01/04'    (L-719, T126, R-669, B147)
+   |    | ['Edit4', 'CROPWAT - Session: untitledEdit3']
+   |    | child_window(title="01/04", class_name="TEdit")
+   |    | 
+   |    | Edit - 'MAIZE  (Grain)    '    (L-958, T126, R-837, B147)
+   |    | ['Edit5']
+   |    | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   |    | 
+   |    | Edit - '450006'    (L-1143, T150, R-1022, B171)
+   |    | ['Edit6']
+   |    | child_window(title="450006", class_name="TEdit")
+   |    | 
+   |    | Edit - '425201'    (L-1143, T126, R-1022, B147)
+   |    | ['Edit7']
+   |    | child_window(title="425201", class_name="TEdit")
+   | 
+   | Edit - '29/07'    (L-719, T150, R-669, B171)
+   | ['Edit', 'CROPWAT - Session: untitledEdit', 'Edit0', 'Edit1', 'CROPWAT - Session: untitledEdit0', 'CROPWAT - Session: untitledEdit1']
+   | child_window(title="29/07", class_name="TEdit")
+   | 
+   | Edit - ' 12.8 %'    (L-627, T146, R-574, B167)
+   | ['Edit2', 'CROPWAT - Session: untitledEdit2']
+   | child_window(title=" 12.8 %", class_name="TEdit")
+   | 
+   | Static - 'Panel1'    (L-1247, T258, R-570, B956)
+   | ['Panel1', 'Static18', 'Panel1Static']
+   | child_window(title="Panel1", class_name="TPanel")
+   |    | 
+   |    | TScrollBox - ''    (L-1246, T616, R-571, B955)
+   |    | ['Panel1TScrollBox', 'TScrollBox2']
+   |    | child_window(class_name="TScrollBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    | 
+   |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    | 
+   |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   |    | 
+   |    | TStringAlignGrid - ''    (L-1246, T259, R-571, B608)
+   |    | ['TStringAlignGrid', 'Daily soil moisture balanceTStringAlignGrid', 'TStringAlignGrid0', 'TStringAlignGrid1', 'Daily soil moisture balanceTStringAlignGrid0', 'Daily soil moisture balanceTStringAlignGrid1']
+   |    | child_window(class_name="TStringAlignGrid")
+   | 
+   | TScrollBox - ''    (L-1246, T616, R-571, B955)
+   | ['Panel1TScrollBox', 'TScrollBox2']
+   | child_window(class_name="TScrollBox")
+   |    | 
+   |    | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   |    | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   |    | child_window(title=" Totals ", class_name="TGroupBox")
+   |    | 
+   |    | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   |    | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   |    | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   | 
+   | TGroupBox - ' Totals '    (L-1236, T622, R-595, B775)
+   | ['TGroupBox', ' Totals TGroupBox', ' Totals ', 'TGroupBox0', 'TGroupBox1']
+   | child_window(title=" Totals ", class_name="TGroupBox")
+   | 
+   | TGroupBox - ' Yield reductions '    (L-1236, T784, R-595, B897)
+   | [' Yield reductions ', 'TGroupBox2', ' Yield reductions TGroupBox']
+   | child_window(title=" Yield reductions ", class_name="TGroupBox")
+   | 
+   | TStringAlignGrid - ''    (L-1246, T259, R-571, B608)
+   | ['TStringAlignGrid', 'Daily soil moisture balanceTStringAlignGrid', 'TStringAlignGrid0', 'TStringAlignGrid1', 'Daily soil moisture balanceTStringAlignGrid0', 'Daily soil moisture balanceTStringAlignGrid1']
+   | child_window(class_name="TStringAlignGrid")
+   | 
+   | TGroupBox - ' Table format '    (L-1247, T181, R-1030, B251)
+   | [' Table format TGroupBox', 'TGroupBox3', ' Table format ']
+   | child_window(title=" Table format ", class_name="TGroupBox")
+   |    | 
+   |    | RadioButton - 'Daily soil moisture balance'    (L-1235, T221, R-1058, B238)
+   |    | ['Daily soil moisture balanceRadioButton', 'RadioButton', 'Daily soil moisture balance', 'RadioButton0', 'RadioButton1']
+   |    | child_window(title="Daily soil moisture balance", class_name="TRadioButton")
+   |    | 
+   |    | RadioButton - 'Irrigation schedule'    (L-1235, T201, R-1106, B218)
+   |    | ['Irrigation scheduleRadioButton', 'RadioButton2', 'Irrigation schedule']
+   |    | child_window(title="Irrigation schedule", class_name="TRadioButton")
+   | 
+   | RadioButton - 'Daily soil moisture balance'    (L-1235, T221, R-1058, B238)
+   | ['Daily soil moisture balanceRadioButton', 'RadioButton', 'Daily soil moisture balance', 'RadioButton0', 'RadioButton1']
+   | child_window(title="Daily soil moisture balance", class_name="TRadioButton")
+   | 
+   | RadioButton - 'Irrigation schedule'    (L-1235, T201, R-1106, B218)
+   | ['Irrigation scheduleRadioButton', 'RadioButton2', 'Irrigation schedule']
+   | child_window(title="Irrigation schedule", class_name="TRadioButton")
+   | 
+   | Edit - 'sandy loam'    (L-958, T150, R-837, B171)
+   | ['Edit3']
+   | child_window(title="sandy loam", class_name="TEdit")
+   | 
+   | Edit - '01/04'    (L-719, T126, R-669, B147)
+   | ['Edit4', 'CROPWAT - Session: untitledEdit3']
+   | child_window(title="01/04", class_name="TEdit")
+   | 
+   | Edit - 'MAIZE  (Grain)    '    (L-958, T126, R-837, B147)
+   | ['Edit5']
+   | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   | 
+   | Edit - '450006'    (L-1143, T150, R-1022, B171)
+   | ['Edit6']
+   | child_window(title="450006", class_name="TEdit")
+   | 
+   | Edit - '425201'    (L-1143, T126, R-1022, B147)
+   | ['Edit7']
+   | child_window(title="425201", class_name="TEdit")
+   | 
+   | Tcwrform - 'Crop Water Requirements'    (L-1261, T88, R-549, B971)
+   | ['Crop Water Requirements', 'Tcwrform', 'Crop Water RequirementsTcwrform']
+   | child_window(title="Crop Water Requirements", class_name="Tcwrform")
+   |    | 
+   |    | TStringAlignGrid - ''    (L-1247, T185, R-577, B959)
+   |    | ['Irrigation scheduleTStringAlignGrid', 'TStringAlignGrid2', 'Irrigation scheduleTStringAlignGrid0', 'Irrigation scheduleTStringAlignGrid1']
+   |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | Edit - '01/04'    (L-682, T151, R-561, B172)
+   |    | ['Edit8', 'CROPWAT - Session: untitledEdit4']
+   |    | child_window(title="01/04", class_name="TEdit")
+   |    | 
+   |    | Edit - 'MAIZE  (Grain)    '    (L-682, T123, R-561, B144)
+   |    | ['Edit9', 'CROPWAT - Session: untitledEdit5']
+   |    | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   |    | 
+   |    | Edit - '450006'    (L-1133, T151, R-1012, B172)
+   |    | ['Edit10']
+   |    | child_window(title="450006", class_name="TEdit")
+   |    | 
+   |    | Edit - '425201'    (L-1133, T123, R-1012, B144)
+   |    | ['Edit11']
+   |    | child_window(title="425201", class_name="TEdit")
+   | 
+   | TStringAlignGrid - ''    (L-1247, T185, R-577, B959)
+   | ['Irrigation scheduleTStringAlignGrid', 'TStringAlignGrid2', 'Irrigation scheduleTStringAlignGrid0', 'Irrigation scheduleTStringAlignGrid1']
+   | child_window(class_name="TStringAlignGrid")
+   | 
+   | Edit - '01/04'    (L-682, T151, R-561, B172)
+   | ['Edit8', 'CROPWAT - Session: untitledEdit4']
+   | child_window(title="01/04", class_name="TEdit")
+   | 
+   | Edit - 'MAIZE  (Grain)    '    (L-682, T123, R-561, B144)
+   | ['Edit9', 'CROPWAT - Session: untitledEdit5']
+   | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   | 
+   | Edit - '450006'    (L-1133, T151, R-1012, B172)
+   | ['Edit10']
+   | child_window(title="450006", class_name="TEdit")
+   | 
+   | Edit - '425201'    (L-1133, T123, R-1012, B144)
+   | ['Edit11']
+   | child_window(title="425201", class_name="TEdit")
+   | 
+   | Tsoilform - 'Soil - D:\Cropwat\autoclickcropwat\cropwat\sandy loam\sandy loam.SOI'    (L-1217, T412, R-596, B648)
+   | ['Soil - D:\\Cropwat\\autoclickcropwat\\cropwat\\sandy loam\\sandy loam.SOI', 'Soil - D:\\Cropwat\\autoclickcropwat\\cropwat\\sandy loam\\sandy loam.SOITsoilform', 'Tsoilform']
+   | child_window(title="Soil - D:\Cropwat\autoclickcropwat\cropwat\sandy loam\sandy loam.SOI", class_name="Tsoilform")
+   |    | 
+   |    | TGroupBox - ' Additional soil data for rice calculations '    (L-1203, T641, R-610, B810)
+   |    | ['TGroupBox4', ' Additional soil data for rice calculations TGroupBox', ' Additional soil data for rice calculations ']
+   |    | child_window(title=" Additional soil data for rice calculations ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | ComboBox - ''    (L-771, T745, R-671, B766)
+   |    |    | ['Panel1ComboBox', 'ComboBox', 'ComboBox0', 'ComboBox1']
+   |    |    | child_window(class_name="TComboBox")
+   |    | 
+   |    | ComboBox - ''    (L-771, T745, R-671, B766)
+   |    | ['Panel1ComboBox', 'ComboBox', 'ComboBox0', 'ComboBox1']
+   |    | child_window(class_name="TComboBox")
+   |    | 
+   |    | TGroupBox - ' General soil data '    (L-1203, T473, R-610, B634)
+   |    | [' General soil data ', 'TGroupBox5', ' General soil data TGroupBox']
+   |    | child_window(title=" General soil data ", class_name="TGroupBox")
+   |    |    | 
+   |    |    | Edit - '110.0'    (L-843, T605, R-782, B626)
+   |    |    | ['Daily soil moisture balanceEdit', 'Edit12', 'Daily soil moisture balanceEdit0', 'Daily soil moisture balanceEdit1']
+   |    |    | child_window(title="110.0", class_name="TRealEdit")
+   |    |    | 
+   |    |    | Edit - '0'    (L-843, T577, R-782, B598)
+   |    |    | ['Daily soil moisture balanceEdit2', 'Edit13']
+   |    |    | child_window(title="0", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '100'    (L-843, T549, R-782, B570)
+   |    |    | ['Daily soil moisture balanceEdit3', 'Edit14']
+   |    |    | child_window(title="100", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '35'    (L-843, T521, R-782, B542)
+   |    |    | ['Daily soil moisture balanceEdit4', 'Edit15']
+   |    |    | child_window(title="35", class_name="TIntegerEdit")
+   |    |    | 
+   |    |    | Edit - '110.0'    (L-843, T493, R-782, B514)
+   |    |    | ['Daily soil moisture balanceEdit5', 'Edit16']
+   |    |    | child_window(title="110.0", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '110.0'    (L-843, T605, R-782, B626)
+   |    | ['Daily soil moisture balanceEdit', 'Edit12', 'Daily soil moisture balanceEdit0', 'Daily soil moisture balanceEdit1']
+   |    | child_window(title="110.0", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0'    (L-843, T577, R-782, B598)
+   |    | ['Daily soil moisture balanceEdit2', 'Edit13']
+   |    | child_window(title="0", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '100'    (L-843, T549, R-782, B570)
+   |    | ['Daily soil moisture balanceEdit3', 'Edit14']
+   |    | child_window(title="100", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '35'    (L-843, T521, R-782, B542)
+   |    | ['Daily soil moisture balanceEdit4', 'Edit15']
+   |    | child_window(title="35", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '110.0'    (L-843, T493, R-782, B514)
+   |    | ['Daily soil moisture balanceEdit5', 'Edit16']
+   |    | child_window(title="110.0", class_name="TRealEdit")
+   |    | 
+   |    | Edit - 'sandy loam'    (L-927, T449, R-786, B470)
+   |    | ['Daily soil moisture balanceEdit6', 'Edit17']
+   |    | child_window(title="sandy loam", class_name="TEdit")
+   | 
+   | TGroupBox - ' Additional soil data for rice calculations '    (L-1203, T641, R-610, B810)
+   | ['TGroupBox4', ' Additional soil data for rice calculations TGroupBox', ' Additional soil data for rice calculations ']
+   | child_window(title=" Additional soil data for rice calculations ", class_name="TGroupBox")
+   |    | 
+   |    | ComboBox - ''    (L-771, T745, R-671, B766)
+   |    | ['Panel1ComboBox', 'ComboBox', 'ComboBox0', 'ComboBox1']
+   |    | child_window(class_name="TComboBox")
+   | 
+   | ComboBox - ''    (L-771, T745, R-671, B766)
+   | ['Panel1ComboBox', 'ComboBox', 'ComboBox0', 'ComboBox1']
+   | child_window(class_name="TComboBox")
+   | 
+   | TGroupBox - ' General soil data '    (L-1203, T473, R-610, B634)
+   | [' General soil data ', 'TGroupBox5', ' General soil data TGroupBox']
+   | child_window(title=" General soil data ", class_name="TGroupBox")
+   |    | 
+   |    | Edit - '110.0'    (L-843, T605, R-782, B626)
+   |    | ['Daily soil moisture balanceEdit', 'Edit12', 'Daily soil moisture balanceEdit0', 'Daily soil moisture balanceEdit1']
+   |    | child_window(title="110.0", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0'    (L-843, T577, R-782, B598)
+   |    | ['Daily soil moisture balanceEdit2', 'Edit13']
+   |    | child_window(title="0", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '100'    (L-843, T549, R-782, B570)
+   |    | ['Daily soil moisture balanceEdit3', 'Edit14']
+   |    | child_window(title="100", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '35'    (L-843, T521, R-782, B542)
+   |    | ['Daily soil moisture balanceEdit4', 'Edit15']
+   |    | child_window(title="35", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '110.0'    (L-843, T493, R-782, B514)
+   |    | ['Daily soil moisture balanceEdit5', 'Edit16']
+   |    | child_window(title="110.0", class_name="TRealEdit")
+   | 
+   | Edit - '110.0'    (L-843, T605, R-782, B626)
+   | ['Daily soil moisture balanceEdit', 'Edit12', 'Daily soil moisture balanceEdit0', 'Daily soil moisture balanceEdit1']
+   | child_window(title="110.0", class_name="TRealEdit")
+   | 
+   | Edit - '0'    (L-843, T577, R-782, B598)
+   | ['Daily soil moisture balanceEdit2', 'Edit13']
+   | child_window(title="0", class_name="TIntegerEdit")
+   | 
+   | Edit - '100'    (L-843, T549, R-782, B570)
+   | ['Daily soil moisture balanceEdit3', 'Edit14']
+   | child_window(title="100", class_name="TIntegerEdit")
+   | 
+   | Edit - '35'    (L-843, T521, R-782, B542)
+   | ['Daily soil moisture balanceEdit4', 'Edit15']
+   | child_window(title="35", class_name="TIntegerEdit")
+   | 
+   | Edit - '110.0'    (L-843, T493, R-782, B514)
+   | ['Daily soil moisture balanceEdit5', 'Edit16']
+   | child_window(title="110.0", class_name="TRealEdit")
+   | 
+   | Edit - 'sandy loam'    (L-927, T449, R-786, B470)
+   | ['Daily soil moisture balanceEdit6', 'Edit17']
+   | child_window(title="sandy loam", class_name="TEdit")
+   | 
+   | TCropForm - 'Dry crop - D:\Cropwat\autoclickcropwat\cropwat\MAIZE_120\MAIZE_120.CRO'    (L-1242, T351, R-572, B709)
+   | ['Dry crop - D:\\Cropwat\\autoclickcropwat\\cropwat\\MAIZE_120\\MAIZE_120.CRO', 'TCropForm', 'Dry crop - D:\\Cropwat\\autoclickcropwat\\cropwat\\MAIZE_120\\MAIZE_120.CROTCropForm']
+   | child_window(title="Dry crop - D:\Cropwat\autoclickcropwat\cropwat\MAIZE_120\MAIZE_120.CRO", class_name="TCropForm")
+   |    | 
+   |    | Edit - '29/07'    (L-636, T388, R-599, B409)
+   |    | ['Panel1Edit', 'Edit18', 'Panel1Edit0', 'Panel1Edit1']
+   |    | child_window(title="29/07", class_name="TEdit")
+   |    | 
+   |    | Edit - '01/04'    (L-800, T388, R-763, B409)
+   |    | ['Panel1Edit2', 'Edit19']
+   |    | child_window(title="01/04", class_name="TMaskEdit")
+   |    | 
+   |    | Edit - '0.80'    (L-748, T624, R-699, B643)
+   |    | ['Panel1Edit3', 'Edit20']
+   |    | child_window(title="0.80", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '1.00'    (L-796, T588, R-747, B607)
+   |    | ['Panel1Edit4', 'Edit21']
+   |    | child_window(title="1.00", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.35'    (L-680, T476, R-631, B495)
+   |    | ['Panel1Edit5', 'Edit22']
+   |    | child_window(title="0.35", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '1.20'    (L-848, T432, R-799, B451)
+   |    | ['Daily soil moisture balanceEdit7', 'Edit23']
+   |    | child_window(title="1.20", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '2.00'    (L-848, T676, R-799, B695)
+   |    | ['Daily soil moisture balanceEdit8', 'Edit24']
+   |    | child_window(title="2.00", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '1.25'    (L-652, T648, R-603, B667)
+   |    | ['Panel1Edit6', 'Edit25']
+   |    | child_window(title="1.25", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.50'    (L-748, T648, R-699, B667)
+   |    | ['Panel1Edit7', 'Edit26']
+   |    | child_window(title="0.50", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '1.30'    (L-848, T648, R-799, B667)
+   |    | ['Daily soil moisture balanceEdit9', 'Edit27']
+   |    | child_window(title="1.30", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.40'    (L-944, T648, R-895, B667)
+   |    | ['Daily soil moisture balanceEdit10', 'Edit28']
+   |    | child_window(title="0.40", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.55'    (L-848, T624, R-799, B643)
+   |    | ['Daily soil moisture balanceEdit11', 'Edit29']
+   |    | child_window(title="0.55", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.40'    (L-1044, T648, R-995, B667)
+   |    | ['Daily soil moisture balanceEdit12', 'Edit30']
+   |    | child_window(title="0.40", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.55'    (L-1044, T624, R-995, B643)
+   |    | ['Daily soil moisture balanceEdit13', 'Edit31']
+   |    | child_window(title="0.55", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.30'    (L-1092, T560, R-1043, B579)
+   |    | ['Daily soil moisture balanceEdit14', 'Edit32']
+   |    | child_window(title="0.30", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '0.30'    (L-1044, T464, R-995, B483)
+   |    | ['Daily soil moisture balanceEdit15', 'Edit33']
+   |    | child_window(title="0.30", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '120'    (L-652, T524, R-603, B543)
+   |    | ['Panel1Edit8', 'Edit34']
+   |    | child_window(title="120", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '30'    (L-748, T524, R-699, B543)
+   |    | ['Panel1Edit9', 'Edit35']
+   |    | child_window(title="30", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '40'    (L-848, T524, R-799, B543)
+   |    | ['Daily soil moisture balanceEdit16', 'Edit36']
+   |    | child_window(title="40", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '30'    (L-948, T524, R-899, B543)
+   |    | ['Daily soil moisture balanceEdit17', 'Edit37']
+   |    | child_window(title="30", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - '20'    (L-1044, T524, R-995, B543)
+   |    | ['Daily soil moisture balanceEdit18', 'Edit38']
+   |    | child_window(title="20", class_name="TIntegerEdit")
+   |    | 
+   |    | Edit - 'MAIZE  (Grain)    '    (L-1108, T388, R-959, B409)
+   |    | ['Irrigation scheduleEdit', 'Edit39']
+   |    | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   | 
+   | Edit - '29/07'    (L-636, T388, R-599, B409)
+   | ['Panel1Edit', 'Edit18', 'Panel1Edit0', 'Panel1Edit1']
+   | child_window(title="29/07", class_name="TEdit")
+   | 
+   | Edit - '01/04'    (L-800, T388, R-763, B409)
+   | ['Panel1Edit2', 'Edit19']
+   | child_window(title="01/04", class_name="TMaskEdit")
+   | 
+   | Edit - '0.80'    (L-748, T624, R-699, B643)
+   | ['Panel1Edit3', 'Edit20']
+   | child_window(title="0.80", class_name="TRealEdit")
+   | 
+   | Edit - '1.00'    (L-796, T588, R-747, B607)
+   | ['Panel1Edit4', 'Edit21']
+   | child_window(title="1.00", class_name="TRealEdit")
+   | 
+   | Edit - '0.35'    (L-680, T476, R-631, B495)
+   | ['Panel1Edit5', 'Edit22']
+   | child_window(title="0.35", class_name="TRealEdit")
+   | 
+   | Edit - '1.20'    (L-848, T432, R-799, B451)
+   | ['Daily soil moisture balanceEdit7', 'Edit23']
+   | child_window(title="1.20", class_name="TRealEdit")
+   | 
+   | Edit - '2.00'    (L-848, T676, R-799, B695)
+   | ['Daily soil moisture balanceEdit8', 'Edit24']
+   | child_window(title="2.00", class_name="TRealEdit")
+   | 
+   | Edit - '1.25'    (L-652, T648, R-603, B667)
+   | ['Panel1Edit6', 'Edit25']
+   | child_window(title="1.25", class_name="TRealEdit")
+   | 
+   | Edit - '0.50'    (L-748, T648, R-699, B667)
+   | ['Panel1Edit7', 'Edit26']
+   | child_window(title="0.50", class_name="TRealEdit")
+   | 
+   | Edit - '1.30'    (L-848, T648, R-799, B667)
+   | ['Daily soil moisture balanceEdit9', 'Edit27']
+   | child_window(title="1.30", class_name="TRealEdit")
+   | 
+   | Edit - '0.40'    (L-944, T648, R-895, B667)
+   | ['Daily soil moisture balanceEdit10', 'Edit28']
+   | child_window(title="0.40", class_name="TRealEdit")
+   | 
+   | Edit - '0.55'    (L-848, T624, R-799, B643)
+   | ['Daily soil moisture balanceEdit11', 'Edit29']
+   | child_window(title="0.55", class_name="TRealEdit")
+   | 
+   | Edit - '0.40'    (L-1044, T648, R-995, B667)
+   | ['Daily soil moisture balanceEdit12', 'Edit30']
+   | child_window(title="0.40", class_name="TRealEdit")
+   | 
+   | Edit - '0.55'    (L-1044, T624, R-995, B643)
+   | ['Daily soil moisture balanceEdit13', 'Edit31']
+   | child_window(title="0.55", class_name="TRealEdit")
+   | 
+   | Edit - '0.30'    (L-1092, T560, R-1043, B579)
+   | ['Daily soil moisture balanceEdit14', 'Edit32']
+   | child_window(title="0.30", class_name="TRealEdit")
+   | 
+   | Edit - '0.30'    (L-1044, T464, R-995, B483)
+   | ['Daily soil moisture balanceEdit15', 'Edit33']
+   | child_window(title="0.30", class_name="TRealEdit")
+   | 
+   | Edit - '120'    (L-652, T524, R-603, B543)
+   | ['Panel1Edit8', 'Edit34']
+   | child_window(title="120", class_name="TIntegerEdit")
+   | 
+   | Edit - '30'    (L-748, T524, R-699, B543)
+   | ['Panel1Edit9', 'Edit35']
+   | child_window(title="30", class_name="TIntegerEdit")
+   | 
+   | Edit - '40'    (L-848, T524, R-799, B543)
+   | ['Daily soil moisture balanceEdit16', 'Edit36']
+   | child_window(title="40", class_name="TIntegerEdit")
+   | 
+   | Edit - '30'    (L-948, T524, R-899, B543)
+   | ['Daily soil moisture balanceEdit17', 'Edit37']
+   | child_window(title="30", class_name="TIntegerEdit")
+   | 
+   | Edit - '20'    (L-1044, T524, R-995, B543)
+   | ['Daily soil moisture balanceEdit18', 'Edit38']
+   | child_window(title="20", class_name="TIntegerEdit")
+   | 
+   | Edit - 'MAIZE  (Grain)    '    (L-1108, T388, R-959, B409)
+   | ['Irrigation scheduleEdit', 'Edit39']
+   | child_window(title="MAIZE  (Grain)    ", class_name="TEdit")
+   | 
+   | TDayRainForm - 'Daily rain - D:\Cropwat\autoclickcropwat\cropwat\Rain_450006\06_Rain_450006Jun\Rain_450006_1981Jun.CRD'    (L-1715, T335, R-99, B724)
+   | ['TDayRainForm', 'Daily rain - D:\\Cropwat\\autoclickcropwat\\cropwat\\Rain_450006\\06_Rain_450006Jun\\Rain_450006_1981Jun.CRDTDayRainForm', 'Daily rain - D:\\Cropwat\\autoclickcropwat\\cropwat\\Rain_450006\\06_Rain_450006Jun\\Rain_450006_1981Jun.CRD']
+   | child_window(title="Daily rain - D:\Cropwat\autoclickcropwat\cropwat\Rain_450006\06_Rain_450006Jun\Rain_450006_1981Jun.CRD", class_name="TDayRainForm")
+   |    | 
+   |    | Edit - '1981'    (L-1390, T371, R-1341, B392)
+   |    | ['Edit40']
+   |    | child_window(title="1981", class_name="TIntegerEdit")
+   |    | 
+   |    | TStringAlignGrid - ''    (L-1702, T403, R-112, B711)
+   |    | ['TStringAlignGrid3', 'Daily soil moisture balanceTStringAlignGrid2']
+   |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | Edit - 'FAO/AGLW formula'    (L-1178, T371, R-1035, B392)
+   |    | ['Daily soil moisture balanceEdit19', 'Edit41']
+   |    | child_window(title="FAO/AGLW formula", class_name="TEdit")
+   |    | 
+   |    | Edit - '450006'    (L-1614, T371, R-1469, B392)
+   |    | ['Edit42', 'CROPWAT - Session: untitledEdit6']
+   |    | child_window(title="450006", class_name="TEdit")
+   | 
+   | Edit - '1981'    (L-1390, T371, R-1341, B392)
+   | ['Edit40']
+   | child_window(title="1981", class_name="TIntegerEdit")
+   | 
+   | TStringAlignGrid - ''    (L-1702, T403, R-112, B711)
+   | ['TStringAlignGrid3', 'Daily soil moisture balanceTStringAlignGrid2']
+   | child_window(class_name="TStringAlignGrid")
+   | 
+   | Edit - 'FAO/AGLW formula'    (L-1178, T371, R-1035, B392)
+   | ['Daily soil moisture balanceEdit19', 'Edit41']
+   | child_window(title="FAO/AGLW formula", class_name="TEdit")
+   | 
+   | Edit - '450006'    (L-1614, T371, R-1469, B392)
+   | ['Edit42', 'CROPWAT - Session: untitledEdit6']
+   | child_window(title="450006", class_name="TEdit")
+   | 
+   | TDayEToPMForm - 'Daily ETo Penman-Monteith - D:\Cropwat\autoclickcropwat\cropwat\Clim_425201\06_Jun\425201clim_1981jun.PED'    (L-1210, T89, R-603, B970)
+   | ['Daily ETo Penman-Monteith - D:\\Cropwat\\autoclickcropwat\\cropwat\\Clim_425201\\06_Jun\\425201clim_1981jun.PEDTDayEToPMForm', 'TDayEToPMForm', 'Daily ETo Penman-Monteith - D:\\Cropwat\\autoclickcropwat\\cropwat\\Clim_425201\\06_Jun\\425201clim_1981jun.PED']
+   | child_window(title="Daily ETo Penman-Monteith - D:\Cropwat\autoclickcropwat\cropwat\Clim_425201\06_Jun\425201clim_1981jun.PED", class_name="TDayEToPMForm")
+   |    | 
+   |    | Edit - '1981'    (L-668, T126, R-619, B147)
+   |    | ['Edit43', 'CROPWAT - Session: untitledEdit7']
+   |    | child_window(title="1981", class_name="TIntegerEdit")
+   |    | 
+   |    | TTabControl - ''    (L-1196, T182, R-617, B956)
+   |    | ['Irrigation scheduleTTabControl', 'TTabControl']
+   |    | child_window(class_name="TTabControl")
+   |    |    | 
+   |    |    | TStringAlignGrid - ''    (L-1189, T206, R-627, B950)
+   |    |    | ['Irrigation scheduleTStringAlignGrid2', 'TStringAlignGrid4']
+   |    |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | TStringAlignGrid - ''    (L-1189, T206, R-627, B950)
+   |    | ['Irrigation scheduleTStringAlignGrid2', 'TStringAlignGrid4']
+   |    | child_window(class_name="TStringAlignGrid")
+   |    | 
+   |    | Edit - '100.00'    (L-712, T151, R-671, B172)
+   |    | ['Edit44', 'CROPWAT - Session: untitledEdit8']
+   |    | child_window(title="100.00", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '14.47'    (L-896, T151, R-855, B172)
+   |    | ['Edit45']
+   |    | child_window(title="14.47", class_name="TRealEdit")
+   |    | 
+   |    | Edit - '7'    (L-1126, T151, R-1085, B172)
+   |    | ['Edit46']
+   |    | child_window(title="7", class_name="TRealEdit")
+   |    | 
+   |    | ComboBox - '°E'    (L-663, T151, R-617, B172)
+   |    | ['ComboBox2', 'CROPWAT - Session: untitledComboBox']
+   |    | child_window(title="°E", class_name="TComboBox")
+   |    | 
+   |    | ComboBox - '°N'    (L-848, T151, R-801, B172)
+   |    | ['ComboBox3']
+   |    | child_window(title="°N", class_name="TComboBox")
+   |    | 
+   |    | Edit - '425201'    (L-896, T126, R-749, B147)
+   |    | ['Edit47']
+   |    | child_window(title="425201", class_name="TEdit")
+   |    | 
+   |    | Edit - 'Thailand'    (L-1126, T126, R-967, B147)
+   |    | ['Edit48']
+   |    | child_window(title="Thailand", class_name="TEdit")
+   | 
+   | Edit - '1981'    (L-668, T126, R-619, B147)
+   | ['Edit43', 'CROPWAT - Session: untitledEdit7']
+   | child_window(title="1981", class_name="TIntegerEdit")
+   | 
+   | TTabControl - ''    (L-1196, T182, R-617, B956)
+   | ['Irrigation scheduleTTabControl', 'TTabControl']
+   | child_window(class_name="TTabControl")
+   |    | 
+   |    | TStringAlignGrid - ''    (L-1189, T206, R-627, B950)
+   |    | ['Irrigation scheduleTStringAlignGrid2', 'TStringAlignGrid4']
+   |    | child_window(class_name="TStringAlignGrid")
+   | 
+   | TStringAlignGrid - ''    (L-1189, T206, R-627, B950)
+   | ['Irrigation scheduleTStringAlignGrid2', 'TStringAlignGrid4']
+   | child_window(class_name="TStringAlignGrid")
+   | 
+   | Edit - '100.00'    (L-712, T151, R-671, B172)
+   | ['Edit44', 'CROPWAT - Session: untitledEdit8']
+   | child_window(title="100.00", class_name="TRealEdit")
+   | 
+   | Edit - '14.47'    (L-896, T151, R-855, B172)
+   | ['Edit45']
+   | child_window(title="14.47", class_name="TRealEdit")
+   | 
+   | Edit - '7'    (L-1126, T151, R-1085, B172)
+   | ['Edit46']
+   | child_window(title="7", class_name="TRealEdit")
+   | 
+   | ComboBox - '°E'    (L-663, T151, R-617, B172)
+   | ['ComboBox2', 'CROPWAT - Session: untitledComboBox']
+   | child_window(title="°E", class_name="TComboBox")
+   | 
+   | ComboBox - '°N'    (L-848, T151, R-801, B172)
+   | ['ComboBox3']
+   | child_window(title="°N", class_name="TComboBox")
+   | 
+   | Edit - '425201'    (L-896, T126, R-749, B147)
+   | ['Edit47']
+   | child_window(title="425201", class_name="TEdit")
+   | 
+   | Edit - 'Thailand'    (L-1126, T126, R-967, B147)
+   | ['Edit48']
+   | child_window(title="Thailand", class_name="TEdit")

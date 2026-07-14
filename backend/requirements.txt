@@ -1,0 +1,7 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pywinauto==0.6.8
+openpyxl==3.1.5
+Pillow==10.4.0
+pydantic==2.9.2
+websockets==13.1

@@ -1,0 +1,22 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/automation/__pycache__/
+backend/file_engine/__pycache__/
+__pycache__/
+*.pyc
+
+# ค่าตั้งค่าเครื่องผู้ใช้ (path เฉพาะเครื่อง ไม่ควร share)
+backend/data/config.json
+
+# ข้อมูลดิบขนาดใหญ่ / ข้อมูลวิจัยส่วนตัว — ไม่ใช่ source code ของโปรเจกต์ และ
+# บางไฟล์ใหญ่เกินกว่า git/GitHub จะรับได้ (docx มี screenshot 1,204 ภาพ ~600MB)
+# repo นี้จะเปิดเป็น public ให้คนอื่นโหลด .exe ไปใช้ เลยต้องกันข้อมูลวิจัยจริง
+# ของผู้ใช้ไม่ให้หลุดออกไปด้วย
+cropwat/
+Maize_C425201_R450006SandLo 231068.docx
+Maize_C425201_R450006SandLo 231068.xlsx
+01043.TXT
+
+# ไฟล์ output ที่ระบบสร้างขึ้นตอนรันจริง (ถ้าตั้ง output_dir ไว้ในโฟลเดอร์นี้)
+output/
