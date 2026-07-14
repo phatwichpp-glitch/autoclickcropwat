@@ -63,6 +63,10 @@
                 <div class="num tabular" id="sum-shots" style="color:var(--warn)">0</div>
                 <div class="lbl">📷 screenshot / ปี</div>
               </div>
+              <div>
+                <div class="num tabular" id="sum-manual-hours">0</div>
+                <div class="lbl">⏱ ชม. ทำมือเทียบเท่า</div>
+              </div>
             </div>
             <div class="summary-actions">
               <button id="btn-save-calendar" class="btn btn-ghost sm">บันทึกปฏิทิน</button>
@@ -145,6 +149,29 @@
                 <div class="ph-desc">อ่าน .txt ทั้งหมด &rarr; เขียนลง Result.xlsx กดใหม่ได้ทุกเมื่อ</div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>⏱ เวลาทำมือเทียบเท่า (นาทีต่อขั้นตอน)</h2></div>
+          <div class="card-body stack">
+            <span class="note">ใช้คำนวณตัวเลข "ชม. ทำมือเทียบเท่า" ใน Dashboard — เป็นค่าประมาณจากจำนวนงานจริง ปรับให้ตรงกับความเร็วการทำมือของคุณเองได้</span>
+            <label class="field">
+              <span class="lbl">ต่อปี — หาไฟล์ climate/rain ที่ถูกต้อง (กติกา shift-year) + เปิดเข้า CropWat</span>
+              <input type="number" id="manual-per-year" step="0.5" min="0" class="tabular" />
+            </label>
+            <label class="field">
+              <span class="lbl">ต่อวันปลูก — ตั้งวันปลูก + คำนวณ 2 ขั้น + Print/Save ตั้งชื่อไฟล์</span>
+              <input type="number" id="manual-per-candidate" step="0.5" min="0" class="tabular" />
+            </label>
+            <label class="field">
+              <span class="lbl">ต่อวันปลูกที่ 📷 — เปิดกราฟ + capture 2 ภาพ + แปะลงเอกสาร</span>
+              <input type="number" id="manual-per-screenshot" step="0.5" min="0" class="tabular" />
+            </label>
+            <label class="field">
+              <span class="lbl">Excel ต่อวันปลูก — กรอก 11 ค่าลงช่องที่ถูกต้อง</span>
+              <input type="number" id="manual-excel-per-candidate" step="0.5" min="0" class="tabular" />
+            </label>
           </div>
         </div>
 

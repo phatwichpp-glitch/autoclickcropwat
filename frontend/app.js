@@ -41,6 +41,10 @@ async function loadConfig() {
   document.getElementById("rain-station-dir").value = settings.rain_station_dir || "";
   document.getElementById("crop-file").value = settings.crop_file || "";
   document.getElementById("soil-file").value = settings.soil_file || "";
+  document.getElementById("manual-per-year").value = settings.manual_minutes_per_year;
+  document.getElementById("manual-per-candidate").value = settings.manual_minutes_per_candidate;
+  document.getElementById("manual-per-screenshot").value = settings.manual_minutes_per_screenshot;
+  document.getElementById("manual-excel-per-candidate").value = settings.manual_minutes_excel_per_candidate;
   document.getElementById("brand-sub").textContent = settings.input_dir
     ? settings.input_dir
     : "ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง";
@@ -97,7 +101,12 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
     rain_station_dir: document.getElementById("rain-station-dir").value,
     crop_file: document.getElementById("crop-file").value,
     soil_file: document.getElementById("soil-file").value,
+    manual_minutes_per_year: Number(document.getElementById("manual-per-year").value) || 0,
+    manual_minutes_per_candidate: Number(document.getElementById("manual-per-candidate").value) || 0,
+    manual_minutes_per_screenshot: Number(document.getElementById("manual-per-screenshot").value) || 0,
+    manual_minutes_excel_per_candidate: Number(document.getElementById("manual-excel-per-candidate").value) || 0,
   });
+  updateSummary();
   if (ok) {
     document.getElementById("brand-sub").textContent = settings.input_dir || "ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง";
     alert("บันทึกการตั้งค่าแล้ว");
@@ -270,6 +279,22 @@ function updateSummary() {
   const endYear = Number(document.getElementById("end-year").value) || 0;
   const years = Math.max(0, endYear - startYear + 1);
   document.getElementById("sum-total").textContent = (totalDays * years).toLocaleString("en-US");
+
+  // เวลาทำมือเทียบเท่า (ประมาณการ) ของงานทั้ง batch — นาทีต่อขั้นตอนปรับได้ใน
+  // หน้าตั้งค่า อ่านจากช่อง input ตรงๆ เพื่อให้เลขอัปเดตทันทีที่ผู้ใช้แก้ค่า
+  const perYear = Number(document.getElementById("manual-per-year").value) || 0;
+  const perCand = Number(document.getElementById("manual-per-candidate").value) || 0;
+  const perShot = Number(document.getElementById("manual-per-screenshot").value) || 0;
+  const perExcel = Number(document.getElementById("manual-excel-per-candidate").value) || 0;
+  const minutesPerYear = perYear + totalDays * (perCand + perExcel) + totalShots * perShot;
+  const hours = (minutesPerYear * years) / 60;
+  document.getElementById("sum-manual-hours").textContent =
+    hours >= 100 ? Math.round(hours).toLocaleString("en-US") : hours.toFixed(1);
+}
+
+// เลขชั่วโมงทำมือต้องอัปเดตทันทีที่แก้ค่านาทีในหน้าตั้งค่า (ไม่ต้องรอกดบันทึก)
+for (const id of ["manual-per-year", "manual-per-candidate", "manual-per-screenshot", "manual-excel-per-candidate"]) {
+  document.getElementById(id).addEventListener("input", updateSummary);
 }
 
 document.getElementById("start-year").addEventListener("input", updateSummary);

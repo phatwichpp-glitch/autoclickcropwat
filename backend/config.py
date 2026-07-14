@@ -99,6 +99,20 @@ class Settings(BaseModel):
         default_factory=_default_planting_calendar
     )
 
+    # ตัวเลข "นาทีต่อขั้นตอนถ้าทำมือ" สำหรับคำนวณเวลาทำมือเทียบเท่าของงานทั้ง batch
+    # (แสดงใน Dashboard) — ปรับได้ในหน้าตั้งค่าเพราะความเร็วมือแต่ละคนไม่เท่ากัน
+    # ค่า default ประเมินจากลักษณะงานจริงใน workflow เดิมของผู้ใช้ (.docx 1,204 ภาพ):
+    #  - ต่อปี: ไล่หาไฟล์ climate+rain ที่ถูกต้องตามกติกา shift-year ในโฟลเดอร์ซ้อน
+    #    หลายชั้น + เปิดเข้า CropWat ทั้ง 2 ไฟล์
+    #  - ต่อวันปลูก: ตั้งวันปลูก + คำนวณ CWR + Scheduling + เลือก table format +
+    #    Print->ตั้งค่า->Save As ตั้งชื่อไฟล์ให้ถูก
+    #  - ต่อ screenshot: เปิดหน้ากราฟ + capture 2 ภาพ + แปะจัดเรียงลงเอกสาร
+    #  - Excel ต่อวันปลูก: คัดลอก/พิมพ์ 11 ค่าจากผลลัพธ์ลงช่องที่ถูกต้อง
+    manual_minutes_per_year: float = 8.0
+    manual_minutes_per_candidate: float = 5.0
+    manual_minutes_per_screenshot: float = 3.0
+    manual_minutes_excel_per_candidate: float = 3.0
+
 
 def _ensure_data_dir() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
