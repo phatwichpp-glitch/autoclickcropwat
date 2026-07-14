@@ -60,12 +60,30 @@ def _scan_valid_outputs(settings: Settings) -> tuple[set, set, list[str]]:
             if not m:
                 continue
             try:
-                parse_txt(p)
+                parsed = parse_txt(p)
             except (TxtParseError, OSError) as exc:
                 logger.warning("ไฟล์ output ไม่สมบูรณ์ (จะรันวันปลูกนี้ใหม่): %s — %s", p.name, exc)
                 invalid.append(p.name)
                 continue
-            txt_ok.add((int(m.group("year")), m.group("mmdd")))
+
+            # ตรวจว่า "เนื้อไฟล์เป็นของวันปลูกตามชื่อไฟล์จริง" — บทเรียนสำคัญ
+            # (ยืนยันจากไฟล์จริงทั้งเครื่องผู้ใช้และเพื่อน): เคยมีบั๊กที่ตั้งวันปลูก
+            # ไม่ติดถึง model ของ CropWat ทุกไฟล์เลยเป็นวันปลูกเดียวกันหมดทั้งที่
+            # ชื่อไฟล์ต่างกัน — เทียบวันปลูกในหัวไฟล์ (ที่ CropWat พิมพ์เอง) กับ
+            # ชื่อไฟล์ ยอมรับทั้งลำดับ วัน/เดือน และ เดือน/วัน (กัน Region ต่างกัน)
+            mmdd = m.group("mmdd")
+            want_day, want_month = int(mmdd[2:]), int(mmdd[:2])
+            pd_match = re.match(r"^\s*(\d{1,2})/(\d{1,2})\s*$", parsed.planting_date)
+            if pd_match:
+                a, b = int(pd_match.group(1)), int(pd_match.group(2))
+                if (a, b) != (want_day, want_month) and (a, b) != (want_month, want_day):
+                    logger.warning(
+                        "ไฟล์ %s เนื้อในเป็นวันปลูก %s ไม่ตรงกับชื่อไฟล์ (จะรันใหม่)",
+                        p.name, parsed.planting_date,
+                    )
+                    invalid.append(p.name)
+                    continue
+            txt_ok.add((int(m.group("year")), mmdd))
 
     shots_ok: set[tuple[int, str]] = set()
     sdir = screenshot_dir(settings)

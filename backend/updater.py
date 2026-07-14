@@ -106,9 +106,12 @@ if errorlevel 1 (
   if %RETRIES% lss 60 goto loop
   exit /b 1
 )
-start "" "{target_exe}"
+start "" "{target_exe}" --updated
 del "%~f0"
 """
+# หมายเหตุ "--updated": บอก launcher ว่านี่คือการเปิดหลังอัปเดต — ไม่ต้องเปิด
+# หน้าต่างโปรแกรมใหม่ เพราะหน้าต่างเดิมของผู้ใช้ยังเปิดอยู่และจะ reload ตัวเอง
+# เมื่อ backend กลับมา (ยืนยันจากผู้ใช้: ไม่ใส่ flag นี้จะได้ 2 หน้าต่างซ้อนกัน)
 
 
 def apply_update() -> None:

@@ -129,7 +129,7 @@ def _open_browser_when_ready() -> None:
     _launch_app_window()
 
 
-def _run_server() -> None:
+def _run_server(open_browser: bool = True) -> None:
     """ทุก import ที่ "เสี่ยง fail" (ดึง pywinauto/fastapi/pydantic ฯลฯ เข้ามาด้วย)
     อยู่ในนี้ทั้งหมด เพื่อให้ exception จากตรงนี้ถูก try/except ใน main() จับได้"""
     import logging
@@ -152,7 +152,8 @@ def _run_server() -> None:
 
     import app as app_module
 
-    threading.Thread(target=_open_browser_when_ready, daemon=True).start()
+    if open_browser:
+        threading.Thread(target=_open_browser_when_ready, daemon=True).start()
     # ส่ง app object ตรงๆ (ไม่ใช่ string "app:app") เพราะใน .exe ที่ build แบบ
     # --onefile จะ resolve import string ไม่ได้เหมือนตอนรันด้วย python ปกติ
     uvicorn.run(app_module.app, host=HOST, port=PORT, log_level="info", log_config=None)
@@ -165,8 +166,11 @@ def main() -> None:
         _launch_app_window()
         sys.exit(0)
 
+    # "--updated" = เปิดหลังอัปเดตอัตโนมัติ (ดู updater.py) — หน้าต่างเดิมของ
+    # ผู้ใช้ยังเปิดอยู่และจะ reload ตัวเองเมื่อ backend กลับมา ไม่ต้องเปิดใหม่ซ้ำ
+    # (ยืนยันจากผู้ใช้: เปิดซ้ำจะได้ 2 หน้าต่างซ้อนกัน งงว่าอันไหนจริง)
     try:
-        _run_server()
+        _run_server(open_browser="--updated" not in sys.argv)
     except BaseException:
         # ครอบกว้างสุด (BaseException) เพราะ error ที่เจอจริงระหว่างทดสอบเกิดตอน
         # import ไลบรารีข้างใน ก่อนโค้ด logic จะได้รันเลยด้วยซ้ำ
