@@ -195,11 +195,19 @@ def _run_years(years: list[int], settings: Settings) -> None:
             export_dir=txt_dir(settings),
             screenshot_dir=screenshot_dir(settings),
             on_candidate_done=_on_candidate_done,
+            should_stop=run_state.is_stop_requested,
         )
         # ปีที่ล้มก่อนถึงลูปวันปลูก (เช่น เปิด climate/rain ไม่ได้) ต้องนับวันปลูก
         # ของปีนั้นเป็น "ผ่านไปแล้ว" ด้วย ไม่งั้น bar ค้างไม่ถึง 100% ตอนจบ
         candidates_before_year += len(tasks)
         run_state.set_candidate_progress(candidates_before_year, total_candidates)
+
+        if result.stopped:
+            # ถูกสั่งหยุดกลางปี — คืนสถานะเป็น "รอคิว" ให้กด "รันปีที่ค้างใหม่"/
+            # เริ่มใหม่ได้ (ไฟล์ .txt ของวันปลูกที่ทำเสร็จไปแล้วอยู่ครบ ไม่หายไปไหน
+            # รันซ้ำก็แค่เขียนทับไฟล์เดิมด้วยผลเดียวกัน)
+            run_state.set_year_status(year, YearRunStatus.QUEUED)
+            continue
 
         if result.ok:
             # เก็บ path โฟลเดอร์ export ไว้ (มีหลายไฟล์ต่อปี — 1 ไฟล์ต่อ 1 วันปลูก
@@ -225,3 +233,13 @@ def build_excel(settings: Settings) -> int:
     from file_engine.excel_writer import build_result_sheet
 
     return build_result_sheet(txt_dir(settings), excel_path(settings))
+
+
+def build_word(settings: Settings) -> int:
+    """สร้างไฟล์ Word รวมภาพ screenshot ทั้งหมด (โครงสร้างเหมือนไฟล์ตัวอย่างจริง
+    ของผู้ใช้: บรรทัดวันที่ + ภาพตาราง + ภาพกราฟ ต่อ 1 วันปลูก) — เรียกซ้ำได้
+    ทุกเมื่อเหมือน build_excel คืนจำนวนวันปลูกที่ใส่ลงเอกสาร"""
+    from config import word_path
+    from file_engine.word_writer import build_screenshot_doc
+
+    return build_screenshot_doc(screenshot_dir(settings), word_path(settings))

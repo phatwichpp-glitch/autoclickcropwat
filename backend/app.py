@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 import runner
-from config import Settings, excel_path, load_settings, save_settings
+from config import Settings, excel_path, load_settings, save_settings, word_path
 from file_engine import paths as file_paths
 from models import RunRequest, ScanResult, StateSnapshot, StationScan, YearRunStatus
 from state import run_state
@@ -213,6 +213,38 @@ async def download_excel_master() -> FileResponse:
     path = excel_path(settings)
     if not settings.output_dir or not path.exists():
         raise HTTPException(404, "ยังไม่พบไฟล์ Result.xlsx (ลองกด 'สร้าง/อัปเดต Excel' ก่อน)")
+    return FileResponse(path, filename=path.name)
+
+
+# ---------------------------------------------------------------------------
+# ไฟล์ Word รวมภาพ screenshot (โครงสร้างเหมือนไฟล์ .docx ตัวอย่างจริงของผู้ใช้:
+# บรรทัดวันที่ + ภาพตาราง + ภาพกราฟ ต่อ 1 วันปลูก) — สร้างซ้ำได้ทุกเมื่อเหมือน Excel
+# ---------------------------------------------------------------------------
+
+@app.post("/api/build-word")
+async def build_word() -> dict:
+    settings = load_settings()
+    if not settings.output_dir:
+        raise HTTPException(400, "ยังไม่ได้ตั้งค่าโฟลเดอร์ผลลัพธ์")
+    try:
+        candidates_written = await asyncio.to_thread(runner.build_word, settings)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(
+            409,
+            f"เขียนไฟล์ {word_path(settings).name} ไม่ได้ — ถ้าเปิดไฟล์นี้ค้างอยู่ใน "
+            "Word ให้ปิดก่อนแล้วกดใหม่อีกครั้ง",
+        ) from exc
+    return {"candidates_written": candidates_written, "path": str(word_path(settings))}
+
+
+@app.get("/api/download-word")
+async def download_word_doc() -> FileResponse:
+    settings = load_settings()
+    path = word_path(settings)
+    if not settings.output_dir or not path.exists():
+        raise HTTPException(404, "ยังไม่พบไฟล์ Screenshots.docx (ลองกด 'สร้างไฟล์ Word' ก่อน)")
     return FileResponse(path, filename=path.name)
 
 

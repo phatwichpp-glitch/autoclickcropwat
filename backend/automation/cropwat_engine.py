@@ -92,6 +92,9 @@ class YearRunResult:
     ok: bool
     candidates: list[CandidateRunResult] = field(default_factory=list)
     error_message: Optional[str] = None
+    # True = ปีนี้ถูกสั่งหยุดกลางคัน (ยังทำวันปลูกไม่ครบ) — runner ใช้ตัดสินว่า
+    # ควร mark ปีนี้กลับเป็น "รอคิว" ให้รันใหม่ได้ ไม่ใช่ "เสร็จ/error"
+    stopped: bool = False
 
 
 class CropWatEngine:
@@ -705,6 +708,7 @@ class CropWatEngine:
         export_dir: Path,
         screenshot_dir: Optional[Path] = None,
         on_candidate_done=None,
+        should_stop=None,
     ) -> YearRunResult:
         try:
             self.open_climate_file(climate_file)
@@ -716,7 +720,16 @@ class CropWatEngine:
             )
 
         candidates = []
+        stopped = False
         for task in tasks:
+            # เช็คคำสั่งหยุด "ก่อนเริ่มทุกวันปลูก" ไม่ใช่แค่ตอนขึ้นปีใหม่ (v0.2.3 —
+            # เดิมกดหยุดแล้วต้องรอจนครบทั้งปีถึงหยุดจริง) — หยุดกลางวันปลูกที่
+            # กำลังทำอยู่ไม่ได้ เพราะจะทิ้ง CropWat ค้างครึ่งทาง (dialog เปิดค้าง
+            # ฯลฯ) แต่หยุดระหว่างวันปลูก = สถานะสะอาด รันต่อ/รันใหม่ได้เสมอ
+            if should_stop is not None and should_stop():
+                logger.info("ปี %s: ได้รับคำสั่งหยุด — หยุดหลังทำไป %s วันปลูก", year, len(candidates))
+                stopped = True
+                break
             result = self.run_candidate_planting_date(year, task, export_dir, screenshot_dir)
             candidates.append(result)
             # แจ้ง progress ระดับวันปลูกให้ผู้เรียก (runner ใช้ขับ progress bar
@@ -727,11 +740,13 @@ class CropWatEngine:
                 except Exception:  # noqa: BLE001
                     logger.exception("on_candidate_done callback ล้มเหลว (ไม่กระทบการรัน)")
         failed = [c for c in candidates if not c.ok]
-        ok = not failed
+        ok = not failed and not stopped
         error_message = (
             None
-            if ok
+            if not failed
             else f"{len(failed)}/{len(candidates)} วันปลูกที่ทดลองล้มเหลว "
             f"(เช่น {failed[0].planting_date:%d/%m}: {failed[0].error_message})"
         )
-        return YearRunResult(year=year, ok=ok, candidates=candidates, error_message=error_message)
+        return YearRunResult(
+            year=year, ok=ok, candidates=candidates, error_message=error_message, stopped=stopped
+        )

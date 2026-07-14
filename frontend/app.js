@@ -41,10 +41,7 @@ async function loadConfig() {
   document.getElementById("rain-station-dir").value = settings.rain_station_dir || "";
   document.getElementById("crop-file").value = settings.crop_file || "";
   document.getElementById("soil-file").value = settings.soil_file || "";
-  document.getElementById("manual-per-year").value = settings.manual_minutes_per_year;
   document.getElementById("manual-per-candidate").value = settings.manual_minutes_per_candidate;
-  document.getElementById("manual-per-screenshot").value = settings.manual_minutes_per_screenshot;
-  document.getElementById("manual-excel-per-candidate").value = settings.manual_minutes_excel_per_candidate;
   document.getElementById("brand-sub").textContent = settings.input_dir
     ? settings.input_dir
     : "ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง";
@@ -101,10 +98,7 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
     rain_station_dir: document.getElementById("rain-station-dir").value,
     crop_file: document.getElementById("crop-file").value,
     soil_file: document.getElementById("soil-file").value,
-    manual_minutes_per_year: Number(document.getElementById("manual-per-year").value) || 0,
     manual_minutes_per_candidate: Number(document.getElementById("manual-per-candidate").value) || 0,
-    manual_minutes_per_screenshot: Number(document.getElementById("manual-per-screenshot").value) || 0,
-    manual_minutes_excel_per_candidate: Number(document.getElementById("manual-excel-per-candidate").value) || 0,
   });
   updateSummary();
   if (ok) {
@@ -280,22 +274,16 @@ function updateSummary() {
   const years = Math.max(0, endYear - startYear + 1);
   document.getElementById("sum-total").textContent = (totalDays * years).toLocaleString("en-US");
 
-  // เวลาทำมือเทียบเท่า (ประมาณการ) ของงานทั้ง batch — นาทีต่อขั้นตอนปรับได้ใน
-  // หน้าตั้งค่า อ่านจากช่อง input ตรงๆ เพื่อให้เลขอัปเดตทันทีที่ผู้ใช้แก้ค่า
-  const perYear = Number(document.getElementById("manual-per-year").value) || 0;
+  // เวลาทำมือเทียบเท่า = นาที/วันปลูก (ตัวเลขเดียว รวมทุกขั้นตอน) × วันปลูกทั้งหมด
+  // แสดงเป็น "ชั่วโมง" — อ่านจากช่อง input ตรงๆ ให้เลขอัปเดตทันทีที่ผู้ใช้แก้ค่า
   const perCand = Number(document.getElementById("manual-per-candidate").value) || 0;
-  const perShot = Number(document.getElementById("manual-per-screenshot").value) || 0;
-  const perExcel = Number(document.getElementById("manual-excel-per-candidate").value) || 0;
-  const minutesPerYear = perYear + totalDays * (perCand + perExcel) + totalShots * perShot;
-  const hours = (minutesPerYear * years) / 60;
+  const hours = (totalDays * years * perCand) / 60;
   document.getElementById("sum-manual-hours").textContent =
     hours >= 100 ? Math.round(hours).toLocaleString("en-US") : hours.toFixed(1);
 }
 
 // เลขชั่วโมงทำมือต้องอัปเดตทันทีที่แก้ค่านาทีในหน้าตั้งค่า (ไม่ต้องรอกดบันทึก)
-for (const id of ["manual-per-year", "manual-per-candidate", "manual-per-screenshot", "manual-excel-per-candidate"]) {
-  document.getElementById(id).addEventListener("input", updateSummary);
-}
+document.getElementById("manual-per-candidate").addEventListener("input", updateSummary);
 
 document.getElementById("start-year").addEventListener("input", updateSummary);
 document.getElementById("end-year").addEventListener("input", updateSummary);
@@ -474,6 +462,22 @@ document.getElementById("btn-build-excel").addEventListener("click", async (e) =
       return;
     }
     alert(`สร้าง Excel สำเร็จ (${data.years_written} ปี)`);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("btn-build-word").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/build-word", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.detail || "สร้างไฟล์ Word ไม่สำเร็จ");
+      return;
+    }
+    alert(`สร้างไฟล์ Word สำเร็จ (${data.candidates_written} วันปลูก)`);
   } finally {
     btn.disabled = false;
   }
