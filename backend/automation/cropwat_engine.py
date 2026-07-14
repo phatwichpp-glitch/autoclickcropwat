@@ -214,15 +214,35 @@ class CropWatEngine:
         """เรียกเมนูของหน้าต่างหลัก — โหมดปกติใช้ menu_select ของ pywinauto (ซึ่ง
         set_focus ดึงหน้าต่างขึ้นมาก่อนเสมอ) โหมดเบื้องหลังหา id ของ menu item จาก
         โครงสร้างเมนู (อ่านได้โดยไม่ต้อง focus) แล้ว post WM_COMMAND ตรงไปที่
-        หน้าต่างหลักแบบเดียวกับที่ Windows ส่งให้ตอนผู้ใช้คลิกเมนูจริง"""
+        หน้าต่างหลักแบบเดียวกับที่ Windows ส่งให้ตอนผู้ใช้คลิกเมนูจริง
+
+        v0.5.8 — บั๊กที่เจอจากผู้ใช้จริง (background mode ตั้งวันปลูกติดแต่ไม่รัน
+        อะไรต่อเลย ทั้งที่ก่อนหน้านี้ทำงานปกติดี): PostMessage คือ "ยิงแล้วไม่รอ"
+        (คำสั่งแค่เข้าคิว ยังไม่ทันประมวลผล) — เดิมฟังก์ชันนี้คืนค่าทันที แล้วโค้ด
+        ที่เรียกต่อ (_raise_if_error_dialog) มี sleep(0.8) ตายตัวอยู่แล้ว ซึ่ง
+        "บังเอิญ" ให้เวลา CropWat ประมวลผลคำสั่งก่อนหน้าทันเวลาพอดี พอ v0.5.7 ลด
+        เวลานั้นลงเพื่อความเร็ว คำสั่งเมนูถัดไปถูกยิงเร็วเกินไป — is_enabled()
+        เช็คตอนที่คำสั่งก่อนหน้ายังไม่ทันมีผล เจอเมนู "ยังไม่พร้อม" แล้ว raise
+        error ทันที ทำให้ทุกวันปลูก fail เร็วจนดูเหมือนไม่รันอะไรเลย — แก้ 2 ชั้น
+        แยกจากการเช็ค error dialog เดิม: (1) retry สั้นๆ ตอนเช็ค is_enabled() กัน
+        race หลัง MDI activate/คำสั่งก่อนหน้า (2) settle หลังยิงคำสั่งเสมอ ไม่พึ่ง
+        sleep ของจุดอื่นแบบบังเอิญอีกต่อไป"""
         if not self.background_mode:
             self.main_window.menu_select(menu_path)
             return
-        item = self.main_window.menu().get_menu_path(menu_path)[-1]
-        if not item.is_enabled():
-            raise CropWatReportedError(f"เมนู {menu_path!r} ถูก disable อยู่ (สถานะโปรแกรมยังไม่พร้อม)")
+        deadline = time.monotonic() + 0.5
+        while True:
+            item = self.main_window.menu().get_menu_path(menu_path)[-1]
+            if item.is_enabled():
+                break
+            if time.monotonic() >= deadline:
+                raise CropWatReportedError(
+                    f"เมนู {menu_path!r} ถูก disable อยู่ (สถานะโปรแกรมยังไม่พร้อม)"
+                )
+            time.sleep(0.05)
         # เมธอดชื่อ item_id() (ยืนยันจาก source ของ pywinauto — ไม่ใช่ .id())
         win32gui.PostMessage(self.main_window.handle, win32con.WM_COMMAND, item.item_id(), 0)
+        time.sleep(0.15)  # settle: ให้เวลา CropWat ประมวลผลคำสั่งนี้ก่อนยิงคำสั่งถัดไป
 
     def start_background_watcher(self) -> None:
         """โหมดเบื้องหลัง (v0.5.4): thread เฝ้ายามที่สแกน "ทุก" หน้าต่าง top-level
