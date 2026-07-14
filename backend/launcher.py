@@ -24,11 +24,15 @@ Build ด้วย:
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 import socket
+import subprocess
 import sys
 import threading
 import time
 import webbrowser
+from pathlib import Path
 
 import uvicorn
 
@@ -36,6 +40,15 @@ import app as app_module
 
 HOST = "127.0.0.1"
 PORT = 8000
+
+# ตำแหน่งที่ Edge/Chrome มักติดตั้งอยู่ (เผื่อไม่ได้อยู่ใน PATH) — เช็คแบบนี้ก่อน
+# เพราะ Edge ติดตั้งมาให้ในตัวทุกเครื่อง Windows 10/11 อยู่แล้ว โอกาสเจอสูงมาก
+_BROWSER_CANDIDATES = [
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+]
 
 
 def _wait_for_exit() -> None:
@@ -51,10 +64,39 @@ def _port_in_use(host: str, port: int) -> bool:
         return sock.connect_ex((host, port)) == 0
 
 
+def _find_app_mode_browser() -> str | None:
+    for path in _BROWSER_CANDIDATES:
+        if Path(path).exists():
+            return path
+    for name in ("msedge", "chrome", "msedge.exe", "chrome.exe"):
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
 def _open_browser_when_ready() -> None:
     # รอ server เริ่มก่อนค่อยเปิดเบราว์เซอร์ — กันเปิดแล้วเจอ "connection refused"
     time.sleep(1.5)
-    webbrowser.open(f"http://{HOST}:{PORT}")
+    url = f"http://{HOST}:{PORT}"
+    browser_exe = _find_app_mode_browser()
+    if browser_exe:
+        # --app=URL เปิดเป็นหน้าต่างเปล่า ไม่มี address bar/แท็บ/ปุ่มเบราว์เซอร์เลย
+        # หน้าตาเหมือนโปรแกรม native — ยังเป็นเว็บเหมือนเดิมแค่ไม่โชว์ chrome ของ
+        # เบราว์เซอร์ให้เห็น ใช้ --user-data-dir แยกกันไม่ให้ชนกับ Edge/Chrome
+        # โปรไฟล์หลักที่ผู้ใช้เปิดอยู่ปกติ
+        profile_dir = Path(os.environ.get("TEMP", ".")) / "CropWatAutoRunner-browser-profile"
+        try:
+            subprocess.Popen([
+                browser_exe,
+                f"--app={url}",
+                "--window-size=1320,880",
+                f"--user-data-dir={profile_dir}",
+            ])
+            return
+        except OSError:
+            pass  # เปิดแบบ app mode ไม่ได้ → fallback ไปเปิดแท็บเบราว์เซอร์ปกติแทน
+    webbrowser.open(url)
 
 
 def main() -> None:
