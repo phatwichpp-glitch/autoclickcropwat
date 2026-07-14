@@ -197,7 +197,20 @@ class CropWatEngine:
 
         self.main_window.menu_select("File->Open")
 
+        # ยืนยันจาก screenshot จริงของผู้ใช้ (v0.1.12): ก่อน dialog เปิดไฟล์จะโผล่
+        # CropWat อาจเด้งถาม "Save changes to current climate/rain data ?"
+        # (Yes/No/Cancel) ถ้านับว่าข้อมูลในหน้าต่างเดิมถูกแก้ค้างอยู่ — เป็น modal
+        # ที่บังไม่ให้ dialog เปิดไฟล์โผล่จนกว่าจะตอบ ต้องคอยเช็คแล้วตอบ No ให้
+        # ระหว่างรอ ไม่งั้น flow ค้างจน timeout ทั้งที่ทุกอย่างปกติดี
         dialog = self.app.window(title_re=dialog_title_re)
+        deadline = time.monotonic() + 10
+        while not dialog.exists(timeout=0):
+            self._answer_no_to_save_prompt()
+            if time.monotonic() > deadline:
+                raise StepTimeoutError(
+                    f"dialog เปิดไฟล์ (title_re={dialog_title_re!r}) ไม่โผล่ภายใน 10 วินาที"
+                )
+            time.sleep(0.2)
         dialog.wait("exists enabled visible ready", timeout=10)
         time.sleep(0.3)  # เผื่อเวลาให้ dialog พร้อมรับ input จริงๆ ก่อนพิมพ์
 
@@ -418,6 +431,30 @@ class CropWatEngine:
         return schedule_path, graph_path
 
     # ------------------------------------------------------------------
+    # จัดการ prompt คำถาม Yes/No ของ CropWat (เช่น "Save changes to current
+    # rain data ?" ตอนเปิดไฟล์ใหม่ทับหน้าต่างที่ข้อมูลถูกนับว่าแก้ค้างอยู่)
+    # ------------------------------------------------------------------
+    def _answer_no_to_save_prompt(self) -> bool:
+        """เช็คครั้งเดียว (ไม่รอ) ว่ามี prompt คำถามแบบ Yes/No/Cancel เด้งอยู่ไหม
+        ถ้ามีให้ตอบ No ทันที — ต้อง No เสมอ ห้าม Yes เด็ดขาด เพราะ Yes จะบันทึก
+        state ชั่วคราวในหน้าต่างทับไฟล์ข้อมูลต้นทางของผู้ใช้ (ไฟล์ climate/rain
+        ดิบที่ automation ไม่มีสิทธิ์ไปแก้) — "ความเปลี่ยนแปลง" ที่ CropWat ถามถึง
+        เกิดจากการโหลด/คำนวณ eff. rain อัตโนมัติ ไม่ใช่สิ่งที่ผู้ใช้ตั้งใจแก้จริง"""
+        try:
+            prompt = self.app.window(title_re=r"Warning|Confirm")
+            if not prompt.exists(timeout=0):
+                return False
+            no_button = prompt.child_window(title_re=r"&?No$")
+            if not no_button.exists(timeout=0):
+                return False
+            no_button.click()
+            logger.info("ตอบ No อัตโนมัติให้ prompt ถามบันทึกข้อมูล (ไม่บันทึกทับไฟล์ต้นทาง)")
+            time.sleep(0.2)
+            return True
+        except (ElementNotFoundError, ElementAmbiguousError):
+            return False
+
+    # ------------------------------------------------------------------
     # ตรวจจับ error/warning dialog (ใช้ทั้งเช็ค inline และ poll หลัง calculate)
     # ------------------------------------------------------------------
     def _poll_error_dialog(self) -> Optional[str]:
@@ -425,6 +462,15 @@ class CropWatEngine:
         try:
             dialog = self.app.window(title_re=cfg.title_re)
             if not dialog.exists(timeout=0):
+                return None
+            # แยก "คำถาม" ออกจาก "error" ก่อน: dialog ที่มีปุ่ม No (Yes/No/Cancel)
+            # คือคำถามให้เลือก ไม่ใช่ error — เดิมโค้ดเหมารวมทุก title "Warning"
+            # เป็น error แล้วพยายามกดปุ่ม OK ที่ไม่มีอยู่จริง ทำให้ล้มเหลวเงียบๆ
+            # แล้วทิ้ง dialog ค้างบังทุกอย่างต่อจากนั้น (ยืนยันจาก screenshot ผู้ใช้)
+            no_button = dialog.child_window(title_re=r"&?No$")
+            if no_button.exists(timeout=0):
+                no_button.click()
+                logger.info("ตอบ No อัตโนมัติให้ prompt ถามบันทึกข้อมูล (ไม่ใช่ error)")
                 return None
             if cfg.message_text_control:
                 message = dialog[cfg.message_text_control].window_text()
