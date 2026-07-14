@@ -236,21 +236,79 @@ class CropWatEngine:
         main_hwnd = self.main_window.handle
         flags = win32con.SWP_NOSIZE | win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE
 
+        def _fling_offscreen(hwnd: int) -> None:
+            try:
+                if hwnd == main_hwnd or not win32gui.IsWindow(hwnd):
+                    return
+                if win32gui.GetWindowRect(hwnd)[0] > -20000:
+                    win32gui.SetWindowPos(hwnd, 0, -32000, -32000, 0, 0, flags)
+            except Exception:  # noqa: BLE001 -- หน้าต่างตายไประหว่างจัดการ = ปกติ
+                pass
+
         def _watch() -> None:
+            """v0.5.5: เปลี่ยนจาก polling ทุก 40ms (ช้าไป — ตายังจับแวบ 40-100ms
+            ได้ ยืนยันจากผู้ใช้ว่า "Printing progress" ยังโผล่) เป็น WinEvent hook
+            แบบ event-driven: Windows เรียก callback เราทันทีที่หน้าต่างของ
+            process CropWat "ถูกสร้าง" (EVENT_OBJECT_CREATE — ก่อนวาดตัวเองเสร็จ)
+            → เหวี่ยงออกนอกจอตั้งแต่ยังไม่ทันปรากฏบนจอจริง
+            หมายเหตุ: hook ต้องลงทะเบียน + วน message loop ใน thread เดียวกัน
+            และต้องเก็บ reference ของ callback ไว้กัน GC เก็บกลางอากาศ"""
+            import ctypes
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32
+            EVENT_OBJECT_CREATE = 0x8000
+            EVENT_OBJECT_SHOW = 0x8002
+            WINEVENT_OUTOFCONTEXT = 0x0
+            OBJID_WINDOW = 0
+            GA_ROOT = 2
+
+            WinEventProc = ctypes.WINFUNCTYPE(
+                None, wintypes.HANDLE, wintypes.DWORD, wintypes.HWND,
+                wintypes.LONG, wintypes.LONG, wintypes.DWORD, wintypes.DWORD,
+            )
+
+            def _on_event(_hook, _event, hwnd, id_object, _id_child, _tid, _time):
+                if not hwnd or id_object != OBJID_WINDOW:
+                    return
+                # เฉพาะหน้าต่าง top-level (ลูกๆ ข้างในไม่เกี่ยว)
+                if user32.GetAncestor(hwnd, GA_ROOT) != hwnd:
+                    return
+                _fling_offscreen(hwnd)
+
+            callback = WinEventProc(_on_event)
+            # ช่วง CREATE(0x8000)..SHOW(0x8002) + กรองเฉพาะ process ของ CropWat
+            hook = user32.SetWinEventHook(
+                EVENT_OBJECT_CREATE, EVENT_OBJECT_SHOW, 0, callback,
+                pid, 0, WINEVENT_OUTOFCONTEXT,
+            )
+            if not hook:
+                logger.warning("ตั้ง WinEvent hook ไม่สำเร็จ — ใช้ polling สำรองอย่างเดียว")
+
+            msg = wintypes.MSG()
+            poll_countdown = 0
             while not stop_event.is_set():
-                try:
-                    for hwnd in find_windows(process=pid, top_level_only=True):
-                        if hwnd == main_hwnd:
-                            continue
-                        left = win32gui.GetWindowRect(hwnd)[0]
-                        if left > -20000:  # ยังอยู่บนจอ → เหวี่ยงออก
-                            win32gui.SetWindowPos(hwnd, 0, -32000, -32000, 0, 0, flags)
-                except Exception:  # noqa: BLE001 -- หน้าต่างเกิด/ตายระหว่างสแกนเป็นเรื่องปกติ
-                    pass
-                time.sleep(0.04)
+                # hook callback ถูกส่งผ่าน message queue ของ thread นี้ — ต้องปั๊มเสมอ
+                while user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 1):
+                    user32.TranslateMessage(ctypes.byref(msg))
+                    user32.DispatchMessageW(ctypes.byref(msg))
+                # polling สำรองทุก ~200ms เผื่อ event หลุด (เช่นหน้าต่างที่โผล่ก่อน hook ทัน)
+                poll_countdown -= 1
+                if poll_countdown <= 0:
+                    poll_countdown = 20
+                    try:
+                        for hwnd in find_windows(process=pid, top_level_only=True):
+                            _fling_offscreen(hwnd)
+                    except Exception:  # noqa: BLE001
+                        pass
+                time.sleep(0.01)
+
+            if hook:
+                user32.UnhookWinEvent(hook)
+            del callback  # ปลด reference หลัง unhook แล้วเท่านั้น
 
         threading.Thread(target=_watch, daemon=True, name="transient-window-watcher").start()
-        logger.info("เริ่ม watcher เฝ้าย้ายหน้าต่างชั่วคราวออกนอกจอ (โหมดเบื้องหลัง)")
+        logger.info("เริ่ม watcher (WinEvent hook) เฝ้าเหวี่ยงหน้าต่างชั่วคราวออกนอกจอ")
 
     def stop_background_watcher(self) -> None:
         if self._watcher_stop is not None:
