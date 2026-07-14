@@ -36,39 +36,82 @@ _active_thread: threading.Thread | None = None
 
 # ชื่อไฟล์ .txt ที่ export_results สร้าง: "{ปี}_{MMDD}.txt"
 _TXT_RE = re.compile(r"^(?P<year>\d{4})_(?P<mmdd>\d{4})\.txt$")
+_SHOT_RE = re.compile(r"^(?P<year>\d{4})_(?P<mmdd>\d{4})_schedule\.png$")
 
 
-def _done_candidates(settings: Settings) -> set[tuple[int, str]]:
-    """สแกน output/txt/ หา (ปี, 'MMDD') ของวันปลูกที่ทำเสร็จไปแล้ว (มีไฟล์ .txt) —
-    ใช้ทั้งตอน resume การรัน และตอนรายงานความคืบหน้าไฟล์ output ให้ frontend"""
-    done: set[tuple[int, str]] = set()
+def _scan_valid_outputs(settings: Settings) -> tuple[set, set, list[str]]:
+    """ตรวจไฟล์ output แบบละเอียด "อ่านเนื้อไฟล์จริง" ไม่ใช่แค่ดูว่ามีไฟล์:
+
+    - .txt ต้อง parse ได้ครบทุกค่า (ใช้ parser ตัวเดียวกับตอนสร้าง Excel เป๊ะ —
+      หัวไฟล์, Totals ครบ 6 ค่า, Yield reductions ครบ 4 stage) กันเคสไฟล์เขียน
+      ค้างครึ่งทางจากการหยุด/เครื่องดับ/CropWat crash แล้วระบบหลงคิดว่าเสร็จ
+    - ภาพต้องมีครบทั้งคู่ (ตาราง + กราฟ) และขนาดไม่เป็นศูนย์
+
+    คืน (txt_ok, shots_ok, invalid_names) — ไฟล์ .txt ที่ไม่สมบูรณ์จะถูกรายงาน
+    และ "ไม่นับว่าเสร็จ" → รอบรันถัดไปทำวันปลูกนั้นใหม่ทับให้เอง"""
+    from file_engine.txt_parser import TxtParseError, parse_txt
+
+    txt_ok: set[tuple[int, str]] = set()
+    invalid: list[str] = []
     d = txt_dir(settings)
     if d.is_dir():
-        for p in d.glob("*.txt"):
+        for p in sorted(d.glob("*.txt")):
             m = _TXT_RE.match(p.name)
-            if m:
-                done.add((int(m.group("year")), m.group("mmdd")))
-    return done
+            if not m:
+                continue
+            try:
+                parse_txt(p)
+            except (TxtParseError, OSError) as exc:
+                logger.warning("ไฟล์ output ไม่สมบูรณ์ (จะรันวันปลูกนี้ใหม่): %s — %s", p.name, exc)
+                invalid.append(p.name)
+                continue
+            txt_ok.add((int(m.group("year")), m.group("mmdd")))
+
+    shots_ok: set[tuple[int, str]] = set()
+    sdir = screenshot_dir(settings)
+    if sdir.is_dir():
+        for p in sorted(sdir.glob("*_schedule.png")):
+            m = _SHOT_RE.match(p.name)
+            if not m:
+                continue
+            graph = p.with_name(p.name.replace("_schedule", "_graph"))
+            try:
+                if p.stat().st_size > 0 and graph.exists() and graph.stat().st_size > 0:
+                    shots_ok.add((int(m.group("year")), m.group("mmdd")))
+            except OSError:
+                continue
+    return txt_ok, shots_ok, invalid
+
+
+def _candidate_complete(
+    year: int, mmdd: str, need_shot: bool, txt_ok: set, shots_ok: set
+) -> bool:
+    """วันปลูกนับว่า "เสร็จสมบูรณ์" = .txt ผ่านการ parse + (ถ้าเป็นวันที่ต้อง 📷)
+    ภาพครบทั้งคู่ด้วย — ขาดอย่างใดอย่างหนึ่ง = ทำใหม่ทั้งวันปลูกนั้น"""
+    if (year, mmdd) not in txt_ok:
+        return False
+    if need_shot and (year, mmdd) not in shots_ok:
+        return False
+    return True
 
 
 def _count_done_in_plan(
-    settings: Settings, years: list[int], done_set: set[tuple[int, str]]
+    settings: Settings, years: list[int], txt_ok: set, shots_ok: set
 ) -> int:
-    """นับว่าในแผน (ปี × ปฏิทินวันปลูก) มีกี่วันปลูกที่ทำเสร็จไปแล้ว — สำหรับตั้ง
+    """นับว่าในแผน (ปี × ปฏิทินวันปลูก) มีกี่วันปลูกที่เสร็จสมบูรณ์แล้ว — สำหรับตั้ง
     ค่าเริ่มต้นของ progress bar ตอน resume (ไม่ให้เริ่มจาก 0 ทั้งที่ทำไปเยอะแล้ว)"""
     count = 0
     for y in years:
-        for d, _shot in planting_dates_for_year(settings, y):
-            if (y, f"{d:%m%d}") in done_set:
+        for d, shot in planting_dates_for_year(settings, y):
+            if _candidate_complete(y, f"{d:%m%d}", shot, txt_ok, shots_ok):
                 count += 1
     return count
 
 
 def scan_output_progress(settings: Settings) -> dict:
-    """รายงานความคืบหน้าไฟล์ output แบบละเอียด: ต่อปีทำไปกี่/จากกี่วันปลูก + รวมทั้งหมด
-    + จำนวน screenshot ที่มีจริง — ให้ผู้ใช้เห็นว่า 'ทำถึงไหนแล้ว' และเหลืออะไรบ้าง
-    (คิดจากแผนช่วงปี default × ปฏิทินปัจจุบัน เทียบกับไฟล์ .txt ที่มีจริง)"""
-    done_set = _done_candidates(settings)
+    """รายงานความคืบหน้าไฟล์ output แบบละเอียด: ต่อปีเสร็จสมบูรณ์กี่/จากกี่วันปลูก
+    + รวมทั้งหมด + จำนวนภาพ + จำนวนไฟล์ไม่สมบูรณ์ที่เจอ (จะถูกรันใหม่อัตโนมัติ)"""
+    txt_ok, shots_ok, invalid = _scan_valid_outputs(settings)
     years = list(range(settings.default_start_year, settings.default_end_year + 1))
 
     per_year = []
@@ -77,7 +120,10 @@ def scan_output_progress(settings: Settings) -> dict:
     for y in years:
         planned = planting_dates_for_year(settings, y)
         expected = len(planned)
-        done = sum(1 for d, _s in planned if (y, f"{d:%m%d}") in done_set)
+        done = sum(
+            1 for d, shot in planned
+            if _candidate_complete(y, f"{d:%m%d}", shot, txt_ok, shots_ok)
+        )
         total_expected += expected
         total_done += done
         if expected == 0 and done == 0:
@@ -92,6 +138,8 @@ def scan_output_progress(settings: Settings) -> dict:
         "total_done": total_done,
         "total_expected": total_expected,
         "screenshot_count": screenshot_count,
+        "invalid_count": len(invalid),
+        "invalid_files": invalid[:20],
         "years": per_year,
     }
 
@@ -204,14 +252,17 @@ def _run_years(years: list[int], settings: Settings) -> None:
         run_state.end_run()
         return
 
-    # resume: สแกนไฟล์ .txt ที่ทำเสร็จไปแล้ว เพื่อ "ทำต่อจากจุดที่ค้าง" — วันปลูก
-    # ที่มีไฟล์อยู่แล้วข้ามได้เลย ปีที่ครบแล้วข้ามทั้งปีไม่ต้องเปิด CropWat ด้วยซ้ำ
-    done_set = _done_candidates(settings)
+    # resume: ตรวจไฟล์ output "แบบอ่านเนื้อไฟล์จริง" (parse ทุก .txt + เช็คภาพครบคู่)
+    # เพื่อ "ทำต่อจากจุดที่ค้าง" — เฉพาะวันปลูกที่เสร็จสมบูรณ์จริงเท่านั้นที่ถูกข้าม
+    # ไฟล์ครึ่งๆ กลางๆ จากการหยุด/crash จะถูกจับได้และรันใหม่ทับ
+    txt_ok, shots_ok, invalid = _scan_valid_outputs(settings)
+    if invalid:
+        logger.warning("เจอไฟล์ output ไม่สมบูรณ์ %s ไฟล์ — จะรันวันปลูกเหล่านั้นใหม่", len(invalid))
 
     # progress ระดับ "วันปลูก" (ละเอียดกว่าระดับปี) ให้ bar เดินสม่ำเสมอไม่ดูค้าง —
     # นับรวมทุกปีก่อนเริ่ม โดยเริ่มนับจากที่ทำเสร็จไปแล้ว (resume) ไม่ใช่ 0
     total_candidates = sum(len(planting_dates_for_year(settings, y)) for y in years)
-    completed = {"n": _count_done_in_plan(settings, years, done_set)}
+    completed = {"n": _count_done_in_plan(settings, years, txt_ok, shots_ok)}
     run_state.set_candidate_progress(completed["n"], total_candidates)
 
     for year in years:
@@ -225,9 +276,10 @@ def _run_years(years: list[int], settings: Settings) -> None:
                 raise ValueError(
                     "ไม่มีวันปลูกที่ทดลองตั้งไว้เลย (ตั้งค่าปฏิทินในหน้า Dashboard ก่อน)"
                 )
-            # ข้ามวันปลูกที่มีไฟล์ .txt อยู่แล้ว (ทำเสร็จไปแล้วจากรอบก่อน)
+            # ข้ามเฉพาะวันปลูกที่ "เสร็จสมบูรณ์จริง" (.txt parse ผ่าน + ภาพครบถ้าต้องมี)
             remaining = [
-                (d, shot) for d, shot in date_flags if (year, f"{d:%m%d}") not in done_set
+                (d, shot) for d, shot in date_flags
+                if not _candidate_complete(year, f"{d:%m%d}", shot, txt_ok, shots_ok)
             ]
             if not remaining:
                 # ปีนี้ครบแล้ว — ข้ามทั้งปี ไม่ต้องเปิด CropWat/climate/rain เลย

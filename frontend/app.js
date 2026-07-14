@@ -452,9 +452,14 @@ async function fetchOutputProgress() {
   const summary = document.getElementById("os-summary");
   const grid = document.getElementById("os-grid");
   const pct = data.total_expected ? Math.round((data.total_done / data.total_expected) * 100) : 0;
-  summary.innerHTML =
-    `ทำเสร็จแล้ว <b>${data.total_done.toLocaleString("en-US")}</b> / ${data.total_expected.toLocaleString("en-US")} วันปลูก (${pct}%)` +
+  // "เสร็จ" = ผ่านการตรวจเนื้อไฟล์จริง (parse .txt ครบทุกค่า + ภาพครบคู่) ไม่ใช่แค่มีไฟล์
+  let html =
+    `ตรวจเนื้อไฟล์แล้ว: สมบูรณ์ <b>${data.total_done.toLocaleString("en-US")}</b> / ${data.total_expected.toLocaleString("en-US")} วันปลูก (${pct}%)` +
     ` · ภาพ ${data.screenshot_count.toLocaleString("en-US")} ไฟล์`;
+  if (data.invalid_count > 0) {
+    html += `<br><span class="os-warn">⚠ พบไฟล์ไม่สมบูรณ์ ${data.invalid_count} ไฟล์ (เช่น ${data.invalid_files.slice(0, 3).join(", ")}) — จะถูกรันใหม่อัตโนมัติรอบหน้า</span>`;
+  }
+  summary.innerHTML = html;
   grid.innerHTML = data.years
     .map(
       (y) => `<div class="os-cell ${y.status}"><div class="y">${y.year}</div><div class="f">${y.done}/${y.expected}</div></div>`
