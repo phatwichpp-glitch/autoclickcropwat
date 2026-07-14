@@ -282,3 +282,8 @@ input[type="number"] { width: 90px; }
   margin-top: 18px; flex-wrap: wrap;
 }
 .dontshow { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); cursor: pointer; }
+
+/* สำคัญ: .modal-backdrop ประกาศ display:flex ซึ่ง specificity ชนะกฎ [hidden]
+   ของเบราว์เซอร์ (display:none) ทำให้กดปิด modal แล้วไม่หาย — ต้อง override
+   กลับอย่างชัดเจนแบบนี้เสมอเวลาใช้ hidden คู่กับ class ที่ตั้ง display เอง */
+.modal-backdrop[hidden] { display: none; }
