@@ -224,6 +224,17 @@ def _run_years(years: list[int], settings: Settings) -> None:
         run_state.end_run()
         return
 
+    # โหมดเบื้องหลัง: เปิด watcher เฝ้าย้ายหน้าต่างชั่วคราว (Printing progress ฯลฯ)
+    # ออกนอกจอตลอดการรัน — ต้อง stop เสมอตอนจบ (finally ด้านล่าง) ไม่งั้น dialog
+    # ของผู้ใช้ที่กลับมาใช้ CropWat เองหลังรันจะโดนเหวี่ยงหนีจอไปด้วย
+    engine.start_background_watcher()
+    try:
+        _run_years_inner(years, settings, engine)
+    finally:
+        engine.stop_background_watcher()
+
+
+def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine) -> None:
     input_root = Path(settings.input_dir)
 
     # เตรียมทุกอย่างที่ "คงที่ตลอด batch" ครั้งเดียวก่อนเริ่มวนหลายปี: เช็ค crop/
