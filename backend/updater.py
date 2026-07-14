@@ -85,12 +85,18 @@ def check_for_update() -> dict:
 # ping 127.0.0.1 = วิธี sleep ~1 วินาทีแบบพกพาของ .bat (timeout ใช้ใน non-console
 # ไม่ได้เสมอไป) — จำกัด 60 รอบ (~1 นาที) กันวนไม่รู้จบถ้ามีอะไรผิดปกติ
 #
-# สำคัญ (v0.4.2): "set _MEIPASS2=" ล้าง env var ที่ bootloader ของ PyInstaller
-# onefile ตั้งไว้ชี้ไปโฟลเดอร์ temp ของ .exe ตัวเก่า — ถ้าไม่ล้าง ตัวใหม่ที่เปิด
-# จะสืบทอดค่านี้มา แล้วเข้าใจผิดว่าตัวเองแตกไฟล์ไว้ที่โฟลเดอร์เก่า (ซึ่งถูกลบไป
-# แล้วตอนตัวเก่าปิด) → error "Failed to load Python DLL ..._MEIxxxx\python3xx.dll"
+# สำคัญมาก (v0.4.2 + v0.5.3): ต้องล้าง env var ของ PyInstaller bootloader ให้ครบ
+# ทุกตัวก่อนเปิดตัวใหม่ ไม่งั้นตัวใหม่สืบทอดค่าแล้วเข้าใจผิดว่าตัวเอง "แตกไฟล์ไป
+# แล้ว" ที่โฟลเดอร์ temp ของตัวเก่า (ซึ่งถูกลบทิ้งแล้ว) → error "Failed to load
+# Python DLL ..._MEIxxxx" — v0.4.2 ล้างแค่ _MEIPASS2 (ชื่อยุค PyInstaller 5) แต่
+# เรา build ด้วย PyInstaller 6 ซึ่งใช้ _PYI_ARCHIVE_FILE/_PYI_PARENT_PROCESS_LEVEL
+# เป็นหลัก (ยืนยันจากอาการจริง: relaunch ยังพังหลังล้างตัวเดียว) — ล้างหมดทุกยุค
 _UPDATER_BAT = """@echo off
 set "_MEIPASS2="
+set "_PYI_APPLICATION_HOME_DIR="
+set "_PYI_ARCHIVE_FILE="
+set "_PYI_PARENT_PROCESS_LEVEL="
+set "_PYI_SPLASH_IPC="
 set RETRIES=0
 :loop
 ping -n 2 127.0.0.1 >nul
@@ -150,8 +156,14 @@ def apply_update() -> None:
     # ล้าง env ของ PyInstaller ก่อน spawn (ดูเหตุผลใน _UPDATER_BAT) — ทำทั้ง 2 ชั้น
     # (ที่นี่และในตัว .bat) กันพลาด เพราะ child สืบทอด env จาก Popen นี้โดยตรง
     child_env = os.environ.copy()
-    child_env.pop("_MEIPASS2", None)
-    child_env.pop("_PYI_APPLICATION_HOME_DIR", None)
+    for var in (
+        "_MEIPASS2",
+        "_PYI_APPLICATION_HOME_DIR",
+        "_PYI_ARCHIVE_FILE",
+        "_PYI_PARENT_PROCESS_LEVEL",
+        "_PYI_SPLASH_IPC",
+    ):
+        child_env.pop(var, None)
     subprocess.Popen(
         ["cmd", "/c", str(bat_path)],
         creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,

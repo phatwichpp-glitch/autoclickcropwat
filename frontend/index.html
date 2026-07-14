@@ -278,6 +278,18 @@
     </div>
   </div>
 
+  <!-- ================= UPDATING PROGRESS MODAL (โชว์ระหว่างดาวน์โหลด/รีสตาร์ท) ================= -->
+  <div class="modal-backdrop" id="updating-modal" hidden>
+    <div class="modal" style="max-width:480px; text-align:center">
+      <div class="upd-spinner"></div>
+      <h2 id="updating-status" style="font-size:15px; margin:14px 0 8px">กำลังดาวน์โหลดเวอร์ชันใหม่...</h2>
+      <div class="os-note" id="updating-hint" style="text-align:center">
+        อย่าปิดโปรแกรมระหว่างนี้ — เมื่อดาวน์โหลดเสร็จ โปรแกรมจะปิดและเปิดใหม่เอง
+        หน้านี้จะกลับมาโดยอัตโนมัติ
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

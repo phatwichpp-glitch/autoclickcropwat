@@ -324,3 +324,11 @@ input[type="number"] { width: 90px; }
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
   padding: 12px 14px; margin: 10px 0; max-height: 260px; overflow-y: auto;
 }
+
+/* ---------- updating spinner ---------- */
+.upd-spinner {
+  width: 34px; height: 34px; margin: 8px auto 0;
+  border: 3px solid var(--panel-2); border-top-color: var(--accent);
+  border-radius: 50%; animation: upd-spin 0.9s linear infinite;
+}
+@keyframes upd-spin { to { transform: rotate(360deg); } }

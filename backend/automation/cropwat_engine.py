@@ -217,6 +217,20 @@ class CropWatEngine:
         # เมธอดชื่อ item_id() (ยืนยันจาก source ของ pywinauto — ไม่ใช่ .id())
         win32gui.PostMessage(self.main_window.handle, win32con.WM_COMMAND, item.item_id(), 0)
 
+    def _hide_dialog_offscreen(self, dialog) -> None:
+        """โหมดเบื้องหลัง (v0.5.3): ย้าย dialog ที่ CropWat เด้งขึ้นมา (Open/Save/
+        Print/prompt) ออกไปนอกจอทันทีที่เจอ — dialog พวกนี้เป็นหน้าต่าง top-level
+        แยกจากหน้าต่างหลัก จึงโผล่บนจอทั้งที่ CropWat ถูกบังอยู่ (ต้นเหตุอาการ
+        "หน้าต่างเล็กกระพริบ" ที่ผู้ใช้เห็นระหว่างทำงานอื่น) — การกรอก/กดปุ่มของ
+        เราเป็น message ล้วนอยู่แล้ว dialog อยู่นอกจอก็ทำงานได้ปกติทุกอย่าง"""
+        if not self.background_mode:
+            return
+        try:
+            flags = win32con.SWP_NOSIZE | win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE
+            win32gui.SetWindowPos(dialog.handle, 0, -32000, -32000, 0, 0, flags)
+        except Exception:  # noqa: BLE001 -- ย้ายไม่ได้ก็แค่เห็นกระพริบ ไม่ใช่เหตุให้ล้ม
+            logger.debug("ย้าย dialog ออกนอกจอไม่สำเร็จ", exc_info=True)
+
     def _ensure_module_window(self, class_name: str, new_menu_path: Optional[str], module_label: str):
         """คืนหน้าต่างโมดูล (focused) — ถ้ายังไม่มีเลย (CropWat เพิ่งเปิดมาเปล่าๆ)
         สั่ง File->New สร้างฟอร์ม "เปล่า" ก่อนเพื่อให้ MDI child ของโมดูลนั้นโผล่
@@ -362,6 +376,7 @@ class CropWatEngine:
                     f"dialog เปิดไฟล์ (title_re={dialog_title_re!r}) ไม่โผล่ภายใน 10 วินาที"
                 )
             time.sleep(0.2)
+        self._hide_dialog_offscreen(dialog)
         dialog.wait("exists enabled visible ready", timeout=10)
         time.sleep(0.3)  # เผื่อเวลาให้ dialog พร้อมรับ input จริงๆ ก่อนพิมพ์
 
@@ -533,6 +548,7 @@ class CropWatEngine:
 
         options = self.app.window(title_re=cfg.print_options_dialog_title_re)
         options.wait("exists enabled visible ready", timeout=10)
+        self._hide_dialog_offscreen(options)
         options[cfg.print_options_ascii_file_radio].click()
         commas_checkbox = options[cfg.print_options_use_commas_checkbox].wrapper_object()
         if not commas_checkbox.get_check_state():
@@ -544,6 +560,7 @@ class CropWatEngine:
 
         save_dialog = self.app.window(title_re=cfg.print_save_dialog_title_re)
         save_dialog.wait("exists enabled visible ready", timeout=10)
+        self._hide_dialog_offscreen(save_dialog)
         save_dialog[cfg.print_save_dialog_filename_field].set_edit_text(str(target_file))
         save_dialog[cfg.print_save_dialog_save_button].click()
 
@@ -627,6 +644,26 @@ class CropWatEngine:
         hwnd = self.main_window.handle
         left, top, right, bottom = win32gui.GetWindowRect(hwnd)
         width, height = right - left, bottom - top
+
+        # แก้ภาพมีขอบดำบนจอที่ตั้ง display scaling 125%/150% (ยืนยันจากภาพจริง
+        # ของผู้ใช้): CropWat เป็นโปรแกรมเก่าที่ไม่รู้จัก DPI — PrintWindow ให้มัน
+        # วาดตัวเองที่ขนาด "logical" ของมันเอง ขณะที่ GetWindowRect (จาก process
+        # เราที่ DPI-aware) คืนขนาด "physical" ที่ใหญ่กว่า → bitmap เหลือที่ว่าง
+        # เป็นสีดำ — คำนวณขนาดที่มันจะวาดจริงจากอัตราส่วน DPI ของหน้าต่างเทียบ
+        # กับจอ: unaware ได้ 96/จอ (เล็กลงพอดีเป๊ะ), aware ได้ 1:1 (เท่าเดิม)
+        try:
+            import ctypes as _ct
+
+            win_dpi = _ct.windll.user32.GetDpiForWindow(hwnd) or 96
+            hmon = _ct.windll.user32.MonitorFromWindow(hwnd, 2)  # MONITOR_DEFAULTTONEAREST
+            mon_x, mon_y = _ct.c_uint(96), _ct.c_uint(96)
+            _ct.windll.shcore.GetDpiForMonitor(hmon, 0, _ct.byref(mon_x), _ct.byref(mon_y))
+            mon_dpi = mon_x.value or 96
+            width = round(width * win_dpi / mon_dpi)
+            height = round(height * win_dpi / mon_dpi)
+        except Exception:  # noqa: BLE001 -- Windows เก่าไม่มี API นี้ → ใช้ขนาด physical เดิม
+            pass
+
         hwnd_dc = win32gui.GetWindowDC(hwnd)
         mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
         save_dc = mfc_dc.CreateCompatibleDC()
@@ -671,6 +708,7 @@ class CropWatEngine:
             no_button = prompt.child_window(title_re=r"&?No$")
             if not no_button.exists(timeout=0):
                 return False
+            self._hide_dialog_offscreen(prompt)
             no_button.click()
             logger.info("ตอบ No อัตโนมัติให้ prompt ถามบันทึกข้อมูล (ไม่บันทึกทับไฟล์ต้นทาง)")
             time.sleep(0.2)
@@ -687,6 +725,7 @@ class CropWatEngine:
             dialog = self.app.window(title_re=cfg.title_re)
             if not dialog.exists(timeout=0):
                 return None
+            self._hide_dialog_offscreen(dialog)
             # แยก "คำถาม" ออกจาก "error" ก่อน: dialog ที่มีปุ่ม No (Yes/No/Cancel)
             # คือคำถามให้เลือก ไม่ใช่ error — เดิมโค้ดเหมารวมทุก title "Warning"
             # เป็น error แล้วพยายามกดปุ่ม OK ที่ไม่มีอยู่จริง ทำให้ล้มเหลวเงียบๆ

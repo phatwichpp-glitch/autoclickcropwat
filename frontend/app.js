@@ -582,14 +582,25 @@ async function checkUpdate() {
   } catch { /* ออฟไลน์/เช็คไม่ได้ = ไม่ต้องโชว์อะไร */ }
 }
 
+const updatingModal = document.getElementById("updating-modal");
+
 async function applyUpdate() {
   updateModal.hidden = true;
   const btn = document.getElementById("btn-update");
   btn.disabled = true;
+
+  // แสดงหน้าคำแนะนำทันทีที่กด — ขั้นดาวน์โหลด (~23MB) ใช้เวลาหลายวินาทีถึงหลาย
+  // นาทีตามเน็ต ถ้าไม่มีอะไรบอกสถานะ ผู้ใช้จะคิดว่ากดแล้วไม่เกิดอะไรขึ้น
+  updatingModal.hidden = false;
+  document.getElementById("updating-status").textContent = "กำลังดาวน์โหลดเวอร์ชันใหม่...";
+  document.getElementById("updating-hint").innerHTML =
+    "อย่าปิดโปรแกรมระหว่างนี้ — เมื่อดาวน์โหลดเสร็จ โปรแกรมจะปิดและเปิดใหม่เอง หน้านี้จะกลับมาโดยอัตโนมัติ";
+
   try {
     const res = await fetch("/api/update/apply", { method: "POST" });
     const data = await res.json();
     if (!res.ok) {
+      updatingModal.hidden = true;
       alert(
         (data.detail || "อัปเดตไม่สำเร็จ") +
         "\n\nถ้ายังไม่สำเร็จ: ปิดโปรแกรม (ปุ่ม ✕ บนแถบลอย) แล้วเปิดใหม่ จากนั้นลองอัปเดตอีกครั้ง"
@@ -597,9 +608,17 @@ async function applyUpdate() {
       btn.disabled = false;
       return;
     }
+    document.getElementById("updating-status").textContent = "ดาวน์โหลดเสร็จแล้ว — กำลังรีสตาร์ทโปรแกรม...";
     document.getElementById("conn-label").textContent = "กำลังอัปเดต...";
     // จากนี้ backend จะปิดตัวเอง → WS หลุด → พอตัวใหม่เปิด หน้าจะ reload เอง
+    // ตาข่ายสุดท้าย: ถ้าเกิน 45 วินาทีแล้วหน้ายังไม่กลับมา แสดงวิธีกู้เอง
+    setTimeout(() => {
+      document.getElementById("updating-hint").innerHTML =
+        "⚠ นานผิดปกติ — ถ้าหน้านี้ยังไม่กลับมาเอง: <b>ดับเบิลคลิกไอคอน CropWatAutoRunner เปิดโปรแกรมใหม่เอง</b> " +
+        "(ไฟล์ถูกอัปเดตแล้ว แค่ตัวเปิดอัตโนมัติอาจไม่ทำงาน) แล้วเช็คเลขเวอร์ชันที่มุมขวาบน";
+    }, 45000);
   } catch {
+    updatingModal.hidden = true;
     alert("อัปเดตไม่สำเร็จ (เชื่อมต่อ backend ไม่ได้)\n\nปิดโปรแกรมแล้วเปิดใหม่ จากนั้นลองอัปเดตอีกครั้ง");
     btn.disabled = false;
   }
