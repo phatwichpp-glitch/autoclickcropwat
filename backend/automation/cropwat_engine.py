@@ -193,39 +193,47 @@ class CropWatEngine:
     # (เช่นผู้ใช้เปิดเองไว้ก่อนหน้านี้) จะข้าม New ไปเปิดไฟล์ทับได้เลยไม่มีปัญหา
     # ------------------------------------------------------------------
     def _open_module_file(
-        self, file_path: Path, window_class_name: str, new_menu_path: Optional[str],
-        dialog_title_re, filename_field, open_button, context: str,
+        self, file_path: Path, window_class_name: str,
+        dialog_title_re, filename_field, open_button, module_label: str,
     ) -> None:
         self._require_connected()
+        # ยืนยันจากการทดสอบจริงแล้ว: "File->New->Crop->Dry crop" ไม่ใช่ทางลัดไปหน้า
+        # เปิดไฟล์ — มันสร้างฟอร์มนิยามพืชเปล่าๆ ที่ต้องกรอก Kc/stage days ฯลฯ เอง
+        # ใหม่หมด (ไม่ใช่สิ่งที่ automationควรทำ เพราะ crop/soil เป็นไฟล์ที่มีอยู่
+        # แล้วตาม spec) เลยไม่มี fallback สร้างไฟล์ใหม่อัตโนมัติอีกต่อไป — ถ้ายังไม่มี
+        # หน้าต่างนี้เปิดอยู่ก็ fail ทันทีพร้อมบอกวิธีแก้ที่ชัดเจน แทนที่จะไปเดา flow
+        # ที่ไม่รู้จักแน่ชัด
         try:
             self._focus_mdi_child(window_class_name)
-        except (ElementNotFoundError, PywinautoTimeoutError):
-            if not new_menu_path:
-                raise
-            self.main_window.menu_select(new_menu_path)
-            self._focus_mdi_child(window_class_name)
+        except (ElementNotFoundError, PywinautoTimeoutError) as exc:
+            raise CropWatNotRunningError(
+                f"ยังไม่ได้เปิดไฟล์ {module_label} ใน CropWat — กรุณาเปิดเอง "
+                f"(File → Open) ก่อนกด \"เริ่มรันทั้งหมด\" (ระบบยังไม่รองรับสร้าง/"
+                f"เปิดไฟล์ {module_label} อัตโนมัติตั้งแต่ศูนย์)"
+            ) from exc
         self._open_file_via_dialog(Path(file_path), dialog_title_re, filename_field, open_button)
-        self._raise_if_error_dialog(context)
+        self._raise_if_error_dialog(f"เปิดไฟล์ {module_label} {file_path}")
 
     def open_crop_file(self, file_path: Path) -> None:
         cfg = controls.CROP_SCREEN
         self._open_module_file(
-            file_path, cfg.window_class_name, cfg.new_menu_path,
+            file_path, cfg.window_class_name,
             cfg.file_dialog_title_re, cfg.file_dialog_filename_field, cfg.file_dialog_open_button,
-            f"เปิดไฟล์ crop {file_path}",
+            "crop",
         )
 
     def open_soil_file(self, file_path: Path) -> None:
         cfg = controls.SOIL_SCREEN
         self._open_module_file(
-            file_path, cfg.window_class_name, cfg.new_menu_path,
+            file_path, cfg.window_class_name,
             cfg.file_dialog_title_re, cfg.file_dialog_filename_field, cfg.file_dialog_open_button,
-            f"เปิดไฟล์ soil {file_path}",
+            "soil",
         )
 
     def ensure_crop_soil_open(self, crop_file: Path, soil_file: Path) -> None:
         """เปิดไฟล์ crop/soil ครั้งเดียวก่อนเริ่มวนหลายปี — เรียกจาก runner.py ครั้ง
-        เดียวหลัง connect() สำเร็จ ไม่ต้องเรียกซ้ำต่อปี"""
+        เดียวหลัง connect() สำเร็จ ไม่ต้องเรียกซ้ำต่อปี ต้องเปิดไฟล์ทั้งสองนี้เองใน
+        CropWat ไว้ก่อนแล้ว (ดู docstring ของ _open_module_file)"""
         self.open_crop_file(crop_file)
         self.open_soil_file(soil_file)
 

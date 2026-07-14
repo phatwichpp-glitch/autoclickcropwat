@@ -68,8 +68,13 @@ python -m venv .venv
 ```
 
 Open `http://127.0.0.1:8000`. Before starting a run:
-1. Open CropWat 8.0 and load your Crop and Soil files (auto-opening these
-   is implemented but not yet verified against a live run — see below)
+1. **Open CropWat 8.0 and load your Crop and Soil files yourself first.**
+   This is required, not optional — `File → New → Crop → Dry crop` (the only
+   menu path to a "new" crop) creates a blank, empty crop definition that
+   needs manual data entry, not a shortcut to opening an existing `.CRO`
+   file. So there's no reliable way to automate this from a cold start; the
+   engine fails fast with a clear message if Crop/Soil aren't already open
+   when a run starts.
 2. In the **ตั้งค่า** (Setup) tab, point "โฟลเดอร์ข้อมูลต้นทาง" at the folder
    containing your `Clim_*`/`Rain_*` station folders and crop/soil files, and
    scan
@@ -84,9 +89,6 @@ the process; a reload orphans it.
 - `cropwat_controls.py` was built by inspecting one real CropWat 8.0
   installation. It should work identically for anyone running the same
   installation/build, but hasn't been tested against other versions.
-- Crop/Soil auto-open (`open_crop_file` / `open_soil_file`) is implemented
-  from the menu structure but not yet confirmed against a live run — if it
-  fails, open those files manually in CropWat first.
 - The `ERROR_DIALOG` message text can't be read from a dedicated control
   (CropWat draws it directly on the dialog) — errors are detected and
   dismissed, but the specific message text isn't always captured.

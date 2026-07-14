@@ -138,11 +138,11 @@ class CropScreenControls:
     # ถ้าทดสอบแล้วไม่ commit ให้เปลี่ยนเป็น key อื่น เช่น "{ENTER}"
     confirm_key: str | None = "{TAB}"
 
-    # ยังไม่ยืนยันจากการทดสอบจริง (เดาจากโครงสร้างเมนู File->New->Crop ที่ inspect
-    # ได้ — มีแยก "Dry crop"/"Rice" ใช้ "Dry crop" เป็นค่า default ตรงกับตัวอย่าง
-    # MAIZE): ใช้สร้างหน้าต่าง Crop เปล่าก่อน "เฉพาะตอนยังไม่มีหน้าต่างนี้เปิดอยู่
-    # เลย" (เช่น รันครั้งแรกสุดของ session) ก่อนจะ File->Open ไฟล์จริงเข้าไปได้
-    new_menu_path: str | None = "File->New->Crop->Dry crop"
+    # ยืนยันจากการทดสอบจริงแล้ว (สำคัญ): "File->New->Crop->Dry crop" ไม่ใช่ทางลัด
+    # เปิดไฟล์ — มันสร้างฟอร์มนิยามพืชเปล่า (Crop Name/Kc/stage days ว่างหมด) ที่
+    # ต้องกรอกเองใหม่ทั้งหมด ไม่ใช่สิ่งที่ automation ควรทำ (crop file มีอยู่แล้ว
+    # ตาม spec ไม่ต้องสร้างใหม่) เอา field นี้ออก — engine จะ fail ทันทีพร้อมบอก
+    # ให้เปิดไฟล์เองก่อน ถ้ายังไม่มีหน้าต่าง Crop เปิดอยู่
     # Windows common file-open dialog มาตรฐานเดียวกับ Climate/Rain (ยืนยันแล้วว่า
     # โครงสร้าง dialog เหมือนกันทุกจุดที่เคย inspect — ใช้ค่าเดียวกันได้เลย)
     file_dialog_title_re: str | None = r"Open"
@@ -161,10 +161,8 @@ CROP_SCREEN = CropScreenControls()
 class SoilScreenControls:
     # ยืนยันแล้วจาก inspect_cropwat.py: MDI child window ของ Soil มี class นี้เสมอ
     window_class_name: str | None = "Tsoilform"
-    # ยังไม่ยืนยันจากการทดสอบจริง (เดาจากโครงสร้างเมนู File->New->Soil ที่ inspect
-    # ได้ — ไม่มีแยกชนิดย่อยเหมือน Crop) ใช้สร้างหน้าต่าง Soil เปล่าก่อน "เฉพาะตอน
-    # ยังไม่มีหน้าต่างนี้เปิดอยู่เลย" ก่อนจะ File->Open ไฟล์จริงเข้าไปได้
-    new_menu_path: str | None = "File->New->Soil"
+    # เหตุผลเดียวกับ CROP_SCREEN — เอา new_menu_path (File->New->Soil) ออก เพราะ
+    # พฤติกรรมจริงน่าจะเหมือนกัน (สร้างฟอร์มเปล่า ไม่ใช่ทางลัดเปิดไฟล์)
     file_dialog_title_re: str | None = r"Open"
     file_dialog_filename_field: str | None = "Edit"
     file_dialog_open_button: str | None = "&Open"
