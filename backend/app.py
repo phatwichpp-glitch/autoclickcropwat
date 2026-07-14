@@ -60,6 +60,12 @@ async def on_startup() -> None:
     settings = load_settings()
     run_state.init_years(settings.default_start_year, settings.default_end_year)
 
+    # แถบ progress ลอย + global hotkeys (Ctrl+Alt+F9/F10) — daemon threads ที่
+    # พังได้โดยไม่กระทบระบบหลัก (เช่น เครื่องที่ tkinter มีปัญหา ก็แค่ไม่มี overlay)
+    import overlay
+
+    overlay.start_background_ui()
+
 
 # ---------------------------------------------------------------------------
 # Config (หน้าตั้งค่า path ไฟล์ต่างๆ — ขั้นที่ 5 จะทำหน้า UI มาเรียก endpoint นี้)

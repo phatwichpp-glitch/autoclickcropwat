@@ -28,6 +28,8 @@ class RunState:
         self._start_year: Optional[int] = None
         self._end_year: Optional[int] = None
         self._stop_requested = False
+        self._candidate_done = 0
+        self._candidate_total = 0
 
         # websocket subscribers ต้องถูกแตะจาก asyncio loop เท่านั้น
         self._subscribers: set[asyncio.Queue] = set()
@@ -53,6 +55,16 @@ class RunState:
         with self._lock:
             self._overall_state = OverallRunState.RUNNING
             self._stop_requested = False
+            self._candidate_done = 0
+            self._candidate_total = 0
+        self._notify()
+
+    def set_candidate_progress(self, done: int, total: int) -> None:
+        """progress ระดับวันปลูก (ละเอียดกว่าระดับปี) — runner อัปเดตหลังจบแต่ละ
+        วันปลูกที่ทดลอง ให้ bar เดินสม่ำเสมอ ไม่กระโดดทีละปี"""
+        with self._lock:
+            self._candidate_done = done
+            self._candidate_total = total
         self._notify()
 
     def end_run(self) -> None:
@@ -116,6 +128,8 @@ class RunState:
                 start_year=self._start_year,
                 end_year=self._end_year,
                 years=sorted(self._years.values(), key=lambda s: s.year),
+                candidate_done=self._candidate_done,
+                candidate_total=self._candidate_total,
             )
 
     # --- pub/sub for WebSocket (asyncio side only) ---

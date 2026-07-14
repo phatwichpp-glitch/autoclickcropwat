@@ -85,6 +85,12 @@ class ClimateScreenControls:
     # ยืนยันแล้ว: MDI child window ของ Climate/ETo มี class คงที่นี้เสมอ
     # (title เปลี่ยนไปตามไฟล์ที่โหลด เช่น "Daily ETo Penman-Monteith - ...PED")
     window_class_name: str | None = "TDayEToPMForm"
+    # เมนูสร้างฟอร์มเปล่า (ยืนยันจาก cropwat_menu.txt) — ใช้เฉพาะตอนที่ยังไม่มี
+    # หน้าต่างโมดูลนี้เลย (CropWat เพิ่งเปิดมาเปล่าๆ): แถบไอคอนซ้ายเป็นปุ่มวาดเอง
+    # ไม่มี HWND สั่งคลิกแบบ message ไม่ได้ File->New คือทางเดียวที่ทำให้ MDI child
+    # โผล่ขึ้นมาผ่านเมนู แล้วค่อย File->Open ไฟล์จริงทับ (prompt "Save changes?"
+    # ที่เด้งตอนเปิดทับ ระบบตอบ No ให้เองแล้ว — ดู _answer_no_to_save_prompt)
+    new_menu_path: str | None = "File->New->Climate / ETo->Daily ETo Penman Monteith"
     # เมนู generic ที่ใช้เปิดไฟล์ — ต้อง set_focus() ที่ window_class_name ก่อนเรียก
     open_menu_path: str | None = "File->Open"
     # ยืนยันแล้ว: เป็น Windows common file-open dialog มาตรฐาน (class "#32770")
@@ -108,6 +114,8 @@ CLIMATE_SCREEN = ClimateScreenControls()
 class RainScreenControls:
     # ยืนยันแล้ว: MDI child window ของ Rain มี class คงที่นี้เสมอ
     window_class_name: str | None = "TDayRainForm"
+    # เหตุผลเดียวกับ CLIMATE_SCREEN.new_menu_path (ยืนยันจาก cropwat_menu.txt)
+    new_menu_path: str | None = "File->New->Rain->Daily"
     open_menu_path: str | None = "File->Open"
     # เหมือน CLIMATE_SCREEN — Windows common file-open dialog มาตรฐานตัวเดียวกัน
     # (ยังไม่ได้ inspect แยกตอนโฟกัส Rain แต่โครงสร้าง dialog เป็นมาตรฐานเดียวกัน
@@ -138,11 +146,12 @@ class CropScreenControls:
     # ถ้าทดสอบแล้วไม่ commit ให้เปลี่ยนเป็น key อื่น เช่น "{ENTER}"
     confirm_key: str | None = "{TAB}"
 
-    # ยืนยันจากการทดสอบจริงแล้ว (สำคัญ): "File->New->Crop->Dry crop" ไม่ใช่ทางลัด
-    # เปิดไฟล์ — มันสร้างฟอร์มนิยามพืชเปล่า (Crop Name/Kc/stage days ว่างหมด) ที่
-    # ต้องกรอกเองใหม่ทั้งหมด ไม่ใช่สิ่งที่ automation ควรทำ (crop file มีอยู่แล้ว
-    # ตาม spec ไม่ต้องสร้างใหม่) เอา field นี้ออก — engine จะ fail ทันทีพร้อมบอก
-    # ให้เปิดไฟล์เองก่อน ถ้ายังไม่มีหน้าต่าง Crop เปิดอยู่
+    # "File->New->Crop->Dry crop" สร้างฟอร์มนิยามพืช "เปล่า" (ไม่ใช่ทางลัดเปิดไฟล์
+    # — ยืนยันจากการทดสอบจริง) แต่นั่นแหละคือประโยชน์ของมัน (v0.2.0): ใช้ทำให้
+    # หน้าต่างโมดูล Crop โผล่ขึ้นมาตอน CropWat เพิ่งเปิดมาเปล่าๆ แล้วค่อยสั่ง
+    # File->Open ไฟล์ .CRO จริงทับ — ผู้ใช้ไม่ต้องเปิด crop/soil เองอีกต่อไป
+    # (prompt "Save changes?" ตอนเปิดทับ ระบบตอบ No ให้เอง)
+    new_menu_path: str | None = "File->New->Crop->Dry crop"
     # Windows common file-open dialog มาตรฐานเดียวกับ Climate/Rain (ยืนยันแล้วว่า
     # โครงสร้าง dialog เหมือนกันทุกจุดที่เคย inspect — ใช้ค่าเดียวกันได้เลย)
     file_dialog_title_re: str | None = r"Open"
@@ -161,8 +170,9 @@ CROP_SCREEN = CropScreenControls()
 class SoilScreenControls:
     # ยืนยันแล้วจาก inspect_cropwat.py: MDI child window ของ Soil มี class นี้เสมอ
     window_class_name: str | None = "Tsoilform"
-    # เหตุผลเดียวกับ CROP_SCREEN — เอา new_menu_path (File->New->Soil) ออก เพราะ
-    # พฤติกรรมจริงน่าจะเหมือนกัน (สร้างฟอร์มเปล่า ไม่ใช่ทางลัดเปิดไฟล์)
+    # เหตุผลเดียวกับ CROP_SCREEN.new_menu_path — สร้างฟอร์มเปล่าเพื่อให้หน้าต่าง
+    # โมดูลโผล่ แล้วค่อยเปิดไฟล์ .SOI จริงทับ (ยืนยันเมนูจาก cropwat_menu.txt)
+    new_menu_path: str | None = "File->New->Soil"
     file_dialog_title_re: str | None = r"Open"
     file_dialog_filename_field: str | None = "Edit"
     file_dialog_open_button: str | None = "&Open"
@@ -238,6 +248,10 @@ class IrrigationScheduleControls:
     # ที่อยู่ใน MDIClient เดียวกัน (class คงที่ ใช้ screenshot ที่ 2 ต่อวันปลูก
     # ที่ทดลอง คู่กับ screenshot ของหน้าต่างนี้เอง)
     graph_window_class_name: str | None = "TCropScheduleGraph"
+    # หน้าต่างกราฟ "ไม่ได้เปิดเอง" หลังคำนวณ — ต้องสั่งเปิดผ่านเมนูนี้ก่อน capture
+    # (ยืนยันจาก cropwat_menu.txt) ครั้งแรกครั้งเดียวต่อ session พอ หลังจากนั้น
+    # หน้าต่างค้างอยู่และอัปเดตตามผลคำนวณล่าสุดเอง
+    graph_menu_path: str | None = "Charts->Irrigation Schedule"
 
 
 IRRIGATION_SCHEDULE = IrrigationScheduleControls()
@@ -261,8 +275,12 @@ class ErrorDialogControls:
     # แทนข้อความเต็ม) ไม่ใช่ None เพราะ "" ถือว่ากรอกแล้ว (ไม่ block การรัน)
     message_text_control: str | None = ""
     dismiss_button: str | None = "OK"
-    # เวลาที่รอเช็คว่ามี dialog error เด้งขึ้นมาไหมหลังแต่ละ step (วินาที)
-    poll_timeout_seconds: float = 2.0
+    # เวลาที่รอเช็คว่ามี dialog error เด้งขึ้นมาไหมหลังแต่ละ step (วินาที) —
+    # ลดจาก 2.0 เหลือ 0.8 (v0.2.0): จุดนี้ถูกเรียก ~4 ครั้งต่อ 1 วันปลูก คือ
+    # ต้นทุนคงที่ก้อนใหญ่สุดที่เหลืออยู่ (2.0×4 = 8 วิ/วันปลูก) — Delphi ประมวลผล
+    # คำสั่งเมนูแล้วเด้ง error แทบทันทีถ้าจะเด้ง 0.8 วิพอ และถ้า error โผล่ช้ากว่า
+    # นั้นจริงๆ ก็ยังถูกจับได้ที่จุดเช็คของ step ถัดไปอยู่ดี (ตอบ No/กด OK ให้เสมอ)
+    poll_timeout_seconds: float = 0.8
 
 
 ERROR_DIALOG = ErrorDialogControls()

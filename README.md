@@ -68,18 +68,19 @@ python -m venv .venv
 ```
 
 Open `http://127.0.0.1:8000`. Before starting a run:
-1. **Open CropWat 8.0 and load your Crop and Soil files yourself first.**
-   This is required, not optional — `File → New → Crop → Dry crop` (the only
-   menu path to a "new" crop) creates a blank, empty crop definition that
-   needs manual data entry, not a shortcut to opening an existing `.CRO`
-   file. So there's no reliable way to automate this from a cold start; the
-   engine fails fast with a clear message if Crop/Soil aren't already open
-   when a run starts.
+1. **Open CropWat 8.0** (just the program — no need to open any files in it;
+   the engine opens crop/soil/climate/rain files itself, creating a blank
+   module form via `File → New` first when a module window doesn't exist yet,
+   then loading the real file over it and answering CropWat's
+   "Save changes?" prompt with No automatically)
 2. In the **ตั้งค่า** (Setup) tab, point "โฟลเดอร์ข้อมูลต้นทาง" at the folder
    containing your `Clim_*`/`Rain_*` station folders and crop/soil files, and
    scan
 3. In the **Dashboard** tab, adjust the planting-date calendar and year range,
-   then start the run
+   then start the run — or just press **Ctrl+Alt+F9** (start) /
+   **Ctrl+Alt+F10** (stop) from anywhere once configured; a small always-on-top
+   overlay shows live progress with ▶ / ⏹ / ⚙ buttons even while CropWat
+   covers the screen
 
 **Don't use `--reload`** — the automation runs in a background thread tied to
 the process; a reload orphans it.

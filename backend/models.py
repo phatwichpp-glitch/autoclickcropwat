@@ -56,6 +56,11 @@ class StateSnapshot(BaseModel):
     start_year: Optional[int] = None
     end_year: Optional[int] = None
     years: list[YearStatus] = Field(default_factory=list)
+    # progress ละเอียดระดับ "วันปลูกที่ทดลอง" (ไม่ใช่แค่ระดับปี) — 1 ปีมีหลาย
+    # วันปลูก การนับแค่ปีทำให้ bar กระโดดทีละก้าวใหญ่ๆ ดูเหมือนค้าง ทั้งที่งาน
+    # กำลังเดินอยู่ — ใช้ขับทั้ง progress bar หน้าเว็บและ overlay ลอย
+    candidate_done: int = 0
+    candidate_total: int = 0
 
 
 class StationScan(BaseModel):

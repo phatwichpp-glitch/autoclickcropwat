@@ -16,7 +16,14 @@ from pathlib import Path
 
 from automation.cropwat_engine import CropWatEngine, PlantingDateTask
 from automation.exceptions import CropWatAutomationError
-from config import Settings, excel_path, planting_dates_for_year, screenshot_dir, txt_dir
+from config import (
+    Settings,
+    excel_path,
+    load_settings,
+    planting_dates_for_year,
+    screenshot_dir,
+    txt_dir,
+)
 from file_engine import paths as file_paths
 from models import YearRunStatus
 from state import run_state
@@ -43,6 +50,20 @@ def start_run(years: list[int], settings: Settings) -> bool:
         )
         _active_thread.start()
         return True
+
+
+def start_default_run() -> bool:
+    """เริ่มรันช่วงปี default จากค่าที่บันทึกไว้ทั้งหมด — ทางลัดสำหรับ global hotkey
+    และปุ่มบน overlay ให้เริ่มรันได้โดยไม่ต้องเปิดหน้าเว็บเลย (ตั้งค่าครั้งเดียวพอ)"""
+    if is_run_active():
+        return False
+    settings = load_settings()
+    if not settings.input_dir or not settings.output_dir:
+        logger.error("ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง/ผลลัพธ์ — เปิดหน้าตั้งค่า (⚙) ก่อน")
+        return False
+    run_state.init_years(settings.default_start_year, settings.default_end_year)
+    years = list(range(settings.default_start_year, settings.default_end_year + 1))
+    return start_run(years, settings)
 
 
 def _resolve_single_station(root: Path, prefix: str, override: str) -> Path:
@@ -121,6 +142,12 @@ def _run_years(years: list[int], settings: Settings) -> None:
         run_state.end_run()
         return
 
+    # progress ระดับ "วันปลูก" (ละเอียดกว่าระดับปี) ให้ bar เดินสม่ำเสมอไม่ดูค้าง —
+    # นับรวมทุกปีก่อนเริ่ม แล้วอัปเดตหลังจบแต่ละวันปลูกผ่าน callback ของ run_year
+    total_candidates = sum(len(planting_dates_for_year(settings, y)) for y in years)
+    run_state.set_candidate_progress(0, total_candidates)
+    candidates_before_year = 0
+
     for year in years:
         if run_state.is_stop_requested():
             run_state.set_year_status(year, YearRunStatus.QUEUED)
@@ -149,7 +176,16 @@ def _run_years(years: list[int], settings: Settings) -> None:
             rain_file = rain_index.resolve(year, earliest_month)
         except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
             run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
+            # นับวันปลูกของปีที่ error เป็น "ผ่านไปแล้ว" ให้ bar เดินถึง 100% ตอนจบ
+            candidates_before_year += len(planting_dates_for_year(settings, year))
+            run_state.set_candidate_progress(candidates_before_year, total_candidates)
             continue
+
+        done_in_year = {"n": 0}
+
+        def _on_candidate_done(_result, _counter=done_in_year, _base=candidates_before_year):
+            _counter["n"] += 1
+            run_state.set_candidate_progress(_base + _counter["n"], total_candidates)
 
         result = engine.run_year(
             year=year,
@@ -158,7 +194,12 @@ def _run_years(years: list[int], settings: Settings) -> None:
             rain_file=rain_file,
             export_dir=txt_dir(settings),
             screenshot_dir=screenshot_dir(settings),
+            on_candidate_done=_on_candidate_done,
         )
+        # ปีที่ล้มก่อนถึงลูปวันปลูก (เช่น เปิด climate/rain ไม่ได้) ต้องนับวันปลูก
+        # ของปีนั้นเป็น "ผ่านไปแล้ว" ด้วย ไม่งั้น bar ค้างไม่ถึง 100% ตอนจบ
+        candidates_before_year += len(tasks)
+        run_state.set_candidate_progress(candidates_before_year, total_candidates)
 
         if result.ok:
             # เก็บ path โฟลเดอร์ export ไว้ (มีหลายไฟล์ต่อปี — 1 ไฟล์ต่อ 1 วันปลูก

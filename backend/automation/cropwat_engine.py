@@ -173,8 +173,57 @@ class CropWatEngine:
         # เผื่อเวลาให้ Windows ประมวลผลการเปลี่ยน focus จริงๆ ก่อน — เจอจริงว่าถ้า
         # ยิงคำสั่งเมนูต่อทันทีโดยไม่รอเลย บางครั้ง CropWat ยังทำงานกับหน้าต่างเดิม
         # ที่ active อยู่ก่อนหน้า ไม่ใช่ตัวที่เพิ่ง set_focus() ไป
-        time.sleep(0.3)
+        time.sleep(0.2)
         return window
+
+    def _ensure_module_window(self, class_name: str, new_menu_path: Optional[str], module_label: str):
+        """คืนหน้าต่างโมดูล (focused) — ถ้ายังไม่มีเลย (CropWat เพิ่งเปิดมาเปล่าๆ)
+        สั่ง File->New สร้างฟอร์ม "เปล่า" ก่อนเพื่อให้ MDI child ของโมดูลนั้นโผล่
+        ขึ้นมา แล้วผู้เรียกค่อย File->Open ไฟล์จริงทับ — จำเป็นเพราะแถบไอคอนซ้าย
+        (Climate/Rain/Crop/Soil) เป็นปุ่มวาดเองไม่มี HWND สั่งคลิกแบบ message
+        ไม่ได้ File->New คือทางเดียวที่สร้างหน้าต่างโมดูลผ่านเมนูได้จริง"""
+        handles = find_windows(
+            class_name=class_name, top_level_only=False, process=self.app.process
+        )
+        if not handles:
+            if not new_menu_path:
+                raise CropWatNotRunningError(
+                    f"ยังไม่มีหน้าต่าง {module_label} ใน CropWat และไม่ได้ตั้งเมนู "
+                    f"File->New สำหรับสร้าง — เปิดไฟล์ {module_label} เองก่อนหนึ่งครั้ง"
+                )
+            logger.info("%s: ยังไม่มีหน้าต่างโมดูล — สร้างฟอร์มเปล่าผ่าน %s", module_label, new_menu_path)
+            self.main_window.menu_select(new_menu_path)
+        return self._focus_mdi_child(class_name)
+
+    def open_module_file(
+        self,
+        class_name: str,
+        new_menu_path: Optional[str],
+        file_path: Path,
+        dialog_title_re,
+        filename_field,
+        open_button,
+        module_label: str,
+    ) -> None:
+        """เปิดไฟล์เข้าโมดูลหนึ่งๆ แบบครบวงจร: สร้างหน้าต่างโมดูลถ้ายังไม่มี →
+        ข้ามถ้าไฟล์เป้าหมายเปิดอยู่แล้ว (เช็คจาก title ของหน้าต่างซึ่งมี path ไฟล์
+        ที่โหลดอยู่ต่อท้ายเสมอ) → File->Open + จัดการ prompt "Save changes?" เอง
+
+        นี่คือสิ่งที่ทำให้ผู้ใช้ไม่ต้องเปิด crop/soil เองก่อนรันอีกต่อไป (v0.2.0) —
+        ข้อสรุปเดิมที่ว่า "เปิดไฟล์ทับแล้ว CropWat error ต้องให้ผู้ใช้เปิดเอง" แท้จริง
+        คือ dialog ถาม "Save changes to current ... data ?" (Yes/No/Cancel) ที่โค้ด
+        เก่าอ่านผิดว่าเป็น error — ตอนนี้ระบบตอบ No ให้เองแล้ว จึงเปิดทับได้ปกติ"""
+        self._require_connected()
+        file_path = Path(file_path)
+        window = self._ensure_module_window(class_name, new_menu_path, module_label)
+
+        title = window.window_text() or ""
+        if file_path.name.lower() in title.lower():
+            logger.info("%s: ไฟล์ %s เปิดอยู่แล้ว ไม่ต้องเปิดซ้ำ", module_label, file_path.name)
+            return
+
+        self._open_file_via_dialog(file_path, dialog_title_re, filename_field, open_button)
+        self._raise_if_error_dialog(f"เปิดไฟล์ {module_label} {file_path}")
 
     def _open_file_via_dialog(self, file_path: Path, dialog_title_re, filename_field, open_button) -> None:
         """ทำ flow เปิดไฟล์ผ่าน Windows-style open dialog ที่เด้งขึ้นมาเป็น
@@ -235,60 +284,58 @@ class CropWatEngine:
     # Step 1a: เปิดไฟล์ Climate (.PED) ของปีนั้น
     # ------------------------------------------------------------------
     def open_climate_file(self, file_path: Path) -> None:
-        self._require_connected()
         cfg = controls.CLIMATE_SCREEN
-        self._focus_mdi_child(cfg.window_class_name)
-        self._open_file_via_dialog(
+        self.open_module_file(
+            cfg.window_class_name,
+            cfg.new_menu_path,
             Path(file_path),
             cfg.file_dialog_title_re,
             cfg.file_dialog_filename_field,
             cfg.file_dialog_open_button,
+            "climate",
         )
-        self._raise_if_error_dialog(f"เปิดไฟล์ climate {file_path}")
 
     # ------------------------------------------------------------------
     # Step 1b: เปิดไฟล์ Rain (.CRD) ของปีนั้น
     # ------------------------------------------------------------------
     def open_rain_file(self, file_path: Path) -> None:
-        self._require_connected()
         cfg = controls.RAIN_SCREEN
-        self._focus_mdi_child(cfg.window_class_name)
-        self._open_file_via_dialog(
+        self.open_module_file(
+            cfg.window_class_name,
+            cfg.new_menu_path,
             Path(file_path),
             cfg.file_dialog_title_re,
             cfg.file_dialog_filename_field,
             cfg.file_dialog_open_button,
+            "rain",
         )
-        self._raise_if_error_dialog(f"เปิดไฟล์ rain {file_path}")
 
     # ------------------------------------------------------------------
-    # ตรวจสอบว่า Crop/Soil เปิดอยู่แล้วหรือยัง — เรียกแค่ "ครั้งเดียวต่อ session"
-    # ก่อนเริ่มวนหลายปี ไม่ใช่ทุกปี/ทุกวันปลูก
-    #
-    # สำคัญ (ยืนยันจากการทดสอบจริงแล้ว): แค่ "focus" หน้าต่างให้เจอเท่านั้น พอ —
-    # ห้ามสั่ง File->Open ไฟล์ซ้ำเข้าไปในหน้าต่างที่มันเปิดอยู่แล้ว เพราะ CropWat
-    # แจ้ง error กลับมา (คาดว่าไม่ยอมให้เปิดไฟล์เดิมที่ active อยู่ซ้ำ) — ไฟล์
-    # crop/soil คงที่ตลอด batch ตาม spec อยู่แล้ว ไม่มีเหตุผลต้องสั่งเปิดใหม่เลย
-    # แค่เช็คว่ามีหน้าต่างพร้อมใช้งานจริงก็พอ
+    # เปิดไฟล์ Crop/Soil ให้เองอัตโนมัติ (v0.2.0 — ผู้ใช้ไม่ต้องเปิดเองอีกต่อไป)
+    # เรียกแค่ "ครั้งเดียวต่อ batch" ก่อนเริ่มวนหลายปี เพราะไฟล์คงที่ตลอด — ถ้า
+    # เปิดอยู่แล้วและ title ตรงกับไฟล์เป้าหมาย open_module_file จะข้ามให้เอง
     # ------------------------------------------------------------------
-    def _verify_module_open(self, window_class_name: str, module_label: str) -> None:
-        self._require_connected()
-        try:
-            self._focus_mdi_child(window_class_name)
-        except (ElementNotFoundError, PywinautoTimeoutError) as exc:
-            raise CropWatNotRunningError(
-                f"ยังไม่ได้เปิดไฟล์ {module_label} ใน CropWat — กรุณาเปิดเอง "
-                f"(File → Open) ก่อนกด \"เริ่มรันทั้งหมด\" (ระบบยังไม่รองรับสร้าง/"
-                f"เปิดไฟล์ {module_label} อัตโนมัติตั้งแต่ศูนย์)"
-            ) from exc
-
     def ensure_crop_soil_open(self, crop_file: Path, soil_file: Path) -> None:
-        """เช็คว่า Crop/Soil เปิดอยู่แล้ว (ต้องเปิดเองใน CropWat ไว้ก่อน) — ไม่ได้
-        เปิดไฟล์ใหม่ใดๆ เลย พารามิเตอร์ crop_file/soil_file รับไว้เผื่ออนาคตอยาก
-        validate ว่าไฟล์ที่เปิดอยู่ตรงกับที่ตั้งค่าไว้จริงไหม (ยังไม่ได้ทำ)"""
-        del crop_file, soil_file  # ยังไม่ได้ใช้ตรวจสอบอะไร แค่กันชื่อไว้เผื่ออนาคต
-        self._verify_module_open(controls.CROP_SCREEN.window_class_name, "crop")
-        self._verify_module_open(controls.SOIL_SCREEN.window_class_name, "soil")
+        cfg = controls.CROP_SCREEN
+        self.open_module_file(
+            cfg.window_class_name,
+            cfg.new_menu_path,
+            Path(crop_file),
+            cfg.file_dialog_title_re,
+            cfg.file_dialog_filename_field,
+            cfg.file_dialog_open_button,
+            "crop",
+        )
+        scfg = controls.SOIL_SCREEN
+        self.open_module_file(
+            scfg.window_class_name,
+            scfg.new_menu_path,
+            Path(soil_file),
+            scfg.file_dialog_title_re,
+            scfg.file_dialog_filename_field,
+            scfg.file_dialog_open_button,
+            "soil",
+        )
 
     # ------------------------------------------------------------------
     # Step 2: ตั้งวันปลูกใน module Crop (crop file เองคงที่ทุกปี ไม่ต้องเปิดใหม่)
@@ -420,13 +467,34 @@ class CropWatEngine:
         screenshot_dir.mkdir(parents=True, exist_ok=True)
         stem = f"{year}_{planting_date:%m%d}"
 
-        self._focus_mdi_child(cfg.window_class_name)
-        schedule_path = screenshot_dir / f"{stem}_schedule.png"
-        self.main_window.capture_as_image().save(schedule_path)
+        # ซ่อน overlay progress ลอยชั่วคราวระหว่าง capture — capture_as_image
+        # ถ่ายจากพิกเซลจริงบนจอ ถ้า overlay ลอยทับหน้าต่าง CropWat อยู่จะติดมา
+        # ในภาพด้วย (overlay refresh ทุก 0.4 วิ เลยรอ 0.8 วิให้ซ่อนเสร็จก่อนแน่ๆ)
+        pause = None
+        try:
+            from overlay import capture_pause as pause
+        except Exception:  # noqa: BLE001 -- overlay เป็น optional ไม่มีก็ capture ได้
+            pass
+        if pause is not None:
+            pause.set()
+            time.sleep(0.8)
 
-        self._focus_mdi_child(cfg.graph_window_class_name)
-        graph_path = screenshot_dir / f"{stem}_graph.png"
-        self.main_window.capture_as_image().save(graph_path)
+        try:
+            self._focus_mdi_child(cfg.window_class_name)
+            schedule_path = screenshot_dir / f"{stem}_schedule.png"
+            self.main_window.capture_as_image().save(schedule_path)
+
+            # หน้าต่างกราฟไม่ได้เปิดเองหลังคำนวณ (ยืนยันจาก cropwat_menu.txt) —
+            # เปิดผ่านเมนู Charts->Irrigation Schedule ครั้งแรก ครั้งถัดไปหน้าต่าง
+            # ค้างอยู่แล้วและอัปเดตตามผลคำนวณล่าสุดเอง แค่ focus ก็พอ
+            self._ensure_module_window(
+                cfg.graph_window_class_name, cfg.graph_menu_path, "irrigation schedule graph"
+            )
+            graph_path = screenshot_dir / f"{stem}_graph.png"
+            self.main_window.capture_as_image().save(graph_path)
+        finally:
+            if pause is not None:
+                pause.clear()
 
         return schedule_path, graph_path
 
@@ -571,6 +639,7 @@ class CropWatEngine:
         rain_file: Path,
         export_dir: Path,
         screenshot_dir: Optional[Path] = None,
+        on_candidate_done=None,
     ) -> YearRunResult:
         try:
             self.open_climate_file(climate_file)
@@ -581,10 +650,17 @@ class CropWatEngine:
                 year=year, ok=False, error_message=f"เปิดไฟล์ climate/rain ไม่สำเร็จ: {exc}"
             )
 
-        candidates = [
-            self.run_candidate_planting_date(year, task, export_dir, screenshot_dir)
-            for task in tasks
-        ]
+        candidates = []
+        for task in tasks:
+            result = self.run_candidate_planting_date(year, task, export_dir, screenshot_dir)
+            candidates.append(result)
+            # แจ้ง progress ระดับวันปลูกให้ผู้เรียก (runner ใช้ขับ progress bar
+            # ทั้งหน้าเว็บและ overlay ลอย) — callback พังต้องไม่ล้มการรัน
+            if on_candidate_done is not None:
+                try:
+                    on_candidate_done(result)
+                except Exception:  # noqa: BLE001
+                    logger.exception("on_candidate_done callback ล้มเหลว (ไม่กระทบการรัน)")
         failed = [c for c in candidates if not c.ok]
         ok = not failed
         error_message = (

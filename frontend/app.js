@@ -363,9 +363,18 @@ function renderStatus(snapshot) {
   const doneCount = years.filter((y) => y.status === "done").length;
   const total = years.length;
 
-  document.getElementById("progress-fill").style.width = total ? `${(doneCount / total) * 100}%` : "0%";
   const currentTxt = snapshot.current_year ? ` · กำลังรันปี ${snapshot.current_year}` : "";
-  document.getElementById("progress-txt").textContent = `${doneCount} / ${total} ปี${currentTxt}`;
+  // ใช้ progress ระดับ "วันปลูก" ถ้ามี (ละเอียดกว่าระดับปีมาก — 1 ปีมีหลายวันปลูก
+  // การนับแค่ปีทำให้ bar กระโดดทีละก้าวใหญ่ดูเหมือนค้าง) fallback เป็นระดับปี
+  if (snapshot.candidate_total > 0) {
+    const pct = (snapshot.candidate_done / snapshot.candidate_total) * 100;
+    document.getElementById("progress-fill").style.width = `${pct}%`;
+    document.getElementById("progress-txt").textContent =
+      `${snapshot.candidate_done} / ${snapshot.candidate_total} วันปลูก${currentTxt}`;
+  } else {
+    document.getElementById("progress-fill").style.width = total ? `${(doneCount / total) * 100}%` : "0%";
+    document.getElementById("progress-txt").textContent = `${doneCount} / ${total} ปี${currentTxt}`;
+  }
 
   const isRunning = snapshot.overall_state === "running";
   document.getElementById("btn-start").disabled = isRunning;
