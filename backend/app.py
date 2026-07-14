@@ -190,6 +190,14 @@ async def build_excel() -> dict:
         years_written = await asyncio.to_thread(runner.build_excel, settings)
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
+    except PermissionError as exc:
+        # เคสที่เจอบ่อยแน่นอน: ผู้ใช้เปิด Result.xlsx ค้างอยู่ใน Excel ตอนกดปุ่ม —
+        # Windows lock ไฟล์ไว้ทำให้เขียนทับไม่ได้ ต้องบอกวิธีแก้ตรงๆ ไม่ใช่ 500
+        raise HTTPException(
+            409,
+            f"เขียนไฟล์ {excel_path(settings).name} ไม่ได้ — ถ้าเปิดไฟล์นี้ค้างอยู่ใน "
+            "Excel ให้ปิดก่อนแล้วกดใหม่อีกครั้ง",
+        ) from exc
     return {"years_written": years_written, "path": str(excel_path(settings))}
 
 

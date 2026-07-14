@@ -182,8 +182,10 @@ class CalculateControls:
     # (Irrigation Scheduling ต้องมีผล CWR อยู่แล้วถึงจะคำนวณได้)
     crop_water_requirements_menu_path: str | None = "Calculations->Crop Water Requirements"
     irrigation_scheduling_menu_path: str | None = "Calculations->Irrigation Scheduling"
-    # เวลารอสูงสุด (วินาที) ให้ CropWat คำนวณเสร็จก่อน timeout (ต่อ 1 ขั้นตอนย่อย)
-    calculate_timeout_seconds: int = 30
+    # หมายเหตุ: เคยมี calculate_timeout_seconds=30 สำหรับ polling loop รอคำนวณ —
+    # เอาออกแล้ว (v0.1.11) เพราะ loop นั้นไม่มีทางออกเมื่อสำเร็จ ทำให้เสียเวลา 30 วิ
+    # เต็มทุกรอบคำนวณโดยเปล่าประโยชน์ (CropWat คำนวณเสร็จแทบทันที) — ตอนนี้ใช้
+    # ERROR_DIALOG.poll_timeout_seconds เช็ค error รอบเดียวสั้นๆ แทน
 
 
 CALCULATE = CalculateControls()

@@ -303,18 +303,16 @@ class CropWatEngine:
     # ผลนี้)
     # ------------------------------------------------------------------
     def calculate(self) -> None:
+        """หมายเหตุ (v0.1.11 — แก้บั๊กช้าตัวแม่): เดิมมี polling loop ที่วนเช็ค
+        error จนครบ calculate_timeout_seconds (30 วิ) เต็มๆ โดย "ไม่มีเงื่อนไขออก
+        เมื่อสำเร็จ" เลย — เสียเวลาฟรี 30 วิทุกครั้งที่คำนวณ ทั้งที่ CropWat คำนวณ
+        ข้อมูลรายวัน 12 เดือนเสร็จแทบทันที (Delphi ประมวลผลใน UI thread แบบ
+        synchronous — พอคำสั่งเมนูถูกประมวลผลเสร็จ ผลคำนวณก็เสร็จแล้ว ถ้าพังจะ
+        เด้ง error dialog ขึ้นมาเลยทันที) เช็ค error หนึ่งรอบสั้นๆ ก็พอ"""
         self._require_connected()
         cfg = controls.CALCULATE
         self.main_window.menu_select(cfg.crop_water_requirements_menu_path)
-
-        deadline = time.monotonic() + cfg.calculate_timeout_seconds
-        while time.monotonic() < deadline:
-            error_message = self._poll_error_dialog()
-            if error_message:
-                raise CropWatReportedError(
-                    f"CropWat แจ้ง error ระหว่างคำนวณ Crop Water Requirements: {error_message}"
-                )
-            time.sleep(0.5)
+        self._raise_if_error_dialog("คำนวณ Crop Water Requirements")
 
     # ------------------------------------------------------------------
     # Step 4: สั่งคำนวณ Irrigation Scheduling — นี่คือสิ่งที่ "เปิดหน้า Irrigation
@@ -322,18 +320,14 @@ class CropWatEngine:
     # จะทำให้หน้าต่างผลลัพธ์ (class TCropScheduleform) โผล่ขึ้นมาเป็นผลพลอยได้เลย
     # ------------------------------------------------------------------
     def open_irrigation_schedule(self) -> None:
+        """หมายเหตุ (v0.1.11): เอา polling loop 30 วิเต็มออกด้วยเหตุผลเดียวกับ
+        calculate() — สำหรับขั้นนี้มี "สัญญาณเสร็จ" ที่ดีกว่าด้วยซ้ำ: หน้าต่างผลลัพธ์
+        (TCropScheduleform) ต้องโผล่ขึ้นมา — _focus_mdi_child ด้านล่างรอหน้าต่างนี้
+        อยู่แล้ว (timeout 10 วิ) เป็นการยืนยันว่าคำนวณสำเร็จจริงในตัวเอง"""
         self._require_connected()
         cfg = controls.CALCULATE
         self.main_window.menu_select(cfg.irrigation_scheduling_menu_path)
-
-        deadline = time.monotonic() + cfg.calculate_timeout_seconds
-        while time.monotonic() < deadline:
-            error_message = self._poll_error_dialog()
-            if error_message:
-                raise CropWatReportedError(
-                    f"CropWat แจ้ง error ระหว่างคำนวณ Irrigation Scheduling: {error_message}"
-                )
-            time.sleep(0.5)
+        self._raise_if_error_dialog("คำนวณ Irrigation Scheduling")
 
         sched_cfg = controls.IRRIGATION_SCHEDULE
         if sched_cfg.window_class_name:
@@ -355,6 +349,11 @@ class CropWatEngine:
         # ตั้งชื่อไฟล์รวมวันปลูกที่ทดลองด้วย เพราะ 1 ปีมีได้หลายไฟล์ (1 ไฟล์ต่อ
         # 1 วันปลูกที่ทดลอง)
         target_file = export_dir / f"{year}_{planting_date:%m%d}.txt"
+        # ลบไฟล์เก่าทิ้งก่อนเสมอถ้ามีค้างจากรอบก่อน (เช่น กดรันปีเดิมซ้ำ) — กัน 2
+        # ปัญหาพร้อมกัน: (1) Save As จะเด้ง prompt ยืนยันเขียนทับที่โค้ดไม่ได้กดให้
+        # ทำให้ flow ค้าง (2) _wait_for_file ด้านล่างจะเจอไฟล์เก่าแล้วรายงาน
+        # "สำเร็จ" ทั้งที่รอบนี้ยังไม่ได้ print อะไรออกมาจริงเลย
+        target_file.unlink(missing_ok=True)
 
         schedule_window = self._focus_mdi_child(cfg.window_class_name)
         # ยืนยันจากผู้ใช้แล้ว: ต้องสลับไปดู "Daily soil moisture balance" ก่อนพิมพ์เสมอ

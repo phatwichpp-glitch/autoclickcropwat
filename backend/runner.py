@@ -95,18 +95,28 @@ def _run_years(years: list[int], settings: Settings) -> None:
 
     input_root = Path(settings.input_dir)
 
-    # เปิดไฟล์ crop/soil "ครั้งเดียว" ก่อนเริ่มวนหลายปี (คงที่ตลอด batch ตาม spec
-    # ไม่ต้องเปิดใหม่ทุกปี) — ถ้าเปิดไม่สำเร็จถือว่าทั้ง batch นี้ error หมดเลย
-    # เพราะรันปีไหนต่อไม่ได้ถ้าไม่มี crop/soil
+    # เตรียมทุกอย่างที่ "คงที่ตลอด batch" ครั้งเดียวก่อนเริ่มวนหลายปี: เช็ค crop/
+    # soil เปิดอยู่ + resolve โฟลเดอร์สถานี + index ไฟล์ climate/rain ทั้งสถานี
+    # (เดิม index ใหม่ทุกปีในลูป — สแกนโฟลเดอร์ทั้งต้นไม้ recursive ซ้ำ 45 รอบ
+    # ทั้งที่ผลเหมือนเดิมทุกรอบ) — ถ้าขั้นนี้พังถือว่าทั้ง batch error หมดเลย
     try:
         crop_file = _resolve_single_file(input_root, ".cro", settings.crop_file)
         soil_file = _resolve_single_file(input_root, ".soi", settings.soil_file)
         engine.ensure_crop_soil_open(crop_file, soil_file)
+
+        climate_station = _resolve_single_station(
+            input_root, "Clim_", settings.climate_station_dir
+        )
+        rain_station = _resolve_single_station(
+            input_root, "Rain_", settings.rain_station_dir
+        )
+        climate_index = file_paths.index_climate_station(climate_station)
+        rain_index = file_paths.index_rain_station(rain_station)
     except Exception as exc:  # noqa: BLE001 -- ต้องแจ้งทุกปีว่า error เพราะเหตุนี้
-        logger.error("เปิดไฟล์ crop/soil ไม่สำเร็จ หยุดการรันทั้งหมด: %s", exc)
+        logger.error("เตรียมไฟล์/สถานีก่อนรันไม่สำเร็จ หยุดการรันทั้งหมด: %s", exc)
         for year in years:
             run_state.set_year_status(
-                year, YearRunStatus.ERROR, error_message=f"เปิดไฟล์ crop/soil ไม่สำเร็จ: {exc}"
+                year, YearRunStatus.ERROR, error_message=f"เตรียมไฟล์/สถานีไม่สำเร็จ: {exc}"
             )
         run_state.end_run()
         return
@@ -129,15 +139,6 @@ def _run_years(years: list[int], settings: Settings) -> None:
                 PlantingDateTask(planting_date=d, capture_screenshot=shot)
                 for d, shot in date_flags
             ]
-
-            climate_station = _resolve_single_station(
-                input_root, "Clim_", settings.climate_station_dir
-            )
-            rain_station = _resolve_single_station(
-                input_root, "Rain_", settings.rain_station_dir
-            )
-            climate_index = file_paths.index_climate_station(climate_station)
-            rain_index = file_paths.index_rain_station(rain_station)
 
             # ยืนยันจาก screenshot จริงของผู้ใช้แล้ว: ทั้งปีใช้ไฟล์ climate/rain
             # เดียวกันตลอด ไม่สลับไฟล์กลางทางแม้วันปลูกจะข้ามเดือน (ไฟล์เป็นชุด
