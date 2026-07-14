@@ -212,7 +212,10 @@ class CropWatEngine:
             self.main_window.menu_select(menu_path)
             return
         item = self.main_window.menu().get_menu_path(menu_path)[-1]
-        win32gui.PostMessage(self.main_window.handle, win32con.WM_COMMAND, item.id(), 0)
+        if not item.is_enabled():
+            raise CropWatReportedError(f"เมนู {menu_path!r} ถูก disable อยู่ (สถานะโปรแกรมยังไม่พร้อม)")
+        # เมธอดชื่อ item_id() (ยืนยันจาก source ของ pywinauto — ไม่ใช่ .id())
+        win32gui.PostMessage(self.main_window.handle, win32con.WM_COMMAND, item.item_id(), 0)
 
     def _ensure_module_window(self, class_name: str, new_menu_path: Optional[str], module_label: str):
         """คืนหน้าต่างโมดูล (focused) — ถ้ายังไม่มีเลย (CropWat เพิ่งเปิดมาเปล่าๆ)
