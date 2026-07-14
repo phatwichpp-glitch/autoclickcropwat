@@ -161,7 +161,13 @@ class CropWatEngine:
         ทั้งที่ช่องยังว่างอยู่ (dialog ยังโหลดไม่เสร็จตอนพิมพ์ หรือ control ที่ set
         ข้อความไม่ใช่ตัวที่ถูกต้อง) ทำให้ CropWat error เพราะไม่มีไฟล์ให้เปิดจริง
         ถ้าอ่านกลับมาไม่ตรง จะลองพิมพ์ใหม่อีกครั้งก่อนจะ fail แบบมีข้อความชัดเจน
-        แทนที่จะกด Open ไปทั้งที่รู้อยู่แล้วว่าข้อมูลผิด"""
+        แทนที่จะกด Open ไปทั้งที่รู้อยู่แล้วว่าข้อมูลผิด
+
+        สำคัญ (v0.1.9): ใช้ set_edit_text()/click() ที่ส่ง message ตรงไปที่ handle
+        ของ control เท่านั้น ไม่ใช้ click_input()/type_keys() ที่จำลองเมาส์/คีย์บอร์ด
+        จริงตามพิกัดหน้าจอ — set_edit_text ใช้ WM_SETTEXT ซึ่งไม่ต้องคลิกโฟกัสก่อน
+        เลยด้วยซ้ำ (เดิมมี field.click_input() ก่อนพิมพ์ทั้งที่ไม่จำเป็น และเป็นจุด
+        เสี่ยง "คลิกหลุดเป้า" ถ้าหน้าต่างซ้อนผิดจังหวะ — เอาออก)"""
         if not file_path.exists():
             raise FileNotFoundError(f"ไม่พบไฟล์: {file_path}")
 
@@ -174,7 +180,6 @@ class CropWatEngine:
         target = str(file_path)
         field = dialog[filename_field]
         for attempt in range(2):
-            field.click_input()
             field.set_edit_text(target)
             time.sleep(0.2)
             actual = field.window_text()
@@ -187,7 +192,7 @@ class CropWatEngine:
                 f"อ่านได้จริง: {actual!r}) — ไม่กด Open เพราะข้อมูลไม่ตรง"
             )
 
-        dialog[open_button].click_input()
+        dialog[open_button].click()
 
     # ------------------------------------------------------------------
     # Step 1a: เปิดไฟล์ Climate (.PED) ของปีนั้น
@@ -252,6 +257,10 @@ class CropWatEngine:
     # Step 2: ตั้งวันปลูกใน module Crop (crop file เองคงที่ทุกปี ไม่ต้องเปิดใหม่)
     # ------------------------------------------------------------------
     def set_planting_date(self, planting_date: date) -> None:
+        """หมายเหตุ: field.type_keys() ด้านล่าง (ไม่เหมือน click() ที่จุดอื่นในไฟล์
+        นี้) ยังจำเป็นต้องจำลองคีย์บอร์ดจริงอยู่ — ต้องกด Tab จริงๆ เพื่อให้ Delphi
+        ยิง event ยืนยันค่าในช่อง (WM_SETTEXT อย่างเดียวไม่ทำให้ CropWat "รับ" ค่า
+        ใหม่) อย่างน้อยจุดนี้ไม่ได้ขยับเมาส์ ต่างจาก click_input() ที่เอาออกไปแล้ว"""
         self._require_connected()
         cfg = controls.CROP_SCREEN
         crop_window = self._focus_mdi_child(cfg.window_class_name)
@@ -325,25 +334,27 @@ class CropWatEngine:
 
         schedule_window = self._focus_mdi_child(cfg.window_class_name)
         # ยืนยันจากผู้ใช้แล้ว: ต้องสลับไปดู "Daily soil moisture balance" ก่อนพิมพ์เสมอ
-        schedule_window[cfg.table_format_daily_soil_moisture_radio].click_input()
+        # click() (ไม่ใช่ click_input()) — ส่ง message ตรงไปที่ handle ของ radio
+        # button เลย ไม่ต้องพึ่งพิกัดเมาส์จริงบนหน้าจอ (ดู bulk note ที่ _open_file_via_dialog)
+        schedule_window[cfg.table_format_daily_soil_moisture_radio].click()
 
         self.main_window.menu_select(cfg.print_menu_path)
 
         options = self.app.window(title_re=cfg.print_options_dialog_title_re)
         options.wait("exists enabled visible ready", timeout=10)
-        options[cfg.print_options_ascii_file_radio].click_input()
+        options[cfg.print_options_ascii_file_radio].click()
         commas_checkbox = options[cfg.print_options_use_commas_checkbox].wrapper_object()
         if not commas_checkbox.get_check_state():
-            commas_checkbox.click_input()
+            commas_checkbox.click()
         irrigation_checkbox = options[cfg.print_options_irrigation_schedule_checkbox].wrapper_object()
         if not irrigation_checkbox.get_check_state():
-            irrigation_checkbox.click_input()
-        options[cfg.print_options_ok_button].click_input()
+            irrigation_checkbox.click()
+        options[cfg.print_options_ok_button].click()
 
         save_dialog = self.app.window(title_re=cfg.print_save_dialog_title_re)
         save_dialog.wait("exists enabled visible ready", timeout=10)
         save_dialog[cfg.print_save_dialog_filename_field].set_edit_text(str(target_file))
-        save_dialog[cfg.print_save_dialog_save_button].click_input()
+        save_dialog[cfg.print_save_dialog_save_button].click()
 
         self._raise_if_error_dialog(f"print ผลลัพธ์ปี {year} วันปลูก {planting_date:%d/%m}")
 
@@ -401,7 +412,7 @@ class CropWatEngine:
                 # dialog เองเป็น fallback แทน อย่างน้อยก็รู้ว่ามี error เกิดขึ้น
                 message = f"CropWat แสดง dialog '{dialog.window_text()}' (อ่านข้อความละเอียดไม่ได้)"
             if cfg.dismiss_button:
-                dialog[cfg.dismiss_button].click_input()
+                dialog[cfg.dismiss_button].click()
             return message
         except ElementNotFoundError:
             return None
