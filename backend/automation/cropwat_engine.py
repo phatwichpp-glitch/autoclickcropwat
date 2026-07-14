@@ -41,6 +41,7 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
+import win32con
 import win32gui
 from pywinauto import Application
 from pywinauto.findwindows import ElementAmbiguousError, ElementNotFoundError, find_windows
@@ -195,6 +196,54 @@ class CropWatEngine:
             self.main_window.menu_select(new_menu_path)
         return self._focus_mdi_child(class_name)
 
+    def _close_stale_module_windows(
+        self,
+        class_name: str,
+        keep_file_name: Optional[str],
+        module_label: str,
+        close_all_if_no_match: bool = True,
+    ) -> bool:
+        """ปิดหน้าต่างของโมดูล (class เดียวกัน) ทุกบานที่ "ไม่ได้" โหลดไฟล์เป้าหมาย
+        อยู่ — ยืนยันจากการรันจริงข้ามปี (v0.2.1): File->Open ของ CropWat เปิด
+        "หน้าต่างใหม่" แทนที่จะโหลดทับบานเดิม ทำให้หน้าต่างพอกซ้ำขึ้นทุกปีจน
+        engine แยกไม่ออกว่าบานไหนคือบานปัจจุบัน (ต้นตอของ DuplicateWindowError
+        ตอนข้ามปี) — ตรวจจากการเทียบชื่อไฟล์กับ title ของแต่ละบาน (title มี path
+        ไฟล์ที่โหลดอยู่เสมอ) ปิดด้วย WM_CLOSE (message ล้วน ไม่แตะเมาส์) และตอบ
+        No ให้ prompt ถามบันทึกที่อาจเด้งตอนปิด
+
+        คืน True ถ้าเจอบานที่โหลดไฟล์เป้าหมายอยู่แล้ว (เก็บไว้ 1 บาน ปิดที่เหลือ)
+        keep_file_name=None = ปิดทุกบาน / close_all_if_no_match=False = ถ้าไม่เจอ
+        บานที่ตรง อย่าปิดอะไรเลย (ใช้ตอนเก็บกวาด "หลัง" เปิดไฟล์สำเร็จ — กันเคส
+        title มีรูปแบบไม่คาดคิดแล้วเผลอปิดบานที่เพิ่งเปิดเสร็จทิ้ง)"""
+        handles = find_windows(
+            class_name=class_name, top_level_only=False, process=self.app.process
+        )
+        if not handles:
+            return False
+        titles = {h: (win32gui.GetWindowText(h) or "") for h in handles}
+
+        keep_handle = None
+        if keep_file_name:
+            for handle, title in titles.items():
+                if keep_file_name.lower() in title.lower():
+                    keep_handle = handle
+                    break
+        if keep_handle is None and not close_all_if_no_match:
+            return False
+
+        for handle, title in titles.items():
+            if handle == keep_handle:
+                continue
+            logger.info("%s: ปิดหน้าต่างเก่า/ซ้ำ '%s'", module_label, title or "(ไม่มีชื่อ)")
+            win32gui.PostMessage(handle, win32con.WM_CLOSE, 0, 0)
+            deadline = time.monotonic() + 5
+            while win32gui.IsWindow(handle) and time.monotonic() < deadline:
+                self._answer_no_to_save_prompt()
+                time.sleep(0.15)
+            if win32gui.IsWindow(handle):
+                logger.warning("%s: ปิดหน้าต่าง '%s' ไม่สำเร็จภายใน 5 วินาที", module_label, title)
+        return keep_handle is not None
+
     def open_module_file(
         self,
         class_name: str,
@@ -212,18 +261,31 @@ class CropWatEngine:
         นี่คือสิ่งที่ทำให้ผู้ใช้ไม่ต้องเปิด crop/soil เองก่อนรันอีกต่อไป (v0.2.0) —
         ข้อสรุปเดิมที่ว่า "เปิดไฟล์ทับแล้ว CropWat error ต้องให้ผู้ใช้เปิดเอง" แท้จริง
         คือ dialog ถาม "Save changes to current ... data ?" (Yes/No/Cancel) ที่โค้ด
-        เก่าอ่านผิดว่าเป็น error — ตอนนี้ระบบตอบ No ให้เองแล้ว จึงเปิดทับได้ปกติ"""
+        เก่าอ่านผิดว่าเป็น error — ตอนนี้ระบบตอบ No ให้เองแล้ว จึงเปิดทับได้ปกติ
+
+        v0.2.1: เปลี่ยนเป็น "ปิดบานเก่าก่อน เปิดใหม่เสมอ" — File->Open ของ CropWat
+        เปิดหน้าต่างใหม่แทนที่จะโหลดทับบานเดิม (ยืนยันจากการรันจริงข้ามปี) ถ้าไม่
+        ปิดบานปีเก่าทิ้งก่อน หน้าต่างจะพอกซ้ำทุกปีจนระบบแยกไม่ออกว่าบานไหนจริง"""
         self._require_connected()
         file_path = Path(file_path)
-        window = self._ensure_module_window(class_name, new_menu_path, module_label)
 
-        title = window.window_text() or ""
-        if file_path.name.lower() in title.lower():
+        # ปิดทุกบานของโมดูลนี้ที่โหลด "ไฟล์อื่น" อยู่ (ไฟล์ปีเก่า/ฟอร์มเปล่าค้าง) —
+        # ถ้าเจอบานที่โหลดไฟล์เป้าหมายอยู่แล้ว เก็บไว้และจบเลย ไม่ต้องเปิดซ้ำ
+        if self._close_stale_module_windows(class_name, file_path.name, module_label):
             logger.info("%s: ไฟล์ %s เปิดอยู่แล้ว ไม่ต้องเปิดซ้ำ", module_label, file_path.name)
+            self._focus_mdi_child(class_name)
             return
 
+        self._ensure_module_window(class_name, new_menu_path, module_label)
         self._open_file_via_dialog(file_path, dialog_title_re, filename_field, open_button)
         self._raise_if_error_dialog(f"เปิดไฟล์ {module_label} {file_path}")
+
+        # เก็บกวาดหลังเปิด: ถ้า File->Open สร้างบานใหม่ ฟอร์มเปล่าที่ใช้เบิกทาง
+        # ยังค้างอยู่เป็นบานที่สอง — ปิดทิ้งโดยเก็บเฉพาะบานที่โหลดไฟล์เป้าหมาย
+        # (close_all_if_no_match=False กันเผลอปิดบานที่เพิ่งเปิดถ้า title ไม่ตรงคาด)
+        self._close_stale_module_windows(
+            class_name, file_path.name, module_label, close_all_if_no_match=False
+        )
 
     def _open_file_via_dialog(self, file_path: Path, dialog_title_re, filename_field, open_button) -> None:
         """ทำ flow เปิดไฟล์ผ่าน Windows-style open dialog ที่เด้งขึ้นมาเป็น
@@ -484,12 +546,15 @@ class CropWatEngine:
             schedule_path = screenshot_dir / f"{stem}_schedule.png"
             self.main_window.capture_as_image().save(schedule_path)
 
-            # หน้าต่างกราฟไม่ได้เปิดเองหลังคำนวณ (ยืนยันจาก cropwat_menu.txt) —
-            # เปิดผ่านเมนู Charts->Irrigation Schedule ครั้งแรก ครั้งถัดไปหน้าต่าง
-            # ค้างอยู่แล้วและอัปเดตตามผลคำนวณล่าสุดเอง แค่ focus ก็พอ
-            self._ensure_module_window(
-                cfg.graph_window_class_name, cfg.graph_menu_path, "irrigation schedule graph"
+            # ปิดหน้าต่างกราฟเก่าทิ้งแล้วเปิดใหม่ผ่านเมนู "ทุกครั้ง" — ยืนยันจาก
+            # การรันจริง (v0.2.1): หน้าต่างกราฟที่เปิดค้างไว้ไม่รีเฟรชตามผลคำนวณ
+            # ใหม่ ถ้าเปิดครั้งเดียวแล้ว capture ซ้ำๆ จะได้ภาพกราฟของวันปลูกแรก
+            # ทุกใบ — ต้องเปิดสดใหม่ให้ตรงกับผลคำนวณของวันปลูกปัจจุบันเสมอ
+            self._close_stale_module_windows(
+                cfg.graph_window_class_name, None, "irrigation schedule graph"
             )
+            self.main_window.menu_select(cfg.graph_menu_path)
+            self._focus_mdi_child(cfg.graph_window_class_name)
             graph_path = screenshot_dir / f"{stem}_graph.png"
             self.main_window.capture_as_image().save(graph_path)
         finally:
