@@ -29,9 +29,10 @@ const ICONS = {
 // ---------------------------------------------------------------------------
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
+    const target = btn.dataset.tab;
+    if (!target) return; // กันปุ่มอื่นที่เผลอใส่ class นี้มาทำ view หายทั้งหน้า
     document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    const target = btn.dataset.tab;
     document.getElementById("view-dash").classList.toggle("active", target === "dash");
     document.getElementById("view-setup").classList.toggle("active", target === "setup");
     if (target === "setup") renderScanResults(lastScan);

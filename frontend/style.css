@@ -204,15 +204,19 @@ input[type="number"] { width: 90px; }
 .year-row .frac { font-size: 11.5px; color: var(--muted); }
 
 /* ---------- setup: readiness strip ---------- */
-.readiness-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.readiness-strip {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;
+  max-width: 760px; margin: 0 auto; width: 100%;  /* กว้างเท่า .setup-grid ให้แนวตรงกัน */
+}
 .stat-tile { border: 1px solid var(--border); background: var(--panel); border-radius: 9px; padding: 12px 14px; }
 .stat-tile .stat-lbl { font-size: 10.5px; color: var(--muted-2); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
 .stat-tile .stat-val { font-size: 19px; font-weight: 750; margin-top: 4px; }
 .stat-tile.warn .stat-val { color: var(--running); }
 .stat-tile.ok .stat-val { color: var(--done); }
 
-.setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-@media (max-width: 880px) { .setup-grid { grid-template-columns: 1fr; } }
+/* คอลัมน์เดียว จำกัดความกว้างและจัดกลาง — สองคอลัมน์แล้วการ์ดสูงไม่เท่ากัน
+   ดูเสียสมดุล (feedback จากผู้ใช้จริง) ฟอร์มตั้งค่าอ่านไล่บนลงล่างดีกว่าด้วย */
+.setup-grid { display: grid; grid-template-columns: 1fr; gap: 16px; max-width: 760px; margin: 0 auto; width: 100%; }
 
 .detect-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
 .detect-row:first-child { border-top: none; padding-top: 0; }
@@ -242,7 +246,10 @@ input[type="number"] { width: 90px; }
 .phase-arrow { display: flex; align-items: center; color: var(--muted-2); }
 
 .note { font-size: 11.5px; color: var(--muted-2); }
-.footer-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.footer-actions {
+  display: flex; justify-content: flex-end; gap: 10px;
+  max-width: 760px; margin: 0 auto; width: 100%;  /* กว้างเท่า .setup-grid ให้แนวตรงกัน */
+}
 
 /* ---------- lucide-style inline icons (เส้น outline 2px มุมมน สไตล์ lucide) ---------- */
 .ic { width: 14px; height: 14px; flex: none; }
