@@ -580,7 +580,13 @@ class CropWatEngine:
         โหมดปกติกด Tab จริง (จำลองคีย์บอร์ด ไม่ขยับเมาส์)"""
         if self.background_mode:
             CM_EXIT = 0xB011
-            win32gui.SendMessage(field.handle, CM_EXIT, 0, 0)
+            hwnd = field.handle
+            # บางเครื่อง CM_EXIT อย่างเดียวไม่พอให้ Delphi commit ค่าเข้าข้อมูลภายใน
+            # (เห็นค่าบนช่องเปลี่ยน แต่ผลคำนวณยังยึดวันเดิม) จึงส่งทั้ง CM_EXIT และ
+            # คีย์ Tab แบบ message ตรงเข้า control เพื่อกระตุ้นเส้นทาง OnExit ให้ครบ
+            win32gui.SendMessage(hwnd, CM_EXIT, 0, 0)
+            win32gui.SendMessage(hwnd, win32con.WM_KEYDOWN, win32con.VK_TAB, 0)
+            win32gui.SendMessage(hwnd, win32con.WM_KEYUP, win32con.VK_TAB, 0)
         elif cfg.confirm_key:
             field.type_keys(cfg.confirm_key)
 
@@ -1025,6 +1031,31 @@ class CropWatEngine:
             self.calculate()
             self.open_irrigation_schedule()
             exported_file = self.export_results(year, planting_date, export_dir)
+
+            # ตาข่ายสุดท้ายกันบั๊กเงียบ: ตรวจจากไฟล์ .txt ที่ CropWat พิมพ์ออกมาเอง
+            # ว่าวันปลูกตรงกับ candidate ที่สั่งจริง (ยอมรับทั้ง dm/md กัน Region ต่าง)
+            from file_engine.txt_parser import TxtParseError, parse_txt
+
+            try:
+                parsed = parse_txt(exported_file)
+            except (TxtParseError, OSError) as exc:
+                raise CropWatReportedError(
+                    f"ไฟล์ผลลัพธ์ {exported_file.name} อ่านค่า Planting date ไม่ได้: {exc}"
+                ) from exc
+
+            pd_match = re.match(r"^\s*(\d{1,2})/(\d{1,2})\s*$", parsed.planting_date)
+            if not pd_match:
+                raise CropWatReportedError(
+                    f"ไฟล์ {exported_file.name} มี Planting date รูปแบบแปลก: {parsed.planting_date!r}"
+                )
+            a, b = int(pd_match.group(1)), int(pd_match.group(2))
+            want_day, want_month = planting_date.day, planting_date.month
+            if (a, b) != (want_day, want_month) and (a, b) != (want_month, want_day):
+                raise CropWatReportedError(
+                    "ตั้งวันปลูกไม่ติดในผลคำนวณจริง: "
+                    f"ไฟล์ {exported_file.name} แสดง {parsed.planting_date} แต่ต้องเป็น "
+                    f"{planting_date:%d/%m}"
+                )
 
             schedule_shot = graph_shot = None
             if task.capture_screenshot:
