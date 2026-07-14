@@ -192,22 +192,17 @@ class CropWatEngine:
         self._raise_if_error_dialog(f"เปิดไฟล์ rain {file_path}")
 
     # ------------------------------------------------------------------
-    # เปิดไฟล์ Crop/Soil — เรียกแค่ "ครั้งเดียวต่อ session" ไม่ใช่ทุกปี/ทุกวันปลูก
-    # (ไฟล์คงที่ตลอด batch ตาม spec) ยังไม่ยืนยันจากการทดสอบจริง 100% ว่า flow
-    # "File->New ก่อนถ้ายังไม่มีหน้าต่าง" ถูกต้อง — ถ้าหน้าต่างเปิดค้างอยู่แล้ว
-    # (เช่นผู้ใช้เปิดเองไว้ก่อนหน้านี้) จะข้าม New ไปเปิดไฟล์ทับได้เลยไม่มีปัญหา
+    # ตรวจสอบว่า Crop/Soil เปิดอยู่แล้วหรือยัง — เรียกแค่ "ครั้งเดียวต่อ session"
+    # ก่อนเริ่มวนหลายปี ไม่ใช่ทุกปี/ทุกวันปลูก
+    #
+    # สำคัญ (ยืนยันจากการทดสอบจริงแล้ว): แค่ "focus" หน้าต่างให้เจอเท่านั้น พอ —
+    # ห้ามสั่ง File->Open ไฟล์ซ้ำเข้าไปในหน้าต่างที่มันเปิดอยู่แล้ว เพราะ CropWat
+    # แจ้ง error กลับมา (คาดว่าไม่ยอมให้เปิดไฟล์เดิมที่ active อยู่ซ้ำ) — ไฟล์
+    # crop/soil คงที่ตลอด batch ตาม spec อยู่แล้ว ไม่มีเหตุผลต้องสั่งเปิดใหม่เลย
+    # แค่เช็คว่ามีหน้าต่างพร้อมใช้งานจริงก็พอ
     # ------------------------------------------------------------------
-    def _open_module_file(
-        self, file_path: Path, window_class_name: str,
-        dialog_title_re, filename_field, open_button, module_label: str,
-    ) -> None:
+    def _verify_module_open(self, window_class_name: str, module_label: str) -> None:
         self._require_connected()
-        # ยืนยันจากการทดสอบจริงแล้ว: "File->New->Crop->Dry crop" ไม่ใช่ทางลัดไปหน้า
-        # เปิดไฟล์ — มันสร้างฟอร์มนิยามพืชเปล่าๆ ที่ต้องกรอก Kc/stage days ฯลฯ เอง
-        # ใหม่หมด (ไม่ใช่สิ่งที่ automationควรทำ เพราะ crop/soil เป็นไฟล์ที่มีอยู่
-        # แล้วตาม spec) เลยไม่มี fallback สร้างไฟล์ใหม่อัตโนมัติอีกต่อไป — ถ้ายังไม่มี
-        # หน้าต่างนี้เปิดอยู่ก็ fail ทันทีพร้อมบอกวิธีแก้ที่ชัดเจน แทนที่จะไปเดา flow
-        # ที่ไม่รู้จักแน่ชัด
         try:
             self._focus_mdi_child(window_class_name)
         except (ElementNotFoundError, PywinautoTimeoutError) as exc:
@@ -216,31 +211,14 @@ class CropWatEngine:
                 f"(File → Open) ก่อนกด \"เริ่มรันทั้งหมด\" (ระบบยังไม่รองรับสร้าง/"
                 f"เปิดไฟล์ {module_label} อัตโนมัติตั้งแต่ศูนย์)"
             ) from exc
-        self._open_file_via_dialog(Path(file_path), dialog_title_re, filename_field, open_button)
-        self._raise_if_error_dialog(f"เปิดไฟล์ {module_label} {file_path}")
-
-    def open_crop_file(self, file_path: Path) -> None:
-        cfg = controls.CROP_SCREEN
-        self._open_module_file(
-            file_path, cfg.window_class_name,
-            cfg.file_dialog_title_re, cfg.file_dialog_filename_field, cfg.file_dialog_open_button,
-            "crop",
-        )
-
-    def open_soil_file(self, file_path: Path) -> None:
-        cfg = controls.SOIL_SCREEN
-        self._open_module_file(
-            file_path, cfg.window_class_name,
-            cfg.file_dialog_title_re, cfg.file_dialog_filename_field, cfg.file_dialog_open_button,
-            "soil",
-        )
 
     def ensure_crop_soil_open(self, crop_file: Path, soil_file: Path) -> None:
-        """เปิดไฟล์ crop/soil ครั้งเดียวก่อนเริ่มวนหลายปี — เรียกจาก runner.py ครั้ง
-        เดียวหลัง connect() สำเร็จ ไม่ต้องเรียกซ้ำต่อปี ต้องเปิดไฟล์ทั้งสองนี้เองใน
-        CropWat ไว้ก่อนแล้ว (ดู docstring ของ _open_module_file)"""
-        self.open_crop_file(crop_file)
-        self.open_soil_file(soil_file)
+        """เช็คว่า Crop/Soil เปิดอยู่แล้ว (ต้องเปิดเองใน CropWat ไว้ก่อน) — ไม่ได้
+        เปิดไฟล์ใหม่ใดๆ เลย พารามิเตอร์ crop_file/soil_file รับไว้เผื่ออนาคตอยาก
+        validate ว่าไฟล์ที่เปิดอยู่ตรงกับที่ตั้งค่าไว้จริงไหม (ยังไม่ได้ทำ)"""
+        del crop_file, soil_file  # ยังไม่ได้ใช้ตรวจสอบอะไร แค่กันชื่อไว้เผื่ออนาคต
+        self._verify_module_open(controls.CROP_SCREEN.window_class_name, "crop")
+        self._verify_module_open(controls.SOIL_SCREEN.window_class_name, "soil")
 
     # ------------------------------------------------------------------
     # Step 2: ตั้งวันปลูกใน module Crop (crop file เองคงที่ทุกปี ไม่ต้องเปิดใหม่)
