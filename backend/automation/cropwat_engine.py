@@ -146,11 +146,22 @@ class CropWatEngine:
         window = self.app.window(class_name=class_name, top_level_only=False)
         window.wait("exists enabled visible ready", timeout=10)
         window.set_focus()
+        # เผื่อเวลาให้ Windows ประมวลผลการเปลี่ยน focus จริงๆ ก่อน — เจอจริงว่าถ้า
+        # ยิงคำสั่งเมนูต่อทันทีโดยไม่รอเลย บางครั้ง CropWat ยังทำงานกับหน้าต่างเดิม
+        # ที่ active อยู่ก่อนหน้า ไม่ใช่ตัวที่เพิ่ง set_focus() ไป
+        time.sleep(0.3)
         return window
 
     def _open_file_via_dialog(self, file_path: Path, dialog_title_re, filename_field, open_button) -> None:
         """ทำ flow เปิดไฟล์ผ่าน Windows-style open dialog ที่เด้งขึ้นมาเป็น
-        หน้าต่างแยกต่างหาก (ไม่ใช่ลูกของ CROPWAT หลัก) — ใช้ร่วมกันทั้ง climate/rain"""
+        หน้าต่างแยกต่างหาก (ไม่ใช่ลูกของ CROPWAT หลัก) — ใช้ร่วมกันทั้ง climate/rain
+
+        สำคัญ: ยืนยัน "อ่านค่ากลับ" หลังพิมพ์ path ว่าช่อง filename มีข้อความตรงกับ
+        ที่ตั้งใจพิมพ์จริงๆ ก่อนจะกดปุ่ม Open เสมอ — เจอจริงว่าบางครั้งกด Open ไป
+        ทั้งที่ช่องยังว่างอยู่ (dialog ยังโหลดไม่เสร็จตอนพิมพ์ หรือ control ที่ set
+        ข้อความไม่ใช่ตัวที่ถูกต้อง) ทำให้ CropWat error เพราะไม่มีไฟล์ให้เปิดจริง
+        ถ้าอ่านกลับมาไม่ตรง จะลองพิมพ์ใหม่อีกครั้งก่อนจะ fail แบบมีข้อความชัดเจน
+        แทนที่จะกด Open ไปทั้งที่รู้อยู่แล้วว่าข้อมูลผิด"""
         if not file_path.exists():
             raise FileNotFoundError(f"ไม่พบไฟล์: {file_path}")
 
@@ -158,7 +169,24 @@ class CropWatEngine:
 
         dialog = self.app.window(title_re=dialog_title_re)
         dialog.wait("exists enabled visible ready", timeout=10)
-        dialog[filename_field].set_edit_text(str(file_path))
+        time.sleep(0.3)  # เผื่อเวลาให้ dialog พร้อมรับ input จริงๆ ก่อนพิมพ์
+
+        target = str(file_path)
+        field = dialog[filename_field]
+        for attempt in range(2):
+            field.click_input()
+            field.set_edit_text(target)
+            time.sleep(0.2)
+            actual = field.window_text()
+            if actual.strip().strip('"') == target.strip().strip('"'):
+                break
+            if attempt == 0:
+                continue  # ลองพิมพ์ซ้ำอีกครั้งก่อน fail
+            raise StepTimeoutError(
+                f"พิมพ์ path ไฟล์ในช่อง filename ไม่สำเร็จ (ตั้งใจ: {target!r}, "
+                f"อ่านได้จริง: {actual!r}) — ไม่กด Open เพราะข้อมูลไม่ตรง"
+            )
+
         dialog[open_button].click_input()
 
     # ------------------------------------------------------------------
