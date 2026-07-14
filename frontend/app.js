@@ -12,6 +12,18 @@ let settings = null;
 // calendarState[month(1-12)] = { days: Set<number>, shotDays: Set<number> }
 let calendarState = {};
 
+// inline SVG สไตล์ lucide (เส้น outline 2px มุมมน) — ฝังตรงๆ ไม่พึ่ง CDN เพราะ
+// โปรแกรมต้องใช้ได้แบบ offline สมบูรณ์
+const IC = (paths, cls = "ic-xs") =>
+  `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const ICONS = {
+  camera: IC('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>'),
+  thermometer: IC('<path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>'),
+  cloudRain: IC('<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6"/><path d="M8 14v6"/><path d="M12 16v6"/>'),
+  sprout: IC('<path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/>'),
+  layers: IC('<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>'),
+};
+
 // ---------------------------------------------------------------------------
 // Tabs
 // ---------------------------------------------------------------------------
@@ -171,7 +183,7 @@ function renderMonthGrid() {
       <div class="day-grid"></div>
       <div class="month-count"><b class="cnt">${s.days.size}</b> วัน</div>
       <div class="shot-row">
-        <span class="shot-lbl">📷 Capture:</span>
+        <span class="shot-lbl">${ICONS.camera} Capture:</span>
         ${SHOT_PRESETS.map(
           (p) => `<span class="chip shot-chip" data-shot="${p}">${p}</span>`
         ).join("")}
@@ -334,21 +346,21 @@ function renderScanResults(scan) {
 
   container.innerHTML = `
     <div class="detect-row">
-      <span class="dr-lbl">🌡️ สถานี Climate/ETo</span>
+      <span class="dr-lbl">${ICONS.thermometer} สถานี Climate/ETo</span>
       <span class="dr-val">${scan.climate_station_folders.join(", ") || "ไม่พบ"}</span>
     </div>
     <div class="year-strip">${yearStrip(scan.climate)}</div>
     <div class="detect-row">
-      <span class="dr-lbl">🌧️ สถานี Rain</span>
+      <span class="dr-lbl">${ICONS.cloudRain} สถานี Rain</span>
       <span class="dr-val">${scan.rain_station_folders.join(", ") || "ไม่พบ"}</span>
     </div>
     <div class="year-strip">${yearStrip(scan.rain)}</div>
     <div class="detect-row">
-      <span class="dr-lbl">🌽 ไฟล์ Crop</span>
+      <span class="dr-lbl">${ICONS.sprout} ไฟล์ Crop</span>
       <span class="dr-val">${scan.crop_files.length} ไฟล์</span>
     </div>
     <div class="detect-row">
-      <span class="dr-lbl">🪨 ไฟล์ Soil</span>
+      <span class="dr-lbl">${ICONS.layers} ไฟล์ Soil</span>
       <span class="dr-val">${scan.soil_files.length} ไฟล์</span>
     </div>
   `;

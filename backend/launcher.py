@@ -2,33 +2,34 @@
 launcher.py
 ===========
 Entry point สำหรับ build เป็น .exe เดียวด้วย PyInstaller — คนละอันกับตอน dev
-(ตอน dev ใช้ `uvicorn app:app --reload` ตรงๆ ได้ แต่ .exe ต้อง import แบบ object
-ตรงๆ ไม่ใช่ string เพราะ frozen bundle resolve module string ไม่ได้เหมือน dev)
+(ตอน dev ใช้ `uvicorn app:app` ตรงๆ ได้ แต่ .exe ต้อง import แบบ object ตรงๆ
+ไม่ใช่ string เพราะ frozen bundle resolve module string ไม่ได้เหมือน dev)
 
-ทำ 2 อย่าง: (1) เปิดเบราว์เซอร์แบบ app mode (ไม่มี address bar/แท็บ) เข้า localhost
-ให้อัตโนมัติหลังจากรอ server พร้อม (2) รัน uvicorn เอง — ผู้ใช้ปลายทางแค่ดับเบิลคลิก
-ไม่ต้องพิมพ์คำสั่งอะไรเลย
+v0.3.0 — build ด้วย --noconsole แล้ว (ไม่มีหน้าต่าง console ดำๆ อีกต่อไป ให้
+ความรู้สึกเหมือนโปรแกรมทั่วไป) ผลที่ตามมาที่โค้ดนี้ต้องรองรับ:
+- print() ไปที่ null เงียบๆ / input() ใช้ไม่ได้ → ห้ามพึ่ง console ในการแจ้ง
+  error กับผู้ใช้ ใช้ MessageBox (ctypes) แทน + เขียน log ลงไฟล์ข้างตัว .exe
+- การ "ปิดโปรแกรม" ย้ายไปอยู่ที่ปุ่ม ✕ บนแถบ overlay (ดู overlay.py) เพราะ
+  ไม่มี console ให้ปิดแล้ว
+- ดับเบิลคลิก .exe ซ้ำตอนที่ตัวเก่ายังรันอยู่ = เปิด "หน้าต่างโปรแกรม" ของตัว
+  เดิมขึ้นมาใหม่เฉยๆ (ไม่ใช่ error) — พฤติกรรมเดียวกับโปรแกรมทั่วไป
 
 สำคัญมาก: import "app", "uvicorn" ฯลฯ ที่ดึง pywinauto/fastapi/pydantic เข้ามาด้วย
 **ต้องอยู่ในฟังก์ชันที่ถูก try/except ครอบ ไม่ใช่ import ระดับบนสุดของไฟล์** —
 เจอจริงว่าถ้า import พวกนี้ fail (เช่น hidden import ขาดตอน build, DLL หาไม่เจอใน
 เครื่องปลายทาง) มันจะ crash ตั้งแต่ก่อนโค้ดใน main() จะได้ทำงานเลย ซึ่งถ้า import
-อยู่ระดับบนสุดของไฟล์ จะหลุดพ้นจาก try/except ทั้งหมดที่เขียนไว้ใน main() ทำให้
-โปรแกรมปิดตัวเงียบๆ ไม่มีข้อความ error ให้เห็นเลย (อาการ "cmd โผล่มาแล้วดับ")
+อยู่ระดับบนสุดของไฟล์ จะหลุดพ้นจาก try/except ทั้งหมดที่เขียนไว้ใน main()
 
-Build ด้วย:
-    pyinstaller --onefile --name CropWatAutoRunner ^
-        --add-data "..\\frontend;frontend" ^
-        --hidden-import pywinauto --hidden-import win32timezone ^
-        launcher.py
-(รันจากในโฟลเดอร์ backend/ — ดู build.bat ที่เตรียมไว้ให้)
+Build: ดู build.bat (รันจากในโฟลเดอร์ backend/)
 """
 
 from __future__ import annotations
 
+import ctypes
 import socket
 import sys
 import traceback
+from pathlib import Path
 
 HOST = "127.0.0.1"
 PORT = 8000
@@ -43,11 +44,37 @@ _BROWSER_CANDIDATES = [
 ]
 
 
-def _wait_for_exit() -> None:
+def _exe_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
+
+def _error_log_path() -> Path:
+    return _exe_dir() / "CropWatAutoRunner-error.log"
+
+
+def _message_box(title: str, text: str, *, error: bool = True) -> None:
+    """แจ้งผู้ใช้ผ่าน MessageBox ของ Windows — ช่องทางเดียวที่เหลือหลังตัด console
+    ทิ้ง (MB_ICONERROR=0x10, MB_ICONINFORMATION=0x40, MB_TOPMOST=0x40000)"""
+    icon = 0x10 if error else 0x40
+    ctypes.windll.user32.MessageBoxW(None, text, title, icon | 0x40000)
+
+
+def _report_fatal(context: str) -> None:
+    """เขียน traceback ลงไฟล์ข้างตัว .exe + เด้ง MessageBox บอกผู้ใช้ว่าดูได้ที่ไหน"""
+    detail = traceback.format_exc()
+    log_path = _error_log_path()
     try:
-        input("\nกด Enter เพื่อปิดหน้าต่างนี้...")
-    except EOFError:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n===== {context} =====\n{detail}\n")
+    except OSError:
         pass
+    last_line = detail.strip().splitlines()[-1] if detail.strip() else "(ไม่มี)"
+    _message_box(
+        "CropWat Auto-runner — เกิดข้อผิดพลาด",
+        f"{context}\n\nรายละเอียดถูกบันทึกไว้ที่:\n{log_path}\n\nสรุป error:\n{last_line}",
+    )
 
 
 def _port_in_use(host: str, port: int) -> bool:
@@ -58,7 +85,6 @@ def _port_in_use(host: str, port: int) -> bool:
 
 def _find_app_mode_browser() -> str | None:
     import shutil
-    from pathlib import Path
 
     for path in _BROWSER_CANDIDATES:
         if Path(path).exists():
@@ -70,22 +96,17 @@ def _find_app_mode_browser() -> str | None:
     return None
 
 
-def _open_browser_when_ready() -> None:
+def _launch_app_window() -> None:
+    """เปิด "หน้าต่างโปรแกรม" (เบราว์เซอร์แบบ app mode ไม่มี address bar/แท็บ) —
+    ใช้ทั้งตอนเริ่มโปรแกรมและตอนดับเบิลคลิก .exe ซ้ำเพื่อเรียกหน้าต่างกลับมา"""
     import os
     import subprocess
-    import time
     import webbrowser
-    from pathlib import Path
 
-    # รอ server เริ่มก่อนค่อยเปิดเบราว์เซอร์ — กันเปิดแล้วเจอ "connection refused"
-    time.sleep(1.5)
     url = f"http://{HOST}:{PORT}"
     browser_exe = _find_app_mode_browser()
     if browser_exe:
-        # --app=URL เปิดเป็นหน้าต่างเปล่า ไม่มี address bar/แท็บ/ปุ่มเบราว์เซอร์เลย
-        # หน้าตาเหมือนโปรแกรม native — ยังเป็นเว็บเหมือนเดิมแค่ไม่โชว์ chrome ของ
-        # เบราว์เซอร์ให้เห็น ใช้ --user-data-dir แยกกันไม่ให้ชนกับ Edge/Chrome
-        # โปรไฟล์หลักที่ผู้ใช้เปิดอยู่ปกติ
+        # --user-data-dir แยกโปรไฟล์ ไม่ชนกับ Edge/Chrome หลักที่ผู้ใช้เปิดปกติ
         profile_dir = Path(os.environ.get("TEMP", ".")) / "CropWatAutoRunner-browser-profile"
         try:
             subprocess.Popen([
@@ -96,8 +117,16 @@ def _open_browser_when_ready() -> None:
             ])
             return
         except OSError:
-            pass  # เปิดแบบ app mode ไม่ได้ → fallback ไปเปิดแท็บเบราว์เซอร์ปกติแทน
+            pass  # เปิดแบบ app mode ไม่ได้ → fallback เปิดแท็บเบราว์เซอร์ปกติแทน
     webbrowser.open(url)
+
+
+def _open_browser_when_ready() -> None:
+    import time
+
+    # รอ server เริ่มก่อนค่อยเปิดหน้าต่าง — กันเปิดแล้วเจอ "connection refused"
+    time.sleep(1.5)
+    _launch_app_window()
 
 
 def _run_server() -> None:
@@ -108,56 +137,49 @@ def _run_server() -> None:
 
     import uvicorn
 
+    # ไม่มี console ให้ดู log แล้ว — เขียนลงไฟล์ข้างตัว .exe แทน (เวลาผู้ใช้เจอ
+    # ปัญหา ขอไฟล์ CropWatAutoRunner.log มาดูได้เลย)
+    if getattr(sys, "frozen", False):
+        logging.basicConfig(
+            filename=str(_exe_dir() / "CropWatAutoRunner.log"),
+            filemode="w",
+            level=logging.INFO,
+            format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+            encoding="utf-8",
+        )
+    else:
+        logging.basicConfig(level=logging.INFO)
+
     import app as app_module
 
-    logging.basicConfig(level=logging.INFO)
     threading.Thread(target=_open_browser_when_ready, daemon=True).start()
-    print(f"\nกำลังเริ่มระบบที่ http://{HOST}:{PORT} ...")
-    print("(เบราว์เซอร์จะเปิดให้อัตโนมัติ — อย่าปิดหน้าต่างนี้ระหว่างใช้งาน)\n")
     # ส่ง app object ตรงๆ (ไม่ใช่ string "app:app") เพราะใน .exe ที่ build แบบ
     # --onefile จะ resolve import string ไม่ได้เหมือนตอนรันด้วย python ปกติ
-    uvicorn.run(app_module.app, host=HOST, port=PORT, log_level="info")
+    uvicorn.run(app_module.app, host=HOST, port=PORT, log_level="info", log_config=None)
 
 
 def main() -> None:
-    print("=" * 60)
-    print("CropWat Auto-runner")
-    print("=" * 60)
-
     if _port_in_use(HOST, PORT):
-        print(
-            f"\n[ผิดพลาด] พอร์ต {PORT} มีโปรแกรมอื่นใช้งานอยู่แล้ว\n"
-            "สาเหตุที่เจอบ่อยที่สุด: CropWat Auto-runner เวอร์ชันเก่ายังรันค้างอยู่\n"
-            "เบื้องหลัง (ปิดหน้าต่างไปแล้วแต่ process ไม่ตายจริง)\n\n"
-            "วิธีแก้: เปิด Task Manager (Ctrl+Shift+Esc) หา 'CropWatAutoRunner.exe'\n"
-            "แล้วกด End Task ให้หมดทุกตัว จากนั้นลองเปิดโปรแกรมนี้ใหม่อีกครั้ง"
-        )
-        _wait_for_exit()
-        sys.exit(1)
+        # มีตัวเดิมรันอยู่แล้ว (เช่น ผู้ใช้ปิดหน้าต่างไปเฉยๆ แล้วดับเบิลคลิก .exe
+        # ใหม่) — แค่เรียกหน้าต่างโปรแกรมของตัวเดิมขึ้นมาก็พอ ไม่ใช่ error
+        _launch_app_window()
+        sys.exit(0)
 
     try:
         _run_server()
     except BaseException:
-        # ครอบกว้างสุด (BaseException ไม่ใช่แค่ Exception) เพราะ error ที่เจอจริง
-        # ระหว่างทดสอบเกิดตอน import ไลบรารีข้างใน ก่อนโค้ด logic จะได้รันเลยด้วยซ้ำ
-        # — ต้องมั่นใจว่าไม่ว่า error จะมาจากจุดไหนก็ตาม หน้าต่างจะไม่ปิดตัวเงียบๆ
-        print("\n[เกิดข้อผิดพลาด] รายละเอียด:\n")
-        traceback.print_exc()
-        _wait_for_exit()
+        # ครอบกว้างสุด (BaseException) เพราะ error ที่เจอจริงระหว่างทดสอบเกิดตอน
+        # import ไลบรารีข้างใน ก่อนโค้ด logic จะได้รันเลยด้วยซ้ำ
+        _report_fatal("เริ่มระบบไม่สำเร็จ")
         sys.exit(1)
-
-    # มาถึงตรงนี้แปลว่า server ปิดตัวเองแบบปกติ (เช่นกด Ctrl+C) — ค้างไว้เผื่อมี
-    # log ท้ายๆ ที่อยากอ่านก่อนหน้าต่างหาย
-    _wait_for_exit()
 
 
 if __name__ == "__main__":
     try:
         main()
+    except SystemExit:
+        raise
     except BaseException:
-        # ตาข่ายชั้นสุดท้าย เผื่อ error หลุดออกมาจากจุดที่คาดไม่ถึงจริงๆ (เช่น
-        # ระหว่าง parse argument หรือ setup อื่นๆ ก่อนเข้า main() ด้วยซ้ำ)
-        print("\n[เกิดข้อผิดพลาดร้ายแรง] รายละเอียด:\n")
-        traceback.print_exc()
-        _wait_for_exit()
+        # ตาข่ายชั้นสุดท้าย เผื่อ error หลุดจากจุดที่คาดไม่ถึงจริงๆ
+        _report_fatal("เกิดข้อผิดพลาดร้ายแรง")
         sys.exit(1)

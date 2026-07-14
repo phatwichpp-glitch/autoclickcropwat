@@ -1,8 +1,9 @@
 @echo off
-REM build.bat — สร้าง CropWatAutoRunner.exe ตัวเดียว รวมทุกอย่าง
-REM รันจากในโฟลเดอร์ backend/ (เช่น "cd backend" แล้ว "build.bat")
+REM build.bat - build CropWatAutoRunner.exe (single file, no console window)
+REM run from inside backend/  ("cd backend" then "build.bat")
 
-.venv\Scripts\pyinstaller.exe --onefile --noconfirm --name CropWatAutoRunner ^
+.venv\Scripts\pyinstaller.exe --onefile --noconfirm --noconsole --name CropWatAutoRunner ^
+    --icon assets\app.ico ^
     --add-data "..\frontend;frontend" ^
     --hidden-import pywinauto ^
     --hidden-import pywinauto.backend ^
@@ -10,6 +11,7 @@ REM รันจากในโฟลเดอร์ backend/ (เช่น "cd 
     --hidden-import win32com ^
     --hidden-import comtypes ^
     --hidden-import comtypes.stream ^
+    --hidden-import docx ^
     --hidden-import uvicorn.lifespan.on ^
     --hidden-import uvicorn.protocols.http.auto ^
     --hidden-import uvicorn.protocols.websockets.auto ^
@@ -17,4 +19,4 @@ REM รันจากในโฟลเดอร์ backend/ (เช่น "cd 
     launcher.py
 
 echo.
-echo เสร็จแล้ว — ไฟล์อยู่ที่ backend\dist\CropWatAutoRunner.exe
+echo done - backend\dist\CropWatAutoRunner.exe

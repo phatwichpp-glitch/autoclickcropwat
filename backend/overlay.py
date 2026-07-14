@@ -131,6 +131,27 @@ def _overlay_loop() -> None:
         btn.bind("<Button-1>", lambda _e: (command(), "break")[1])
         return btn
 
+    def _quit_app():
+        """ปิดโปรแกรมทั้งหมด — ตั้งแต่ build แบบ --noconsole (v0.3.0) ไม่มีหน้าต่าง
+        console ให้ปิดแล้ว ปุ่มนี้คือทางปิดโปรแกรมทางเดียวที่มองเห็นได้ ถ้ากำลังรัน
+        อยู่ถามยืนยันก่อนกันมือลั่น (os._exit เพราะ uvicorn/engine เป็น daemon
+        thread ทั้งหมด ปิดตรงๆ ได้ ไม่มี state ที่ต้อง flush)"""
+        from tkinter import messagebox
+
+        snap = run_state.snapshot()
+        if snap.overall_state.value == "running":
+            if not messagebox.askyesno(
+                "CropWat Auto-runner",
+                "กำลังรันอยู่ — หยุดและปิดโปรแกรมเลยหรือไม่?\n"
+                "(ไฟล์ .txt ที่เสร็จแล้วอยู่ครบ เปิดใหม่แล้วรันต่อได้)",
+            ):
+                return
+        import os
+
+        logger.info("ผู้ใช้สั่งปิดโปรแกรมจากปุ่ม ✕ บน overlay")
+        os._exit(0)
+
+    _mk_button(top_row, "✕", _quit_app, fg=DIM).pack(side="right")
     _mk_button(top_row, "⚙", lambda: webbrowser.open(URL), fg=DIM).pack(side="right")
     _mk_button(top_row, "⏹", _stop_run, fg="#ff7b7b").pack(side="right")
     _mk_button(top_row, "▶", _start_run, fg=BAR_DONE).pack(side="right")

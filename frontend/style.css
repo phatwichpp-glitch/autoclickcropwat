@@ -243,3 +243,7 @@ input[type="number"] { width: 90px; }
 
 .note { font-size: 11.5px; color: var(--muted-2); }
 .footer-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* ---------- lucide-style inline icons (เส้น outline 2px มุมมน สไตล์ lucide) ---------- */
+.ic { width: 14px; height: 14px; flex: none; }
+.ic-xs { width: 12px; height: 12px; display: inline-block; vertical-align: -2px; }
