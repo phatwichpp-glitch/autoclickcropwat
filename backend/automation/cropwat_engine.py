@@ -1185,41 +1185,121 @@ class CropWatEngine:
     # ------------------------------------------------------------------
     # ตรวจจับ error/warning dialog (ใช้ทั้งเช็ค inline และ poll หลัง calculate)
     # ------------------------------------------------------------------
-    def _poll_error_dialog(self) -> Optional[str]:
+    # ปุ่มบน dialog กดผ่าน message ตรงๆ (BM_CLICK) ไม่ต้องพึ่ง focus/เมาส์จริง
+    _BM_CLICK = 0x00F5
+
+    def _find_error_dialogs(self) -> list[int]:
+        """หา "dialog จริง" ของ CropWat ที่เข้าข่าย error/warning ทั้งหมดตอนนี้ —
+        กรองด้วย class (TMessageForm/#32770) ควบคู่กับ title เสมอ
+
+        v0.5.33 — REGRESSION FIX ยืนยันจากการ probe เครื่องจริง: เดิมใช้
+        self.app.window(title_re=...) ซึ่งกรองแค่ title — ไปจับโดนหน้าต่างซ่อน
+        ภายในของ Delphi (class TApplication, title "FAO CROPWAT 8.0 for
+        Windows", visible ตลอดเวลาที่โปรแกรมเปิด) ทันทีที่ dialog จริงโผล่ จึงมี
+        2 หน้าต่างตรง pattern พร้อมกัน → เข้าเคส ambiguous → รายงาน error ได้แต่
+        ไม่เคยกดปิด dialog จริง → dialog ค้างเป็น modal บล็อกทุกอย่าง → หน้าต่าง
+        โมดูลพอกซ้ำ → ทุกวันปลูกถัดไปล้มเหลวหมด (ตรงกับ screenshot ผู้ใช้)"""
         cfg = controls.ERROR_DIALOG
+        title_pattern = re.compile(cfg.title_re)
+        dialogs: list[int] = []
+        for class_name in cfg.dialog_class_names:
+            try:
+                for hwnd in find_windows(
+                    class_name=class_name, top_level_only=True, process=self.app.process
+                ):
+                    title = win32gui.GetWindowText(hwnd) or ""
+                    if title_pattern.match(title):
+                        dialogs.append(hwnd)
+            except ElementNotFoundError:
+                continue
+        return dialogs
+
+    @staticmethod
+    def _find_child_button(dialog_hwnd: int, label_re: str) -> Optional[int]:
+        """หาปุ่มลูกของ dialog จาก caption (รองรับ & accelerator เช่น '&No')"""
+        pattern = re.compile(label_re)
+        result: list[int] = []
+
+        def _cb(child: int, _param) -> bool:
+            cls = win32gui.GetClassName(child)
+            if cls in ("Button", "TButton") and pattern.match(win32gui.GetWindowText(child) or ""):
+                result.append(child)
+            return True
+
         try:
-            dialog = self.app.window(title_re=cfg.title_re)
-            if not dialog.exists(timeout=0):
-                return None
-            self._hide_dialog_offscreen(dialog)
-            # แยก "คำถาม" ออกจาก "error" ก่อน: dialog ที่มีปุ่ม No (Yes/No/Cancel)
-            # คือคำถามให้เลือก ไม่ใช่ error — เดิมโค้ดเหมารวมทุก title "Warning"
-            # เป็น error แล้วพยายามกดปุ่ม OK ที่ไม่มีอยู่จริง ทำให้ล้มเหลวเงียบๆ
-            # แล้วทิ้ง dialog ค้างบังทุกอย่างต่อจากนั้น (ยืนยันจาก screenshot ผู้ใช้)
-            no_button = dialog.child_window(title_re=r"&?No$")
-            if no_button.exists(timeout=0):
-                no_button.click()
-                logger.info("ตอบ No อัตโนมัติให้ prompt ถามบันทึกข้อมูล (ไม่ใช่ error)")
-                return None
-            if cfg.message_text_control:
-                message = dialog[cfg.message_text_control].window_text()
-            else:
-                # ยืนยันจาก inspect แล้ว: TMessageForm ("Error") ไม่มี control
-                # ข้อความแยกต่างหาก (มีแค่ปุ่ม OK เป็นลูก) ข้อความวาดตรงบนตัว
-                # dialog เอง อ่านละเอียดด้วย child_window ไม่ได้ — ใช้ title ของ
-                # dialog เองเป็น fallback แทน อย่างน้อยก็รู้ว่ามี error เกิดขึ้น
-                message = f"CropWat แสดง dialog '{dialog.window_text()}' (อ่านข้อความละเอียดไม่ได้)"
-            if cfg.dismiss_button:
-                dialog[cfg.dismiss_button].click()
-            return message
-        except ElementNotFoundError:
+            win32gui.EnumChildWindows(dialog_hwnd, _cb, None)
+        except Exception:  # noqa: BLE001 -- dialog ตายไประหว่าง enumerate = ไม่เจอปุ่ม
+            pass
+        return result[0] if result else None
+
+    @staticmethod
+    def _read_dialog_statics(dialog_hwnd: int) -> str:
+        """อ่านข้อความจริงบน dialog จาก Static child controls — native MessageBox
+        (#32770) เก็บข้อความ error ("Access violation at ...") ไว้ใน Static เสมอ
+        อ่านได้ตรงๆ (ต่างจาก TMessageForm ของ Delphi ที่วาดข้อความเอง อ่านไม่ได้)"""
+        texts: list[str] = []
+
+        def _cb(child: int, _param) -> bool:
+            if win32gui.GetClassName(child) == "Static":
+                text = (win32gui.GetWindowText(child) or "").strip()
+                if text:
+                    texts.append(text)
+            return True
+
+        try:
+            win32gui.EnumChildWindows(dialog_hwnd, _cb, None)
+        except Exception:  # noqa: BLE001
+            pass
+        return " ".join(texts)
+
+    def _poll_error_dialog(self) -> Optional[str]:
+        """เช็คครั้งเดียว (ไม่รอ) ว่ามี error dialog เด้งอยู่ไหม ถ้ามีให้จัดการ
+        "ทุกบาน" ที่เจอ (กดปิด + เก็บข้อความ) แล้วคืนข้อความรวม — v0.5.33 เขียน
+        ใหม่ทั้งตัวด้วย win32 ตรงๆ แทน pywinauto WindowSpecification เพื่อตัด
+        ปัญหา ambiguous ออกไปเลย (จัดการหลาย dialog พร้อมกันได้ ไม่ใช่ยอมแพ้)"""
+        dialogs = self._find_error_dialogs()
+        if not dialogs:
             return None
-        except ElementAmbiguousError:
-            # เจอ dialog ที่ title ตรงกับ error/warning มากกว่า 1 อัน — ไม่กล้าเดา
-            # กดปุ่มปิดมั่วๆ (เสี่ยงกดผิดตัว) แค่รายงานว่ามีปัญหาให้ candidate นี้
-            # ถูก mark error ไว้ตรวจสอบเอง ดีกว่าปล่อยให้ exception หลุดออกไปทำให้
-            # ทั้ง batch ล้ม
-            return "เจอ dialog error/warning มากกว่า 1 อันพร้อมกัน (ไม่สามารถระบุได้ว่าอันไหน)"
+
+        messages: list[str] = []
+        for hwnd in dialogs:
+            title = win32gui.GetWindowText(hwnd) or "(ไม่มีชื่อ)"
+            try:
+                self._fling_hwnd_offscreen(hwnd)
+                # แยก "คำถาม" ออกจาก "error": dialog ที่มีปุ่ม No คือคำถาม
+                # (Yes/No/Cancel) ตอบ No เสมอ — ห้าม Yes เพราะจะบันทึกทับไฟล์
+                # ข้อมูลต้นทางของผู้ใช้
+                no_button = self._find_child_button(hwnd, r"&?No$")
+                if no_button is not None:
+                    win32gui.SendMessage(no_button, self._BM_CLICK, 0, 0)
+                    logger.info("ตอบ No อัตโนมัติให้ prompt ถามบันทึกข้อมูล (ไม่ใช่ error)")
+                    continue
+
+                detail = self._read_dialog_statics(hwnd)
+                if detail:
+                    messages.append(f"CropWat แจ้ง: {detail} (dialog '{title}')")
+                else:
+                    messages.append(f"CropWat แสดง dialog '{title}' (อ่านข้อความละเอียดไม่ได้)")
+
+                ok_button = self._find_child_button(hwnd, r"&?OK$")
+                if ok_button is not None:
+                    win32gui.SendMessage(ok_button, self._BM_CLICK, 0, 0)
+                else:
+                    win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+            except Exception:  # noqa: BLE001 -- dialog ตายไปพอดีระหว่างจัดการ = ข้าม
+                logger.debug("จัดการ error dialog '%s' ไม่สำเร็จ", title, exc_info=True)
+
+        return "; ".join(messages) if messages else None
+
+    def _fling_hwnd_offscreen(self, hwnd: int) -> None:
+        """เหวี่ยง dialog ออกนอกจอ (โหมดเบื้องหลังเท่านั้น) แบบรับ hwnd ตรงๆ"""
+        if not self.background_mode:
+            return
+        try:
+            flags = win32con.SWP_NOSIZE | win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE
+            win32gui.SetWindowPos(hwnd, 0, -32000, -32000, 0, 0, flags)
+        except Exception:  # noqa: BLE001
+            pass
 
     def _raise_if_error_dialog(self, context: str) -> None:
         """v0.5.7 — เร่งความเร็ว: เดิม sleep(poll_timeout) แบบตายตัวแล้วเช็ครอบเดียว

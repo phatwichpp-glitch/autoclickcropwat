@@ -276,7 +276,23 @@ class ErrorDialogControls:
     # มองไม่เห็น (ยังเป็น modal บล็อก CropWat อยู่) นี่คือสาเหตุจริงที่ยืนยันได้
     # แล้วของปัญหา "CropWat ค้างสนิท" ที่รายงานมาก่อนหน้านี้ — เพิ่ม pattern นี้
     # เข้าไปด้วยเพื่อให้ตรวจจับ+กด OK ปิดได้ปกติเหมือน error dialog อื่นๆ
+    #
+    # v0.5.33 — REGRESSION FIX ยืนยันจากการ probe เครื่องจริง: การเพิ่ม
+    # "FAO CROPWAT" เข้า title_re ใน v0.5.28 ไปจับโดนหน้าต่างซ่อนภายในของ
+    # Delphi (class TApplication, title "FAO CROPWAT 8.0 for Windows", สถานะ
+    # visible ตลอดเวลาที่โปรแกรมเปิด) — ไม่ใช่ dialog เลย ผลคือทันทีที่ error
+    # dialog "จริง" โผล่ จะมีหน้าต่างตรง pattern 2 ตัวพร้อมกัน → เข้าเคส
+    # ElementAmbiguousError → รายงาน error ได้แต่ "ไม่เคยกดปิด dialog จริง"
+    # → dialog ค้างเป็น modal บล็อกทุกอย่าง → หน้าต่างโมดูลพอกซ้ำ → ทุกวันปลูก
+    # หลังจากนั้นล้มเหลวหมด (ตรงกับ screenshot 30/30 ล้มเหลวของผู้ใช้เป๊ะ)
+    # แก้โดยกรองด้วย "class ของหน้าต่าง" ควบคู่กับ title เสมอ (ดู
+    # dialog_class_names ด้านล่าง + _poll_error_dialog ที่เขียนใหม่) —
+    # TApplication ไม่อยู่ในรายชื่อ class จึงไม่โดนจับอีก
     title_re: str | None = r"Error|Warning|FAO CROPWAT"
+    # class ที่ "เป็น dialog จริง" เท่านั้น: TMessageForm = dialog สไตล์ Delphi
+    # (MessageDlg), #32770 = native Windows MessageBox (Application.MessageBox
+    # ใช้ตอน runtime error เช่น Access violation) — ยืนยันทั้งคู่จากเครื่องจริง
+    dialog_class_names: tuple[str, ...] = ("TMessageForm", "#32770")
     # สำคัญ: TMessageForm ไม่มี control แยกสำหรับข้อความ — มีแค่ปุ่ม OK ตัวเดียว
     # เป็นลูกของมัน ข้อความ error วาดตรงบนตัว dialog เอง ไม่ใช่ label แยก เลย
     # "อ่านข้อความละเอียดไม่ได้" ด้วยวิธี child_window ปกติ — ปล่อยเป็นค่าว่าง
