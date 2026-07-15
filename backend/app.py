@@ -160,6 +160,17 @@ async def output_progress() -> dict:
     return await asyncio.to_thread(runner.scan_output_progress, settings)
 
 
+@app.get("/api/shift-year-check")
+async def shift_year_check() -> dict:
+    """v0.5.24 — ตามคำขอผู้ใช้: ต้องสแกนตรวจว่าทุกวันปลูกที่วางแผนไว้มีไฟล์
+    climate/rain "ก่อนหน้า" ให้ใช้จริงไหม (ห้ามเดาใช้ไฟล์เดือนอนาคตแทน) ก่อนเริ่ม
+    รันทุกครั้ง — frontend เรียกจุดนี้ก่อนกด "เริ่มรันทั้งหมด" เสมอ ถ้าเจอปัญหา
+    ต้องเตือน + ขอความยินยอมจากผู้ใช้ก่อน ไม่ปล่อยรันเงียบๆ"""
+    settings = load_settings()
+    problems = await asyncio.to_thread(runner.check_shift_year_coverage, settings)
+    return {"ok": len(problems) == 0, "problems": problems}
+
+
 # ---------------------------------------------------------------------------
 # Run control
 # ---------------------------------------------------------------------------

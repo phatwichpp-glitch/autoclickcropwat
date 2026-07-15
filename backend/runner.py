@@ -231,6 +231,60 @@ def _resolve_single_file(root: Path, ext: str, override: str) -> Path:
     return candidates[0]
 
 
+def check_shift_year_coverage(settings: Settings) -> list[dict]:
+    """v0.5.24 — ตามคำขอผู้ใช้: กติกา shift-year (StationIndex.resolve) "ก่อนหน้า
+    เท่านั้น" ห้ามเดาใช้ไฟล์เดือนอนาคตแทนเด็ดขาด (แก้ไขจาก v0.5.23 ที่เคยลองทำ
+    forward-fallback แล้วผิดหลักการ) — แต่นั่นแปลว่าบางวันปลูกอาจไม่มีไฟล์ climate/
+    rain ให้ใช้เลยจริงๆ (เช่น สถานีมีข้อมูลเริ่มทีหลังเดือนที่ทดลองปลูก) ถ้าปล่อย
+    ให้รันไปเจอทีละวันปลูกจะเสียเวลาไล่ error ทีละอัน — สแกนตรวจล่วงหน้า "ทุกปี ×
+    ทุกเดือนที่จะใช้จริงตาม shift_year_per_candidate" ก่อนเริ่มรัน คืน list ของ
+    ปัญหาที่เจอ ให้ frontend แจ้งเตือน + ขอความยินยอมจากผู้ใช้ก่อนเสมอ (ห้ามรันต่อ
+    เงียบๆ โดยไม่ถาม — ผู้ใช้กำชับว่าไม่งั้นผลจะเพี้ยนจากที่ต้องการ)"""
+    input_root = Path(settings.input_dir)
+    try:
+        climate_station = _resolve_single_station(input_root, "Clim_", settings.climate_station_dir)
+        rain_station = _resolve_single_station(input_root, "Rain_", settings.rain_station_dir)
+        climate_index = file_paths.index_climate_station(climate_station)
+        rain_index = file_paths.index_rain_station(rain_station)
+    except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
+        return [{"year": None, "month": None, "climate_error": str(exc), "rain_error": None}]
+
+    years = list(range(settings.default_start_year, settings.default_end_year + 1))
+    problems: list[dict] = []
+    checked: set[tuple[int, int]] = set()
+    for year in years:
+        date_flags = planting_dates_for_year(settings, year)
+        if not date_flags:
+            continue
+        # ต้องตรวจ "เดือนที่จะถูกใช้จริง" ให้ตรงกับที่ _run_years_inner จะทำจริง —
+        # เปิดสวิตช์ = ทุกเดือนที่มีวันปลูกทดลอง, ปิดสวิตช์ = แค่เดือนแรกสุดของปี
+        if settings.shift_year_per_candidate:
+            months_to_check = sorted({d.month for d, _ in date_flags})
+        else:
+            months_to_check = [min(d.month for d, _ in date_flags)]
+        for month in months_to_check:
+            key = (year, month)
+            if key in checked:
+                continue
+            checked.add(key)
+            climate_err: str | None = None
+            rain_err: str | None = None
+            try:
+                climate_index.resolve(year, month)
+            except FileNotFoundError as exc:
+                climate_err = str(exc)
+            try:
+                rain_index.resolve(year, month)
+            except FileNotFoundError as exc:
+                rain_err = str(exc)
+            if climate_err or rain_err:
+                problems.append({
+                    "year": year, "month": month,
+                    "climate_error": climate_err, "rain_error": rain_err,
+                })
+    return problems
+
+
 def _run_years(years: list[int], settings: Settings) -> None:
     run_state.begin_run()
     speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)

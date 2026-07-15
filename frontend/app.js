@@ -525,7 +525,43 @@ async function fetchOutputProgress() {
 
 document.getElementById("btn-rescan").addEventListener("click", fetchOutputProgress);
 
+const MONTH_ABBR_TH = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+
+// v0.5.24 — บังคับสแกนตรวจไฟล์ climate/rain ก่อนเริ่มรันทุกครั้ง (ตามคำขอผู้ใช้):
+// กติกา shift-year ห้ามเดาใช้ไฟล์เดือน "อนาคต" แทนเด็ดขาด (ผิดหลักวิทยาศาสตร์ —
+// เอาข้อมูลภูมิอากาศเดือนที่ยังไม่ถึงมาแทนวันปลูกที่ผ่านไปแล้วไม่ได้) ถ้าวันปลูก
+// ไหนไม่มีไฟล์ "ก่อนหน้า" ให้ใช้เลย ต้องแจ้งเตือนรายละเอียด + ขอความยินยอมจาก
+// ผู้ใช้ก่อนเริ่มรันเสมอ ห้ามปล่อยรันเงียบๆ แล้วค่อยพังทีละวันปลูก
+async function checkShiftYearCoverage() {
+  try {
+    const res = await fetch("/api/shift-year-check");
+    return await res.json();
+  } catch {
+    return { ok: true, problems: [] }; // เช็คไม่ได้ (ออฟไลน์ผิดปกติ) ไม่บล็อกการรัน
+  }
+}
+
+function describeCoverageProblem(p) {
+  if (p.year == null) return p.climate_error || p.rain_error || "เกิดข้อผิดพลาดไม่ทราบสาเหตุ";
+  const missing = [];
+  if (p.climate_error) missing.push("climate");
+  if (p.rain_error) missing.push("rain");
+  return `ปี ${p.year} เดือน ${MONTH_ABBR_TH[p.month] || p.month} — ไม่มีไฟล์ ${missing.join(" + ")} ให้ใช้`;
+}
+
 document.getElementById("btn-start").addEventListener("click", async () => {
+  const check = await checkShiftYearCoverage();
+  if (!check.ok && check.problems && check.problems.length) {
+    const lines = check.problems.slice(0, 15).map(describeCoverageProblem);
+    const more = check.problems.length > 15 ? `\n...และอีก ${check.problems.length - 15} รายการ` : "";
+    const proceed = confirm(
+      `⚠ พบ ${check.problems.length} จุดที่ไม่มีไฟล์ climate/rain "ก่อนหน้า" ให้ใช้ตามกติกา shift-year ` +
+      `(วันปลูกเหล่านี้จะรันไม่สำเร็จ):\n\n${lines.join("\n")}${more}\n\n` +
+      `ต้องการเริ่มรันต่อหรือไม่? (วันปลูกที่มีปัญหาจะขึ้นสถานะ "มีปัญหา" ส่วนวันปลูกอื่นรันตามปกติ)`
+    );
+    if (!proceed) return;
+  }
+
   const start_year = Number(document.getElementById("start-year").value);
   const end_year = Number(document.getElementById("end-year").value);
   const res = await fetch("/api/run/start", {

@@ -50,44 +50,32 @@ class StationIndex:
         return sorted(m for (y, m) in self.files_by_year_month if y == year)
 
     def resolve(self, planting_year: int, planting_month: int) -> Path:
-        """v0.5.23 — เขียนใหม่จากบั๊กที่เจอผู้ใช้จริง: เดิม fallback ไปดูได้แค่
-        "ปีก่อนหน้าปีเดียว" ถ้าสถานีมีข้อมูลเริ่มทีหลังเดือนปลูกที่ขอ (เช่น สถานี
-        rain เริ่มมีข้อมูลเมษายน 1981 แต่ทดลองปลูกกุมภาพันธ์ 1981) ปีก่อนหน้าก็ไม่
-        มีข้อมูลเลยเหมือนกัน (สถานีเพิ่งเริ่มบันทึก) → fail ทันทีทั้งที่ไฟล์เดือน
-        ใกล้ๆ ในปีเดียวกัน (เม.ย.) มีอยู่จริง แค่อยู่ "ถัดไป" ไม่ใช่ "ก่อนหน้า"
-
-        กติกาใหม่ (เรียงลำดับความสำคัญ) ไล่หาทั่วทุกปีที่มีไฟล์จริง ไม่จำกัดแค่ปี
-        เดียวก่อน/หลัง:
-        1. เดือนเดียวกันหรือ "ก่อนหน้า" ที่ใกล้ที่สุด (ยังคงเป็นค่าหลักเหมือนเดิม —
-           ข้อมูลภูมิอากาศเดือนก่อนใช้แทนเดือนถัดมาได้สมเหตุสมผลกว่าใช้เดือนหลัง)
-        2. ถ้าไม่มี "ก่อนหน้า" เลยสักเดือน (สถานีมีข้อมูลเริ่มทีหลังเดือนที่ขอ)
-           ถอยไปใช้เดือน "ถัดไป" ที่ใกล้ที่สุดแทน — ดีกว่ารันไม่ได้เลย
-        3. ถ้าสถานีไม่มีไฟล์อะไรเลยจริงๆ ถึงจะ fail"""
+        """v0.5.24 — ยืนยันจากผู้ใช้ชัดเจน: ห้ามใช้ไฟล์เดือน "ถัดไป" (อนาคต) แทน
+        เด็ดขาด ไม่ว่ากรณีใด — ข้อมูลภูมิอากาศ/ฝนของเดือนที่ยังไม่ถึงเอามาแทนวันปลูก
+        ที่ผ่านไปแล้วไม่ได้จริงในทางหลักการ (v0.5.23 เคยลองทำ forward-fallback
+        แล้วผิด — เอาออก) กติกาคือ "ก่อนหน้าเท่านั้น": เดือนเดียวกันหรือก่อนหน้าที่
+        ใกล้ที่สุด ไล่หาทั่วทุกปีที่มีไฟล์จริงย้อนหลังได้ (ไม่จำกัดแค่ปีก่อนหน้า
+        ปีเดียวเหมือน v0.5.22 — อันนี้ยังเป็นการปรับปรุงที่ถูกต้อง) ถ้าหาไม่เจอเลย
+        (สถานีมีข้อมูลเริ่มทีหลังเดือนที่ขอ) ต้อง fail ให้ชัดเจน — ผู้เรียกมีหน้าที่
+        ตรวจสอบล่วงหน้าก่อนเริ่มรันจริง (ดู runner.check_shift_year_coverage) แจ้ง
+        ผู้ใช้และขอการยืนยันก่อนเสมอ ไม่ใช่ปล่อยให้ resolve() เดาแทนให้เงียบๆ"""
         if not self.files_by_year_month:
             raise FileNotFoundError("ไม่พบไฟล์ climate/rain ในสถานีนี้เลยแม้แต่ไฟล์เดียว")
 
         target_index = planting_year * 12 + (planting_month - 1)
         best_backward: Optional[tuple[int, tuple[int, int]]] = None
-        best_forward: Optional[tuple[int, tuple[int, int]]] = None
         for year, month in self.files_by_year_month:
             file_index = year * 12 + (month - 1)
             diff = target_index - file_index
-            if diff >= 0:
-                if best_backward is None or diff < best_backward[0]:
-                    best_backward = (diff, (year, month))
-            else:
-                fdiff = -diff
-                if best_forward is None or fdiff < best_forward[0]:
-                    best_forward = (fdiff, (year, month))
+            if diff >= 0 and (best_backward is None or diff < best_backward[0]):
+                best_backward = (diff, (year, month))
 
-        chosen = best_backward[1] if best_backward is not None else (
-            best_forward[1] if best_forward is not None else None
-        )
-        if chosen is None:
+        if best_backward is None:
             raise FileNotFoundError(
-                f"ไม่พบไฟล์เดือนที่ใช้ได้เลย (เดือนปลูก {planting_month}/{planting_year})"
+                f"ไม่พบไฟล์เดือนก่อนหน้าที่ใช้ได้เลย (เดือนปลูก {planting_month}/{planting_year}) "
+                "— สถานีนี้อาจมีข้อมูลเริ่มทีหลังเดือนที่ขอ"
             )
-        return self.files_by_year_month[chosen]
+        return self.files_by_year_month[best_backward[1]]
 
 
 def _index_station(station_dir: Path, pattern: re.Pattern, glob_ext: str) -> StationIndex:
