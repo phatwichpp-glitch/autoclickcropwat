@@ -96,14 +96,35 @@ async function saveConfig(partial) {
   return true;
 }
 
-document.getElementById("btn-save-calendar").addEventListener("click", async () => {
-  const ok = await saveConfig({
-    default_start_year: Number(document.getElementById("start-year").value),
-    default_end_year: Number(document.getElementById("end-year").value),
-    planting_calendar: calendarStateToPayload(),
-  });
-  if (ok) alert("บันทึกปฏิทินแล้ว");
-});
+// v0.5.20 — เดิมต้องกด "บันทึกปฏิทิน" แยกก่อนไปกด "เริ่มรันทั้งหมด" เสมอ เสี่ยง
+// ลืมกดแล้วรันด้วยค่าเก่าโดยไม่รู้ตัว (feedback จาก UX review) — auto-save แทน
+// ทุกครั้งที่แก้ปฏิทิน/ช่วงปี (debounce กันยิง API รัวตอนคลิกติดกันหลายครั้ง)
+// พร้อม toast ยืนยันแทน alert() ที่บล็อกการใช้งาน
+let toastEl = null;
+function showToast(msg) {
+  if (!toastEl) {
+    toastEl = document.createElement("div");
+    toastEl.className = "toast";
+    document.body.appendChild(toastEl);
+  }
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastEl._hideTimer);
+  toastEl._hideTimer = setTimeout(() => toastEl.classList.remove("show"), 1800);
+}
+
+let calendarSaveTimer = null;
+function scheduleCalendarAutoSave() {
+  clearTimeout(calendarSaveTimer);
+  calendarSaveTimer = setTimeout(async () => {
+    const ok = await saveConfig({
+      default_start_year: Number(document.getElementById("start-year").value),
+      default_end_year: Number(document.getElementById("end-year").value),
+      planting_calendar: calendarStateToPayload(),
+    });
+    if (ok) showToast("บันทึกปฏิทินแล้ว");
+  }, 700);
+}
 
 document.getElementById("btn-save-setup").addEventListener("click", async () => {
   const ok = await saveConfig({
@@ -256,6 +277,7 @@ monthGrid.addEventListener("click", (e) => {
   const shotPreset = detectShotPreset(s.shotDays, s.days);
   syncMonthCard(card, month, candidatePreset, shotPreset);
   updateSummary();
+  scheduleCalendarAutoSave();
 });
 
 monthGrid.addEventListener("change", (e) => {
@@ -274,6 +296,7 @@ monthGrid.addEventListener("change", (e) => {
   const shotPreset = detectShotPreset(s.shotDays, s.days);
   syncMonthCard(card, month, candidatePreset, shotPreset);
   updateSummary();
+  scheduleCalendarAutoSave();
 });
 
 function updateSummary() {
@@ -302,8 +325,8 @@ function updateSummary() {
 // เลขชั่วโมงทำมือต้องอัปเดตทันทีที่แก้ค่านาทีในหน้าตั้งค่า (ไม่ต้องรอกดบันทึก)
 document.getElementById("manual-per-candidate").addEventListener("input", updateSummary);
 
-document.getElementById("start-year").addEventListener("input", updateSummary);
-document.getElementById("end-year").addEventListener("input", updateSummary);
+document.getElementById("start-year").addEventListener("input", () => { updateSummary(); scheduleCalendarAutoSave(); });
+document.getElementById("end-year").addEventListener("input", () => { updateSummary(); scheduleCalendarAutoSave(); });
 
 // ---------------------------------------------------------------------------
 // Setup: scan
@@ -426,7 +449,18 @@ function renderStatus(snapshot) {
   const isRunning = snapshot.overall_state === "running";
   document.getElementById("btn-start").disabled = isRunning;
   document.getElementById("btn-stop").disabled = !isRunning;
-  document.getElementById("btn-retry").disabled = isRunning;
+
+  // v0.5.20 — เดิมปุ่ม "รันปีที่มีปัญหาซ้ำ" โชว์ตลอดแม้ไม่มีปีไหน error เลย ทำให้
+  // ผู้ใช้กดแล้วงงว่าทำไมขึ้น "ไม่มีปีที่มีปัญหา" (เจอจริงจากผู้ใช้) — ซ่อนปุ่มไปเลย
+  // เมื่อ error count = 0 พร้อมโชว์ badge จำนวนปีที่มีปัญหาให้เห็นชัดโดยไม่ต้อง
+  // เลื่อนดู year-list ทั้งหมด
+  const errorCount = years.filter((y) => y.status === "error").length;
+  const retryBtn = document.getElementById("btn-retry");
+  retryBtn.hidden = errorCount === 0;
+  retryBtn.disabled = isRunning;
+  const errorBadge = document.getElementById("error-count-badge");
+  errorBadge.hidden = errorCount === 0;
+  if (errorCount > 0) errorBadge.textContent = `⚠ ${errorCount} ปีมีปัญหา`;
 
   // พอรันจบ (idle) รีเฟรชความคืบหน้าไฟล์ output อัตโนมัติ ให้เห็นว่าทำต่อได้ถึงไหน
   if (!isRunning && wasRunning) fetchOutputProgress();
