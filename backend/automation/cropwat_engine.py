@@ -972,6 +972,27 @@ class CropWatEngine:
 
         return schedule_path, graph_path
 
+    # เพดานเวลาที่รอ PrintWindow — ดู docstring ของ _print_window_with_timeout
+    _PRINT_WINDOW_TIMEOUT_SECONDS = 8.0
+
+    def _print_window_with_timeout(self, hwnd: int, hdc: int, flags: int) -> bool:
+        """v0.5.19 — PrintWindow (Win32 API) ไม่มี timeout ในตัวเอง เป็น call
+        แบบ synchronous ที่รอให้หน้าต่างเป้าหมายวาดตัวเองเสร็จ ถ้า UI thread ของ
+        มันไม่ได้ปั๊ม message (ระบบมีงานอื่นแย่ง CPU/GPU หนักๆ) เรียกตรงๆ อาจค้าง
+        ตลอดกาล — รันใน thread แยกแล้วรอแบบมีเพดานเวลาเอง ถ้าไม่เสร็จทันถือว่า
+        ล้มเหลว (คืน False ให้ caller ถอยไปใช้วิธีอื่น) — thread ที่ค้างจะถูกทิ้งไว้
+        เบื้องหลัง (daemon) ตายไปพร้อม process ตอนปิดโปรแกรม ไม่ได้ฆ่ากลางคัน
+        เพราะ Win32 API ไม่มีทางบังคับยกเลิก PrintWindow ที่กำลังทำงานอยู่ได้"""
+        result: dict[str, bool] = {}
+
+        def _call() -> None:
+            result["ok"] = bool(ctypes.windll.user32.PrintWindow(hwnd, hdc, flags))
+
+        t = threading.Thread(target=_call, daemon=True, name="printwindow-guard")
+        t.start()
+        t.join(self._PRINT_WINDOW_TIMEOUT_SECONDS)
+        return result.get("ok", False)
+
     def _capture_main_window(self, save_path: Path) -> None:
         """ถ่ายภาพหน้าต่างหลัก CropWat ทั้งบาน — โหมดปกติถ่ายจากพิกเซลบนจอ
         (ต้องเห็นหน้าต่าง) โหมดเบื้องหลังใช้ PrintWindow สั่งให้ตัวโปรแกรมวาด
@@ -1017,11 +1038,22 @@ class CropWatEngine:
             bmp.CreateCompatibleBitmap(mfc_dc, width, height)
             save_dc.SelectObject(bmp)
             PW_RENDERFULLCONTENT = 2  # จำเป็นสำหรับหน้าต่างที่ถูกบัง (Win 8.1+)
-            ok = ctypes.windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), PW_RENDERFULLCONTENT)
+            # v0.5.19 — บั๊กที่เจอจากผู้ใช้จริง: "แฮงค์บางครั้งถ้ามีโปรแกรมอื่นมา
+            # บังจอ" — PrintWindow เป็นคำสั่งเดียวในระบบที่ไม่มี timeout ในตัวเอง
+            # เลย มันรอให้ CropWat วาดตัวเองเสร็จแบบไม่มีเพดานเวลา ถ้า UI thread
+            # ของ CropWat ประมวลผลช้า (เช่นตอนโปรแกรมอื่นแย่ง GPU/CPU หนักๆ ตอน
+            # บังจอ) เรียกแล้วอาจค้างตลอดกาล ทำให้ automation ทั้งตัวแฮงค์ตามไป
+            # ด้วย — ใส่ deadline เอง (รันใน thread แยก รอแบบมีเพดานเวลา) ถ้าไม่
+            # เสร็จใน 8 วิ ถือว่าล้มเหลว ถอยไปถ่ายจากหน้าจอแทน (ไม่ต้องพึ่ง CropWat
+            # ตอบสนองเลย จึงไม่ติดปัญหาเดียวกัน)
+            ok = self._print_window_with_timeout(hwnd, save_dc.GetSafeHdc(), PW_RENDERFULLCONTENT)
             if not ok:
-                # บางหน้าต่าง/ไดรเวอร์ไม่รองรับ PrintWindow → ถอยไปถ่ายจากจอแทน
-                # (ภาพอาจมีอย่างอื่นบัง แต่ดีกว่าไม่มีภาพเลย)
-                logger.warning("PrintWindow ล้มเหลว — ถอยไปถ่ายจากหน้าจอแทน (ภาพอาจถูกบัง)")
+                # บางหน้าต่าง/ไดรเวอร์ไม่รองรับ PrintWindow หรือค้างเกินเวลา →
+                # ถอยไปถ่ายจากจอแทน (ภาพอาจมีอย่างอื่นบัง แต่ดีกว่าไม่มีภาพเลย)
+                logger.warning(
+                    "PrintWindow ล้มเหลวหรือค้างเกิน %ss — ถอยไปถ่ายจากหน้าจอแทน (ภาพอาจถูกบัง)",
+                    self._PRINT_WINDOW_TIMEOUT_SECONDS,
+                )
                 self.main_window.capture_as_image().save(save_path)
                 return
             info = bmp.GetInfo()
