@@ -121,11 +121,22 @@ class CropWatEngine:
          แม้ถูกบังอยู่ — ไม่ใช่ถ่ายจากพิกเซลบนจอ (ข้อดีพลอยได้: overlay ไม่ติดมา
          ในภาพ ไม่ต้องซ่อน)"""
 
-    def __init__(self, background_mode: bool = False) -> None:
+    def __init__(self, background_mode: bool = False, speed_multiplier: float = 1.0) -> None:
         self.app: Optional[Application] = None
         self.main_window = None
         self.background_mode = background_mode
+        # v0.5.14: ตัวคูณเวลาหน่วงทุกจุดที่รอ CropWat ประมวลผลคำสั่ง (ดู _sleep) —
+        # มาจาก config.SPEED_MULTIPLIERS ตาม settings.speed_preset ของผู้ใช้ กัน
+        # คอมรุ่นเก่าแฮงค์เพราะรอไม่พอ (ค่าเริ่มต้น 1.0 = พฤติกรรมเดิมทุกประการ)
+        self.speed_multiplier = speed_multiplier
         self._watcher_stop: Optional[threading.Event] = None
+
+    def _sleep(self, base_seconds: float) -> None:
+        """time.sleep คูณด้วย speed_multiplier — ใช้แทน time.sleep() ตรงๆ ทุกจุด
+        ในไฟล์นี้ที่รอ CropWat ประมวลผลคำสั่ง (ไม่ใช่ทุก sleep — ตัวที่เป็น "ช่วง
+        เวลารอสัญญาณ" เช่น deadline ของ error dialog ก็ scale เหมือนกันเพื่อความ
+        สม่ำเสมอ)"""
+        time.sleep(base_seconds * self.speed_multiplier)
 
     # ------------------------------------------------------------------
     # Step 0: ต่อเข้ากับ CropWat ที่เปิดอยู่แล้ว (ผู้ใช้เปิดโปรแกรมเองก่อนหน้านี้)
@@ -206,7 +217,7 @@ class CropWatEngine:
         # เผื่อเวลาให้ CropWat ประมวลผลการเปลี่ยนหน้าต่าง active ก่อน — เจอจริงว่าถ้า
         # ยิงคำสั่งเมนูต่อทันทีโดยไม่รอเลย บางครั้ง CropWat ยังทำงานกับหน้าต่างเดิม
         # ที่ active อยู่ก่อนหน้า ไม่ใช่ตัวที่เพิ่งสั่ง activate ไป
-        time.sleep(0.2)
+        self._sleep(0.2)
         return window
 
     def _invoke_menu(self, menu_path: str) -> None:
@@ -231,7 +242,7 @@ class CropWatEngine:
         item = self.main_window.menu().get_menu_path(menu_path)[-1]
         # เมธอดชื่อ item_id() (ยืนยันจาก source ของ pywinauto — ไม่ใช่ .id())
         win32gui.PostMessage(self.main_window.handle, win32con.WM_COMMAND, item.item_id(), 0)
-        time.sleep(0.15)  # settle: ให้เวลา CropWat ประมวลผลคำสั่งนี้ก่อนยิงคำสั่งถัดไป
+        self._sleep(0.15)  # settle: ให้เวลา CropWat ประมวลผลคำสั่งนี้ก่อนยิงคำสั่งถัดไป
 
     def start_background_watcher(self) -> None:
         """โหมดเบื้องหลัง (v0.5.4): thread เฝ้ายามที่สแกน "ทุก" หน้าต่าง top-level
@@ -294,6 +305,20 @@ class CropWatEngine:
             from ctypes import wintypes
 
             user32 = ctypes.windll.user32
+            # v0.5.14 — ยืนยันจากผู้ใช้: เครื่องรุ่นเก่ายังเห็น Printing progress
+            # กระพริบทั้งที่วัดบนเครื่องพัฒนาได้ 0ms — ยกความสำคัญ (priority) ของ
+            # thread นี้ให้สูงสุด ลดโอกาสที่ OS จะเลื่อนคิวการประมวลผล WinEvent
+            # callback ออกไปตอนเครื่องมีงานอื่นแย่ง CPU (ช่วยได้บางส่วน ไม่ใช่ทาง
+            # แก้ทั้งหมด — ตัว WINEVENT_OUTOFCONTEXT เองมี latency ข้าม process
+            # ในตัวอยู่แล้วซึ่งลดต่อไม่ได้ด้วยวิธีนี้)
+            try:
+                THREAD_PRIORITY_TIME_CRITICAL = 15
+                kernel32 = ctypes.windll.kernel32
+                kernel32.SetThreadPriority(
+                    kernel32.GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL
+                )
+            except Exception:  # noqa: BLE001 -- ตั้ง priority ไม่ได้ก็รันต่อแบบปกติ
+                pass
             EVENT_OBJECT_CREATE = 0x8000
             EVENT_OBJECT_SHOW = 0x8002
             WINEVENT_OUTOFCONTEXT = 0x0
@@ -435,7 +460,7 @@ class CropWatEngine:
             deadline = time.monotonic() + 5
             while win32gui.IsWindow(handle) and time.monotonic() < deadline:
                 self._answer_no_to_save_prompt()
-                time.sleep(0.15)
+                self._sleep(0.15)
             if win32gui.IsWindow(handle):
                 logger.warning("%s: ปิดหน้าต่าง '%s' ไม่สำเร็จภายใน 5 วินาที", module_label, title)
         return keep_handle is not None
@@ -517,16 +542,16 @@ class CropWatEngine:
                 raise StepTimeoutError(
                     f"dialog เปิดไฟล์ (title_re={dialog_title_re!r}) ไม่โผล่ภายใน 10 วินาที"
                 )
-            time.sleep(0.2)
+            self._sleep(0.2)
         self._hide_dialog_offscreen(dialog)
         dialog.wait("exists enabled visible ready", timeout=10)
-        time.sleep(0.3)  # เผื่อเวลาให้ dialog พร้อมรับ input จริงๆ ก่อนพิมพ์
+        self._sleep(0.3)  # เผื่อเวลาให้ dialog พร้อมรับ input จริงๆ ก่อนพิมพ์
 
         target = str(file_path)
         field = dialog[filename_field]
         for attempt in range(2):
             field.set_edit_text(target)
-            time.sleep(0.2)
+            self._sleep(0.2)
             actual = field.window_text()
             if actual.strip().strip('"') == target.strip().strip('"'):
                 break
@@ -665,7 +690,7 @@ class CropWatEngine:
         text = f"{planting_date.day:02d}/{planting_date.month:02d}"
         if self.background_mode:
             self._real_set_focus(field.handle)
-            time.sleep(0.15)
+            self._sleep(0.15)
         field.set_edit_text(text)
         self._commit_field(field, cfg)
         self._raise_if_error_dialog(f"ตั้งวันปลูก {text}")
@@ -678,7 +703,7 @@ class CropWatEngine:
             after = self._parse_field_date(field.window_text())
             if after and (after[0], after[2]) == expected:
                 return
-            time.sleep(0.1)
+            self._sleep(0.1)
 
         raise CropWatReportedError(
             f"CropWat ไม่รับวันปลูก {planting_date:%d/%m} เข้าช่องกรอก "
@@ -824,7 +849,7 @@ class CropWatEngine:
                 pass
         if pause is not None:
             pause.set()
-            time.sleep(0.8)
+            self._sleep(0.8)
 
         try:
             self._focus_mdi_child(cfg.window_class_name)
@@ -932,7 +957,7 @@ class CropWatEngine:
             self._hide_dialog_offscreen(prompt)
             no_button.click()
             logger.info("ตอบ No อัตโนมัติให้ prompt ถามบันทึกข้อมูล (ไม่บันทึกทับไฟล์ต้นทาง)")
-            time.sleep(0.2)
+            self._sleep(0.2)
             return True
         except (ElementNotFoundError, ElementAmbiguousError):
             return False
@@ -993,7 +1018,7 @@ class CropWatEngine:
                 raise CropWatReportedError(f"CropWat แจ้ง error ระหว่าง {context}: {message}")
             if time.monotonic() >= deadline:
                 return
-            time.sleep(0.04)
+            self._sleep(0.04)
 
     @staticmethod
     def _wait_for_file(path: Path, timeout: float) -> bool:
@@ -1001,7 +1026,7 @@ class CropWatEngine:
         while time.monotonic() < deadline:
             if path.exists() and path.stat().st_size > 0:
                 return True
-            time.sleep(0.1)  # v0.5.7 จาก 0.5 → 0.1: ไฟล์ print มักโผล่ใน ~0.1-0.3 วิ
+            self._sleep(0.1)  # v0.5.7 จาก 0.5 → 0.1: ไฟล์ print มักโผล่ใน ~0.1-0.3 วิ
         return False
 
     # ------------------------------------------------------------------

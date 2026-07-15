@@ -56,6 +56,7 @@ async function loadConfig() {
   document.getElementById("soil-file").value = settings.soil_file || "";
   document.getElementById("manual-per-candidate").value = settings.manual_minutes_per_candidate;
   document.getElementById("background-mode").checked = !!settings.background_mode;
+  document.getElementById("speed-preset").value = settings.speed_preset || "normal";
   document.getElementById("brand-sub").textContent = settings.input_dir
     ? settings.input_dir
     : "ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง";
@@ -114,6 +115,7 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
     soil_file: document.getElementById("soil-file").value,
     manual_minutes_per_candidate: Number(document.getElementById("manual-per-candidate").value) || 0,
     background_mode: document.getElementById("background-mode").checked,
+    speed_preset: document.getElementById("speed-preset").value,
   });
   updateSummary();
   if (ok) {
@@ -386,6 +388,20 @@ function renderScanResults(scan) {
 const STATUS_LABEL = { done: "เสร็จ", running: "กำลังรัน", queued: "รอคิว", error: "มีปัญหา" };
 let wasRunning = false;
 
+// จัดรูปวินาที -> ข้อความไทยอ่านง่าย ("เหลืออีกประมาณ ...") — ปัดเป็นหน่วยที่ใหญ่
+// ที่สุด 2 หน่วย (เช่น "1 ชม. 20 นาที") พอให้กะเวลาได้ ไม่ต้องละเอียดเป็นวินาที
+function formatEta(seconds) {
+  if (seconds == null || !isFinite(seconds) || seconds < 1) return "";
+  const totalMin = Math.round(seconds / 60);
+  if (totalMin < 1) return "เหลืออีกไม่ถึง 1 นาที";
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  const parts = [];
+  if (h > 0) parts.push(`${h} ชม.`);
+  if (m > 0 || h === 0) parts.push(`${m} นาที`);
+  return `เหลืออีกประมาณ ${parts.join(" ")}`;
+}
+
 function renderStatus(snapshot) {
   if (!snapshot) return;
   const years = snapshot.years || [];
@@ -393,13 +409,15 @@ function renderStatus(snapshot) {
   const total = years.length;
 
   const currentTxt = snapshot.current_year ? ` · กำลังรันปี ${snapshot.current_year}` : "";
+  const etaTxt = formatEta(snapshot.eta_seconds);
+  const etaSuffix = etaTxt ? ` · ${etaTxt}` : "";
   // ใช้ progress ระดับ "วันปลูก" ถ้ามี (ละเอียดกว่าระดับปีมาก — 1 ปีมีหลายวันปลูก
   // การนับแค่ปีทำให้ bar กระโดดทีละก้าวใหญ่ดูเหมือนค้าง) fallback เป็นระดับปี
   if (snapshot.candidate_total > 0) {
     const pct = (snapshot.candidate_done / snapshot.candidate_total) * 100;
     document.getElementById("progress-fill").style.width = `${pct}%`;
     document.getElementById("progress-txt").textContent =
-      `${snapshot.candidate_done} / ${snapshot.candidate_total} วันปลูก${currentTxt}`;
+      `${snapshot.candidate_done} / ${snapshot.candidate_total} วันปลูก${currentTxt}${etaSuffix}`;
   } else {
     document.getElementById("progress-fill").style.width = total ? `${(doneCount / total) * 100}%` : "0%";
     document.getElementById("progress-txt").textContent = `${doneCount} / ${total} ปี${currentTxt}`;

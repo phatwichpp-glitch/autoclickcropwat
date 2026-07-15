@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
 from typing import Optional
 
 from models import OverallRunState, StateSnapshot, YearRunStatus, YearStatus
@@ -30,6 +31,11 @@ class RunState:
         self._stop_requested = False
         self._candidate_done = 0
         self._candidate_total = 0
+        # v0.5.14: จับเวลาจริงตั้งแต่เริ่มรัน ใช้ประมาณ "เหลืออีกกี่นาที" จาก
+        # ความเร็วเฉลี่ยจริงที่ทำได้ (ไม่ใช่ตัวเลขคงที่) — แม่นกว่าเดา เพราะ
+        # ปรับตามความเร็วเครื่อง/ความเร็ว automation/จำนวน screenshot ที่ต้องถ่าย
+        # ในแต่ละวันปลูกจริงๆ
+        self._run_started_at: Optional[float] = None
 
         # websocket subscribers ต้องถูกแตะจาก asyncio loop เท่านั้น
         self._subscribers: set[asyncio.Queue] = set()
@@ -57,6 +63,7 @@ class RunState:
             self._stop_requested = False
             self._candidate_done = 0
             self._candidate_total = 0
+            self._run_started_at = time.monotonic()
         self._notify()
 
     def set_candidate_progress(self, done: int, total: int) -> None:
@@ -122,6 +129,7 @@ class RunState:
     # --- snapshot for REST / WebSocket ---
     def snapshot(self) -> StateSnapshot:
         with self._lock:
+            eta_seconds = self._estimate_eta_seconds()
             return StateSnapshot(
                 overall_state=self._overall_state,
                 current_year=self._current_year,
@@ -130,7 +138,30 @@ class RunState:
                 years=sorted(self._years.values(), key=lambda s: s.year),
                 candidate_done=self._candidate_done,
                 candidate_total=self._candidate_total,
+                eta_seconds=eta_seconds,
             )
+
+    def _estimate_eta_seconds(self) -> Optional[float]:
+        """v0.5.14: ประมาณเวลาที่เหลือจาก "ความเร็วเฉลี่ยจริงที่ทำได้" ในรอบรันนี้
+        (วินาทีที่ผ่านไปจริง ÷ จำนวนวันปลูกที่เสร็จแล้ว) แทนตัวเลขคงที่ — ปรับตาม
+        ความเร็วเครื่อง/ตั้งค่าความเร็ว/จำนวน screenshot ที่ต้องถ่ายจริงในแต่ละ
+        วันปลูกโดยอัตโนมัติ ต้องเรียกในนี้เท่านั้น (ไม่ล็อกซ้ำ — caller ถือ lock
+        อยู่แล้ว) คืน None ถ้ายังประมาณไม่ได้ (ยังไม่เริ่ม/ยังไม่มีวันปลูกเสร็จเลย)
+
+        หมายเหตุ: ถ้าเป็นการรันต่อจากที่ค้าง (resume) ตัวเลขช่วงแรกจะดูเร็วเกินจริง
+        เล็กน้อย เพราะ candidate_done รวมของเก่าที่เสร็จไปแล้วในรอบก่อนหน้าด้วย
+        ทั้งที่รอบนี้ยังไม่ได้ทำอะไรเลย — จะแม่นขึ้นเรื่อยๆ เมื่อทำต่อไปสักพัก"""
+        if (
+            self._overall_state != OverallRunState.RUNNING
+            or self._run_started_at is None
+            or self._candidate_done <= 0
+            or self._candidate_total <= self._candidate_done
+        ):
+            return None
+        elapsed = time.monotonic() - self._run_started_at
+        seconds_per_candidate = elapsed / self._candidate_done
+        remaining = self._candidate_total - self._candidate_done
+        return seconds_per_candidate * remaining
 
     # --- pub/sub for WebSocket (asyncio side only) ---
     def subscribe(self) -> asyncio.Queue:

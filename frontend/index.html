@@ -181,6 +181,21 @@
         </div>
 
         <div class="card">
+          <div class="card-head"><h2>ความเร็วการรัน</h2></div>
+          <div class="card-body stack">
+            <label class="field">
+              <span class="lbl">ความเร็ว</span>
+              <select id="speed-preset">
+                <option value="fast">เร็ว — เครื่องแรง</option>
+                <option value="normal">ปกติ (แนะนำ)</option>
+                <option value="slow">ช้า — คอมรุ่นเก่า/ค้างบ่อย</option>
+              </select>
+            </label>
+            <span class="note">ถ้าเครื่องแฮงค์หรือ CropWat ค้างระหว่างรัน (มักเกิดกับคอมรุ่นเก่า) ให้เปลี่ยนเป็น "ช้า" — เพิ่มเวลาหน่วงระหว่างคำสั่งให้ CropWat ตามทัน แล้วบันทึกการตั้งค่า จากนั้นเริ่มรันใหม่</span>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="card-head"><h2>⏱ เวลาทำมือเทียบเท่า</h2></div>
           <div class="card-body stack">
             <span class="note">ใช้คำนวณตัวเลข "ชม. ทำมือเทียบเท่า" ใน Dashboard — นาทีต่อวันปลูก 1 วัน (รวมทุกขั้นตอน: หาไฟล์ รัน print ถ่ายภาพ กรอก Excel) × จำนวนวันปลูกทั้งหมด</span>

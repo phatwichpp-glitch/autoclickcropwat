@@ -61,6 +61,10 @@ class StateSnapshot(BaseModel):
     # กำลังเดินอยู่ — ใช้ขับทั้ง progress bar หน้าเว็บและ overlay ลอย
     candidate_done: int = 0
     candidate_total: int = 0
+    # เวลาที่เหลือโดยประมาณ (วินาที) จากความเร็วเฉลี่ยจริงที่ทำได้ในรอบรันนี้ —
+    # None = ยังประมาณไม่ได้ (ยังไม่เริ่ม/ยังไม่มีวันปลูกไหนเสร็จเลย) ดู
+    # RunState._estimate_eta_seconds()
+    eta_seconds: Optional[float] = None
 
 
 class StationScan(BaseModel):

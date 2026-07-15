@@ -96,12 +96,76 @@ def _find_app_mode_browser() -> str | None:
     return None
 
 
+# ต้องตรงกับ <title> ใน frontend/index.html เป๊ะ — Chrome/Edge --app mode ใช้
+# page title เป็น window title เสมอ ใช้จับหน้าต่างที่เปิดค้างอยู่แล้ว
+APP_WINDOW_TITLE = "CropWat Auto-runner"
+
+
+def _find_app_window_hwnd() -> int | None:
+    """หา window handle ของ "หน้าต่างโปรแกรม" ที่เปิดค้างอยู่แล้ว (ถ้ามี) — v0.5.14
+    บั๊กที่เจอจากผู้ใช้จริง: กดเปิดหน้าต่างจาก tray icon/overlay แล้วได้ browser
+    ใหม่ซ้อนทุกครั้ง ไม่เคยลิงก์กับหน้าต่างเดิมที่เปิดอยู่แล้ว เพราะเดิมเรียก
+    webbrowser.open() ตรงๆ ซึ่งไม่เช็คอะไรเลย เปิดแท็บ/หน้าต่างใหม่เสมอ"""
+    user32 = ctypes.windll.user32
+    found: list[int] = []
+
+    def _cb(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length == 0:
+            return True
+        buf = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buf, length + 1)
+        if buf.value != APP_WINDOW_TITLE:
+            return True
+        class_buf = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(hwnd, class_buf, 256)
+        if class_buf.value == "Chrome_WidgetWin_1":  # class ของหน้าต่าง Chromium (Edge/Chrome)
+            found.append(hwnd)
+        return True
+
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)
+    user32.EnumWindows(WNDENUMPROC(_cb), 0)
+    return found[0] if found else None
+
+
+def _bring_to_front(hwnd: int) -> None:
+    """ดึงหน้าต่างที่เปิดอยู่แล้วมาข้างหน้า — Windows บล็อก SetForegroundWindow
+    เฉยๆ จาก process ที่ไม่ได้ active อยู่ก่อน (มักได้แค่ไอคอนกระพริบที่ taskbar
+    ไม่ได้ดึงมาข้างหน้าจริง) ต้อง AttachThreadInput ก่อนเสมอ — เทคนิคเดียวกับที่
+    ยืนยันแล้วว่าได้ผลจริงใน automation/cropwat_engine.py::_real_set_focus"""
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+    SW_RESTORE = 9
+    if user32.IsIconic(hwnd):
+        user32.ShowWindow(hwnd, SW_RESTORE)
+    target_tid = user32.GetWindowThreadProcessId(hwnd, None)
+    cur_tid = kernel32.GetCurrentThreadId()
+    attached = False
+    try:
+        if target_tid and target_tid != cur_tid:
+            attached = bool(user32.AttachThreadInput(cur_tid, target_tid, True))
+        user32.SetForegroundWindow(hwnd)
+        user32.BringWindowToTop(hwnd)
+    finally:
+        if attached:
+            user32.AttachThreadInput(cur_tid, target_tid, False)
+
+
 def _launch_app_window() -> None:
     """เปิด "หน้าต่างโปรแกรม" (เบราว์เซอร์แบบ app mode ไม่มี address bar/แท็บ) —
-    ใช้ทั้งตอนเริ่มโปรแกรมและตอนดับเบิลคลิก .exe ซ้ำเพื่อเรียกหน้าต่างกลับมา"""
+    ใช้ทั้งตอนเริ่มโปรแกรม, ตอนดับเบิลคลิก .exe ซ้ำ, และตอนกดจาก tray icon/overlay
+    เพื่อเรียกหน้าต่างกลับมา — เช็คก่อนเสมอว่ามีหน้าต่างเปิดค้างอยู่แล้วไหม ถ้ามี
+    แค่ดึงมาข้างหน้า ไม่เปิดซ้อนใหม่"""
     import os
     import subprocess
     import webbrowser
+
+    existing = _find_app_window_hwnd()
+    if existing:
+        _bring_to_front(existing)
+        return
 
     url = f"http://{HOST}:{PORT}"
     browser_exe = _find_app_mode_browser()

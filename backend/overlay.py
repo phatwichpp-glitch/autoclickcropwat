@@ -56,6 +56,34 @@ def _assets_dir() -> Path:
         return Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)) / "assets"
     return Path(__file__).parent / "assets"
 
+
+def _format_eta(seconds) -> str:
+    """เหมือน formatEta() ใน frontend/app.js — จัดวินาที -> ข้อความไทยอ่านง่าย"""
+    if seconds is None or seconds < 1:
+        return ""
+    total_min = round(seconds / 60)
+    if total_min < 1:
+        return "เหลือ <1 นาที"
+    h, m = divmod(total_min, 60)
+    if h > 0:
+        return f"เหลือ {h}ชม.{m}น." if m else f"เหลือ {h}ชม."
+    return f"เหลือ {m}น."
+
+
+def _open_app_window() -> None:
+    """เปิด/ดึงหน้าต่างโปรแกรมมาข้างหน้า — v0.5.14 บั๊กที่เจอจากผู้ใช้จริง: ปุ่ม
+    ⚙ ของ overlay และเมนู tray icon เดิมเรียก webbrowser.open() ตรงๆ ซึ่งไม่เช็ค
+    อะไรเลย เปิด browser/แท็บใหม่ซ้อนทุกครั้งไม่เคยลิงก์กับหน้าต่างเดิม — ใช้
+    launcher._launch_app_window() ตัวเดียวกับตอนเริ่มโปรแกรมแทน (เช็คก่อนว่ามี
+    หน้าต่างเปิดค้างอยู่แล้วไหม มีก็แค่ดึงมาข้างหน้า)"""
+    try:
+        from launcher import _launch_app_window
+
+        _launch_app_window()
+    except Exception:  # noqa: BLE001 -- import/เรียกพัง ยังเปิดแท็บใหม่ได้เป็น fallback
+        logger.exception("เปิดหน้าต่างโปรแกรมผ่าน launcher ไม่สำเร็จ — fallback เปิดแท็บใหม่")
+        webbrowser.open(URL)
+
 # --- global hotkeys -------------------------------------------------------
 HOTKEY_START_ID = 1
 HOTKEY_STOP_ID = 2
@@ -141,7 +169,7 @@ def _tray_loop() -> None:
     import pystray
 
     def _open_window(_icon=None, _item=None) -> None:
-        webbrowser.open(URL)
+        _open_app_window()
 
     menu = pystray.Menu(
         pystray.MenuItem("เปิดหน้าต่างโปรแกรม", _open_window, default=True),
@@ -260,7 +288,7 @@ def _overlay_loop() -> None:
     # v0.5.13: ใช้ _quit_app() ตัวเดียวกับ tray icon (MessageBoxW ดิบ ไม่ใช่
     # tkinter.messagebox) กันโค้ดถามยืนยัน "ปิดโปรแกรม" ซ้ำซ้อน 2 ที่
     _mk_button(top_row, "✕", _quit_app, fg=DIM).pack(side="right")
-    _mk_button(top_row, "⚙", lambda: webbrowser.open(URL), fg=DIM).pack(side="right")
+    _mk_button(top_row, "⚙", _open_app_window, fg=DIM).pack(side="right")
     _mk_button(top_row, "⏹", _stop_run, fg="#ff7b7b").pack(side="right")
     _mk_button(top_row, "▶", _start_run, fg=BAR_DONE).pack(side="right")
 
@@ -314,8 +342,9 @@ def _overlay_loop() -> None:
                 fill.configure(width=int(track_width * pct))
                 year_txt = f" · ปี {snap.current_year}" if snap.current_year else ""
                 if running:
+                    eta_txt = f" · {eta}" if (eta := _format_eta(snap.eta_seconds)) else ""
                     status_label.configure(
-                        text=f"กำลังรัน {done}/{total} วันปลูก ({pct:.0%}){year_txt}"
+                        text=f"กำลังรัน {done}/{total} วันปลูก ({pct:.0%}){year_txt}{eta_txt}"
                     )
                     fill.configure(bg=BAR_FG)
                 elif stopping:

@@ -18,6 +18,7 @@ from pathlib import Path
 from automation.cropwat_engine import CropWatEngine, PlantingDateTask
 from automation.exceptions import CropWatAutomationError
 from config import (
+    SPEED_MULTIPLIERS,
     Settings,
     excel_path,
     load_settings,
@@ -232,7 +233,8 @@ def _resolve_single_file(root: Path, ext: str, override: str) -> Path:
 
 def _run_years(years: list[int], settings: Settings) -> None:
     run_state.begin_run()
-    engine = CropWatEngine(background_mode=settings.background_mode)
+    speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)
+    engine = CropWatEngine(background_mode=settings.background_mode, speed_multiplier=speed_multiplier)
     try:
         engine.connect()
     except CropWatAutomationError as exc:
