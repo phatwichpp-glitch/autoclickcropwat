@@ -765,18 +765,25 @@ function setConn(online) {
   document.getElementById("conn-label").textContent = online ? "เชื่อมต่อแล้ว" : "ขาดการเชื่อมต่อ";
 }
 
-let wsDroppedOnce = false;
+// v0.5.30 — บั๊กที่ผู้ใช้เจอจริง: "โปรแกรมชอบหลุดการเชื่อมต่อเองเวลารันค้าง" —
+// ต้นเหตุคือโค้ดเดิม reload หน้าทั้งหน้าทุกครั้งที่ WS "ต่อกลับได้หลังหลุด" ไม่ว่า
+// เหตุผลจะเป็นอะไร (สมมติไปเองว่าต่อกลับได้ = backend เพิ่ง restart จากการอัปเดต
+// เวอร์ชันเท่านั้น) แต่จริงๆ WS หลุดได้จากหลายสาเหตุที่ไม่เกี่ยวกับ restart เลย
+// เช่น เครื่องมีงานหนัก (ตอนรันค้าง automation thread แย่ง CPU/GIL) ทำให้ WS
+// ค้างชั่วคราวเกิน timeout ของเบราว์เซอร์ — พอต่อกลับได้ก็ reload ทันที ถ้ายัง
+// ค้างอยู่ก็หลุดซ้ำแล้ว reload วนอีก ดูเหมือน "หลุดการเชื่อมต่อเอง" ไม่มีที่สิ้นสุด
+// แก้โดย reload เฉพาะตอนที่รู้แน่ชัดว่ากำลังอัปเดตเวอร์ชันอยู่จริง (ผ่าน
+// updateInProgress ที่ applyUpdate() ตั้งไว้) เหตุผลอื่นๆ แค่ต่อกลับเงียบๆ พอ
+let updateInProgress = false;
 
 function connectWebSocket() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
   ws.onopen = () => {
-    // ต่อกลับได้หลังหลุด = backend เพิ่ง restart (เคสหลักคือเพิ่งอัปเดตเวอร์ชัน
-    // เสร็จ) — reload หน้าให้ได้ frontend เวอร์ชันใหม่จาก .exe ตัวใหม่อัตโนมัติ
-    if (wsDroppedOnce) { location.reload(); return; }
+    if (updateInProgress) { location.reload(); return; }
     setConn(true);
   };
-  ws.onclose = () => { wsDroppedOnce = true; setConn(false); setTimeout(connectWebSocket, 2000); };
+  ws.onclose = () => { setConn(false); setTimeout(connectWebSocket, 2000); };
   ws.onerror = () => ws.close();
   ws.onmessage = (event) => renderStatus(JSON.parse(event.data));
 }
@@ -819,6 +826,7 @@ const updatingModal = document.getElementById("updating-modal");
 
 async function applyUpdate() {
   updateModal.hidden = true;
+  updateInProgress = true;
   const btn = document.getElementById("btn-update");
   btn.disabled = true;
 
@@ -833,6 +841,7 @@ async function applyUpdate() {
     const res = await fetch("/api/update/apply", { method: "POST" });
     const data = await res.json();
     if (!res.ok) {
+      updateInProgress = false;
       updatingModal.hidden = true;
       alert(
         (data.detail || "อัปเดตไม่สำเร็จ") +
@@ -851,6 +860,7 @@ async function applyUpdate() {
         "(ไฟล์ถูกอัปเดตแล้ว แค่ตัวเปิดอัตโนมัติอาจไม่ทำงาน) แล้วเช็คเลขเวอร์ชันที่มุมขวาบน";
     }, 45000);
   } catch {
+    updateInProgress = false;
     updatingModal.hidden = true;
     alert("อัปเดตไม่สำเร็จ (เชื่อมต่อ backend ไม่ได้)\n\nปิดโปรแกรมแล้วเปิดใหม่ จากนั้นลองอัปเดตอีกครั้ง");
     btn.disabled = false;
