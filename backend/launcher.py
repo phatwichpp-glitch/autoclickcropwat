@@ -223,7 +223,28 @@ def _run_server(open_browser: bool = True) -> None:
     uvicorn.run(app_module.app, host=HOST, port=PORT, log_level="info", log_config=None)
 
 
+def _set_dpi_aware() -> None:
+    """ประกาศว่า process นี้เป็น "DPI-aware" ก่อนสร้างหน้าต่างใดๆ เลย — v0.5.16
+    บั๊กที่เจอจากผู้ใช้จริง: overlay (tkinter) ขึ้นไม่เต็มข้อความบนจอความละเอียด
+    สูง เพราะไม่ประกาศ DPI awareness มาก่อน Windows เลยเดา DPI ให้ (system DPI
+    aware อัตโนมัติในบางเครื่อง) ทำให้ Tk รู้ DPI จริงแล้วขยายฟอนต์ตาม แต่ขนาด
+    หน้าต่าง (pixel ตายตัว) ไม่ขยายตาม ข้อความเลยล้นกรอบ — ประกาศเองให้ชัดเจนที่
+    Per-Monitor V2 (แม่นสุด, Windows 10 1703+) พร้อม fallback ไล่ลงมาเผื่อรันบน
+    Windows รุ่นเก่า ต้องเรียกตัวนี้ก่อนสร้างหน้าต่างแรกเสมอ (ดู overlay.py ที่
+    คำนวณ scale factor จาก DPI จริงมาขยายขนาด/padding ให้พอดีสัดส่วนอีกที)"""
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+        return
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def main() -> None:
+    _set_dpi_aware()
     if _port_in_use(HOST, PORT):
         # มีตัวเดิมรันอยู่แล้ว (เช่น ผู้ใช้ปิดหน้าต่างไปเฉยๆ แล้วดับเบิลคลิก .exe
         # ใหม่) — แค่เรียกหน้าต่างโปรแกรมของตัวเดิมขึ้นมาก็พอ ไม่ใช่ error

@@ -186,7 +186,14 @@ def _tray_loop() -> None:
 
     def _watch(icon: "pystray.Icon") -> None:
         """poll run_state ทุก 500ms แล้วสลับไอคอน (จุดเขียว) + tooltip ตามสถานะ —
-        pystray รองรับตั้ง icon.icon/icon.title จาก thread อื่นได้ปลอดภัย"""
+        pystray รองรับตั้ง icon.icon/icon.title จาก thread อื่นได้ปลอดภัย
+
+        v0.5.16 — บั๊กที่เจอจากผู้ใช้จริง (เข้าใจผิดว่า "tray icon ไม่ทำงาน"):
+        เดิมอัปเดต title เฉพาะตอนสถานะ running "เปลี่ยน" (idle↔running) เท่านั้น
+        ทำให้ตัวเลข X/Y ค้างอยู่ที่ค่าแรกตลอดการรัน (มักเป็น 0/0 เพราะ candidate_
+        total ยังไม่ทันคำนวณตอนเพิ่งเริ่ม) ทั้งที่คลิกเมนูใช้งานได้ปกติทุกอย่าง —
+        อัปเดต title ทุกรอบ poll ตอนกำลังรัน (ถูกแค่เปลี่ยนรูปไอคอนเท่านั้นที่ยัง
+        เช็คเฉพาะตอน state เปลี่ยนจริง กันวาดรูปใหม่ทุก 500ms โดยไม่จำเป็น)"""
         from state import run_state
 
         last_running = None
@@ -196,12 +203,12 @@ def _tray_loop() -> None:
                 running = snap.overall_state.value in ("running", "stopping")
                 if running != last_running:
                     icon.icon = _tray_icon_image(running=running)
-                    icon.title = (
-                        f"CropWat Auto-runner — กำลังรัน {snap.candidate_done}/{snap.candidate_total}"
-                        if running
-                        else "CropWat Auto-runner — พร้อมใช้งาน"
-                    )
                     last_running = running
+                icon.title = (
+                    f"CropWat Auto-runner — กำลังรัน {snap.candidate_done}/{snap.candidate_total}"
+                    if running
+                    else "CropWat Auto-runner — พร้อมใช้งาน"
+                )
             except Exception:  # noqa: BLE001 -- poll พังรอบไหนข้ามรอบนั้น อย่าให้ tray ตาย
                 logger.exception("tray icon watcher ล้มเหลว")
             time.sleep(0.5)
@@ -243,15 +250,32 @@ def _overlay_loop() -> None:
     BAR_BG = "#323a4d"
     BAR_FG = "#4da3ff"
     BAR_DONE = "#3ecf8e"
-    W, H = 400, 62
 
     root = tk.Tk()
+
+    # v0.5.16 — บั๊กที่เจอจากผู้ใช้จริง: overlay ขึ้นไม่เต็มข้อความบนจอความ
+    # ละเอียดสูง (150%/200% scaling) — launcher.py ประกาศ process เป็น "DPI-aware"
+    # แล้ว (กัน Windows bitmap-stretch ทั้งบานแบบเบลอ) แต่นั่นทำให้ Tk รู้ DPI จริง
+    # แล้วขยายฟอนต์ตาม ในขณะที่ขนาดหน้าต่าง/padding เดิมเป็น pixel ตายตัว (คิดที่
+    # 96 DPI) ข้อความเลยล้นกรอบ — คำนวณ scale จาก DPI จริงของจอ แล้วขยายทุกค่าที่
+    # เป็น "pixel ดิบ" (ขนาดหน้าต่าง/padding/ความสูงแถบ) ตาม ส่วนขนาดฟอนต์ (pt)
+    # ปล่อยให้ Tk จัดการเองเพราะ DPI-aware แล้วมันคำนวณถูกต้องอยู่แล้ว
+    try:
+        scale = max(1.0, root.winfo_fpixels("1i") / 96.0)
+    except Exception:  # noqa: BLE001
+        scale = 1.0
+
+    def px(n: float) -> int:
+        return round(n * scale)
+
+    W, H = px(400), px(62)
+
     root.overrideredirect(True)  # ไร้ขอบ/title bar
     root.attributes("-topmost", True)  # ลอยบนสุดเสมอ แม้ CropWat จะ active
     root.attributes("-alpha", 0.94)
     root.configure(bg=BG)
     sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-    root.geometry(f"{W}x{H}+{sw - W - 16}+{sh - H - 56}")
+    root.geometry(f"{W}x{H}+{sw - W - px(16)}+{sh - H - px(56)}")
     root.withdraw()  # v0.5.13: เริ่มต้นซ่อนไว้ก่อน — โผล่เฉพาะตอนกำลังรัน/เพิ่งจบ
     # (tray icon คือสัญญาณ "ทำงานอยู่เบื้องหลัง" ถาวรตัวเดียว ดู _tray_loop)
 
@@ -265,7 +289,7 @@ def _overlay_loop() -> None:
         root.geometry(f"+{event.x_root - drag['x']}+{event.y_root - drag['y']}")
 
     top_row = tk.Frame(root, bg=BG)
-    top_row.pack(fill="x", padx=10, pady=(7, 2))
+    top_row.pack(fill="x", padx=px(10), pady=(px(7), px(2)))
 
     status_label = tk.Label(
         top_row, text="พร้อมเริ่ม", bg=BG, fg=FG, font=("Segoe UI", 9, "bold"), anchor="w"
@@ -280,7 +304,7 @@ def _overlay_loop() -> None:
 
     def _mk_button(parent, text, command, fg=FG):
         btn = tk.Label(
-            parent, text=text, bg=BG, fg=fg, font=("Segoe UI", 10), cursor="hand2", padx=4
+            parent, text=text, bg=BG, fg=fg, font=("Segoe UI", 10), cursor="hand2", padx=px(4)
         )
         btn.bind("<Button-1>", lambda _e: (command(), "break")[1])
         return btn
@@ -292,16 +316,16 @@ def _overlay_loop() -> None:
     _mk_button(top_row, "⏹", _stop_run, fg="#ff7b7b").pack(side="right")
     _mk_button(top_row, "▶", _start_run, fg=BAR_DONE).pack(side="right")
 
-    track = tk.Frame(root, bg=BAR_BG, height=6)
-    track.pack(fill="x", padx=10, pady=(2, 2))
+    track = tk.Frame(root, bg=BAR_BG, height=px(6))
+    track.pack(fill="x", padx=px(10), pady=(px(2), px(2)))
     track.pack_propagate(False)
-    fill = tk.Frame(track, bg=BAR_FG, height=6, width=0)
+    fill = tk.Frame(track, bg=BAR_FG, height=px(6), width=0)
     fill.place(x=0, y=0, relheight=1.0)
 
     hint_label = tk.Label(
         root, text=HOTKEY_HINT, bg=BG, fg=DIM, font=("Segoe UI", 7), anchor="w"
     )
-    hint_label.pack(fill="x", padx=10, pady=(0, 5))
+    hint_label.pack(fill="x", padx=px(10), pady=(0, px(5)))
 
     hidden = {"v": True}  # เริ่มต้นด้วย withdraw() ไว้แล้วด้านบน
     hide_deadline = {"v": 0.0}  # monotonic time — ค้างโชว์ถึงเวลานี้เป็นอย่างน้อย
