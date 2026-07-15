@@ -54,6 +54,24 @@ app.add_middleware(
 )
 
 
+# v0.5.22 — บั๊กที่เจอจากผู้ใช้จริง: หลังอัปเดตหลายรอบในเครื่องเดียวกัน (browser
+# profile เดียวกันสะสม cache มานาน) หน้าเว็บค้างที่ "กำลังเชื่อมต่อ..." ตลอด ทั้ง
+# ที่ backend เองทำงานปกติสมบูรณ์ (ยืนยันจาก log: ไม่มี request ขอ app.js/api/ws
+# เลยแม้แต่ครั้งเดียว — เบราว์เซอร์ใช้ของที่ cache ไว้เก่าโดยไม่ยิง request ใหม่)
+# เครื่องเพื่อนที่เพิ่งลงครั้งแรก (ไม่มี cache เก่า) กลับใช้งานได้ปกติ — ยืนยันว่า
+# เป็นเรื่อง cache ไม่ใช่บั๊ก logic จริง — StaticFiles ของ Starlette ไม่ตั้ง
+# Cache-Control มาให้เอง อาศัย heuristic caching ของเบราว์เซอร์เอง ซึ่งอันตราย
+# มากสำหรับโปรแกรมที่ self-update บ่อย (เนื้อไฟล์เปลี่ยนแต่ URL เดิมทุกครั้ง) —
+# บังคับไม่ให้ cache ไฟล์เว็บเลยทุกก้อน กันปัญหานี้เกิดซ้ำกับผู้ใช้คนอื่น
+@app.middleware("http")
+async def _no_cache_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
 @app.on_event("startup")
 async def on_startup() -> None:
     run_state.bind_loop(asyncio.get_running_loop())
