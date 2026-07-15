@@ -123,10 +123,6 @@ class CropWatEngine:
         self.main_window = None
         self.background_mode = background_mode
         self._watcher_stop: Optional[threading.Event] = None
-        # รูปแบบวันที่ของช่องวันปลูกบนเครื่องนี้ (ตรวจจับครั้งแรกที่ตั้งวันปลูก
-        # แล้วจำไว้) — "dm"=วัน/เดือน "md"=เดือน/วัน ต่างกันตาม Region ของ Windows
-        self._date_order: Optional[str] = None
-        self._date_sep: str = "/"
 
     # ------------------------------------------------------------------
     # Step 0: ต่อเข้ากับ CropWat ที่เปิดอยู่แล้ว (ผู้ใช้เปิดโปรแกรมเองก่อนหน้านี้)
@@ -216,30 +212,20 @@ class CropWatEngine:
         โครงสร้างเมนู (อ่านได้โดยไม่ต้อง focus) แล้ว post WM_COMMAND ตรงไปที่
         หน้าต่างหลักแบบเดียวกับที่ Windows ส่งให้ตอนผู้ใช้คลิกเมนูจริง
 
-        v0.5.8 — บั๊กที่เจอจากผู้ใช้จริง (background mode ตั้งวันปลูกติดแต่ไม่รัน
-        อะไรต่อเลย ทั้งที่ก่อนหน้านี้ทำงานปกติดี): PostMessage คือ "ยิงแล้วไม่รอ"
-        (คำสั่งแค่เข้าคิว ยังไม่ทันประมวลผล) — เดิมฟังก์ชันนี้คืนค่าทันที แล้วโค้ด
-        ที่เรียกต่อ (_raise_if_error_dialog) มี sleep(0.8) ตายตัวอยู่แล้ว ซึ่ง
-        "บังเอิญ" ให้เวลา CropWat ประมวลผลคำสั่งก่อนหน้าทันเวลาพอดี พอ v0.5.7 ลด
-        เวลานั้นลงเพื่อความเร็ว คำสั่งเมนูถัดไปถูกยิงเร็วเกินไป — is_enabled()
-        เช็คตอนที่คำสั่งก่อนหน้ายังไม่ทันมีผล เจอเมนู "ยังไม่พร้อม" แล้ว raise
-        error ทันที ทำให้ทุกวันปลูก fail เร็วจนดูเหมือนไม่รันอะไรเลย — แก้ 2 ชั้น
-        แยกจากการเช็ค error dialog เดิม: (1) retry สั้นๆ ตอนเช็ค is_enabled() กัน
-        race หลัง MDI activate/คำสั่งก่อนหน้า (2) settle หลังยิงคำสั่งเสมอ ไม่พึ่ง
-        sleep ของจุดอื่นแบบบังเอิญอีกต่อไป"""
+        v0.5.10 — บทเรียนสำคัญจากการ probe CropWat จริงระหว่าง audit: item.is_enabled()
+        ของเมนู Delphi MDI ตัวนี้ "คืน False แบบไม่ตรงความจริง" — PostMessage คำสั่ง
+        เดียวกันทำงานได้ปกติ (harvest คำนวณใหม่, หน้าต่างผลลัพธ์โผล่, ไฟล์ถูกเขียน)
+        ทั้งที่ is_enabled() รายงานว่า disabled — เพราะสถานะ enabled ของเมนูจะถูก
+        อัปเดตจริงตอน WM_INITMENU (ตอนผู้ใช้กดเปิดเมนู) เท่านั้น ไม่ใช่ตอนอ่านผ่าน
+        API เฉยๆ เคย gate ด้วย is_enabled() (v0.5.1-v0.5.9) เลยทำให้ File->Open/
+        calculate fail ทุกปีด้วย false negative (ยืนยันจาก log จริงของผู้ใช้: "เมนู
+        File->Open ถูก disable" ปี 1996-2025 ทั้งที่ปีอื่นรันได้) — เลิกเช็ค
+        is_enabled() ปล่อยให้สัญญาณ downstream (หน้าต่างผลลัพธ์โผล่/ไฟล์ถูกเขียน)
+        เป็นตัวจับกรณีคำสั่งไม่มีผลจริงแทน + settle หลังยิงคำสั่งกัน race กับคำสั่งถัดไป"""
         if not self.background_mode:
             self.main_window.menu_select(menu_path)
             return
-        deadline = time.monotonic() + 0.5
-        while True:
-            item = self.main_window.menu().get_menu_path(menu_path)[-1]
-            if item.is_enabled():
-                break
-            if time.monotonic() >= deadline:
-                raise CropWatReportedError(
-                    f"เมนู {menu_path!r} ถูก disable อยู่ (สถานะโปรแกรมยังไม่พร้อม)"
-                )
-            time.sleep(0.05)
+        item = self.main_window.menu().get_menu_path(menu_path)[-1]
         # เมธอดชื่อ item_id() (ยืนยันจาก source ของ pywinauto — ไม่ใช่ .id())
         win32gui.PostMessage(self.main_window.handle, win32con.WM_COMMAND, item.item_id(), 0)
         time.sleep(0.15)  # settle: ให้เวลา CropWat ประมวลผลคำสั่งนี้ก่อนยิงคำสั่งถัดไป
@@ -613,119 +599,53 @@ class CropWatEngine:
     @staticmethod
     def _parse_field_date(text: str) -> Optional[tuple[int, str, int]]:
         """แยกข้อความในช่องวันที่เป็น (เลขหน้า, ตัวคั่น, เลขหลัง) — ไม่ตีความว่า
-        อันไหนวัน/เดือน (ขึ้นกับ Region ของเครื่อง)"""
-        m = re.match(r"^\s*(\d{1,2})(\D)(\d{1,2})\s*$", text or "")
+        อันไหนวัน/เดือน (ขึ้นกับ Region ของเครื่อง)
+
+        ยืนยันจาก probe จริง: CropWat อาจเติมปีต่อท้ายให้เอง (เช่น '01/05' → '01/05/94')
+        หลัง commit — จึงยอมให้มีส่วนปีต่อท้าย (ไม่บังคับ) แล้วมองข้ามไป อ่านแค่
+        วัน/เดือน 2 ตัวแรกพอ ไม่งั้น readback จะ parse ไม่ผ่านทั้งที่ค่าถูกต้อง"""
+        m = re.match(r"^\s*(\d{1,2})(\D)(\d{1,2})(?:\D\d{2,4})?\s*$", text or "")
         if not m:
             return None
         return int(m.group(1)), m.group(2), int(m.group(3))
 
     def set_planting_date(self, planting_date: date) -> None:
-        """v0.5.6 — บทเรียนจากเครื่องเพื่อนของผู้ใช้ (บั๊กอันตรายสุดที่เคยเจอ):
-        ช่องวันปลูกอิง "รูปแบบวันที่ของ Windows เครื่องนั้น" — บางเครื่องเป็น
-        เดือน/วัน หรือใช้ตัวคั่นอื่น ถ้าส่งรูปแบบผิด CropWat ปัดทิ้งแล้วรีเซ็ตเป็น
-        "วันนี้" แบบเงียบสนิท ทุกวันปลูกเลยกลายเป็นวันเดียวกันหมดโดยไม่มี error —
-        แก้ 2 ชั้น: (1) ตรวจจับลำดับวัน/เดือน + ตัวคั่นจากค่าที่อยู่ในช่องเอง
-        (2) หลัง commit ต้องอ่านกลับมาตรวจว่าค่า "ติดจริง" ไม่ถูกรีเซ็ต — ผิดให้
-        ลองสลับลำดับหนึ่งครั้ง ยังผิดอีกให้ fail ดังๆ พร้อมบอกวิธีแก้ที่ Region"""
+        """v0.5.10 — เขียนใหม่จากการ probe CropWat จริงระหว่าง audit (ล้มสมมติฐาน
+        เดิมทั้งหมด): ช่องวันปลูกเป็น TMaskEdit "dd/mm" ตายตัว (ไม่อิง Windows locale
+        — ยืนยันจากผู้ใช้: กรอกปกติขึ้นแค่วัน/เดือน ไม่มีปี) วิธีที่ได้ผลจริงคือ
+        set_edit_text("dd/mm") ตรงๆ — ทดสอบ pipeline เต็มแล้วไฟล์ .txt ออกมาวันปลูก
+        ตรงเป๊ะทุกอัน (22/06→22/06, 18/07→18/07)
+
+        บทเรียนที่ "ผิด" 2 ข้อที่เคยพาหลงทางหลายเวอร์ชัน (ยืนยันด้วยการทดลองแล้ว):
+          - "WM_SETTEXT ไม่ตั้ง Modified flag เลยไม่ commit" → ผิด: set_edit_text
+            commit เข้า model จริง (ไฟล์ txt ตรง) ส่วน WM_CHAR ต่างหากที่ป้อนเพี้ยน
+            เพราะ mask แทรก '/' ให้เอง (พิมพ์ '0305' ได้ '30/5_')
+          - "verify จากแถบสถานะล่าง (TPanel)" → ผิด: แถบนั้นค้างเป็นวันนี้ตลอด
+            ไม่ใช่ค่า model — verify จากช่องกรอกเองพอ + ด่านสุดท้ายคือตรวจวันปลูก
+            จากไฟล์ .txt จริงใน run_candidate_planting_date"""
         self._require_connected()
         cfg = controls.CROP_SCREEN
         crop_window = self._focus_mdi_child(cfg.window_class_name)
         field = crop_window.child_window(class_name=cfg.planting_date_field_class_name)
 
-        # ตรวจ "ลำดับ" และ "ตัวคั่น" จากค่าปัจจุบันในช่อง (ครั้งแรกของ batch ช่องจะ
-        # เป็นวันนี้ที่ CropWat ตั้งเอง — ใช้เทียบกับวันนี้จริงเพื่อรู้ลำดับ) แล้วจำไว้
-        if self._date_order is None:
-            current = self._parse_field_date(field.window_text())
-            order, sep = "dm", "/"
-            if current:
-                a, sep, b = current
-                today = date.today()
-                if (a, b) == (today.day, today.month) and a != b:
-                    order = "dm"
-                elif (a, b) == (today.month, today.day) and a != b:
-                    order = "md"
-                elif a > 12:
-                    order = "dm"
-                elif b > 12:
-                    order = "md"
-            self._date_order, self._date_sep = order, sep
-            logger.info("รูปแบบวันที่ของช่องวันปลูกเครื่องนี้: %s (คั่นด้วย %r)", order, sep)
+        text = f"{planting_date.day:02d}/{planting_date.month:02d}"
+        field.set_edit_text(text)
+        self._commit_field(field, cfg)
+        self._raise_if_error_dialog(f"ตั้งวันปลูก {text}")
 
-        def _text_for(order: str) -> str:
-            d, m = planting_date.day, planting_date.month
-            first, second = (d, m) if order == "dm" else (m, d)
-            return f"{first:02d}{self._date_sep}{second:02d}"
-
-        def _type_into_field(text: str) -> None:
-            """พิมพ์ "ทีละตัวอักษร" ผ่าน WM_CHAR ตรงเข้า control — บทเรียนสำคัญ
-            (ยืนยันจากไฟล์ output จริงทั้งของผู้ใช้และเพื่อน): WM_SETTEXT เปลี่ยน
-            แค่ข้อความที่แสดง แต่ Delphi ไม่ตั้ง Modified flag → ตอนออกจากช่อง
-            CropWat ไม่อัปเดตค่าวันปลูกใน model ภายใน → ทุกไฟล์คำนวณด้วยวันปลูก
-            เก่าค้างเดิมทั้งที่ช่องโชว์ค่าใหม่ — WM_CHAR เดินผ่านเส้นทางเดียวกับ
-            การพิมพ์จริงของผู้ใช้ (mask/Modified/OnChange ครบ) โดยไม่ต้องแตะ
-            คีย์บอร์ดจริงของระบบ"""
-            hwnd = field.handle
-            # เลือกทั้งหมดก่อน ให้ตัวแรกที่พิมพ์แทนที่ค่าเดิมทั้งช่อง
-            win32gui.SendMessage(hwnd, win32con.EM_SETSEL, 0, -1)
-            for ch in text:
-                win32gui.SendMessage(hwnd, win32con.WM_CHAR, ord(ch), 0)
-                time.sleep(0.02)
-
-        def _read_model_planting_date() -> Optional[tuple[int, int]]:
-            """อ่านค่าวันปลูกที่ CropWat "ใช้จริง" จากแถบสถานะล่างของหน้าต่างหลัก
-            (แผง TPanel ที่ข้อความเป็นรูปวันที่ — ยืนยันจาก inspect dump ว่ามีจริง)
-            — ต่างจากข้อความในช่องกรอกที่อาจโชว์ค่าที่ model ไม่รับรู้ คืน (a, b)
-            ตามที่แสดง (ยังไม่ตีความวัน/เดือน)"""
-            try:
-                for panel in self.main_window.descendants(class_name="TPanel"):
-                    parsed = self._parse_field_date(panel.window_text())
-                    if parsed:
-                        return parsed[0], parsed[2]
-            except Exception:  # noqa: BLE001 -- อ่านไม่ได้ = ใช้ fallback ช่องกรอกแทน
-                pass
-            return None
-
-        orders_to_try = [self._date_order, "md" if self._date_order == "dm" else "dm"]
-        last_seen = ""
-        for order in orders_to_try:
-            text = _text_for(order)
-            _type_into_field(text)
-            self._commit_field(field, cfg)
-            self._raise_if_error_dialog(f"ตั้งวันปลูก {text}")
-
-            expected = (
-                (planting_date.day, planting_date.month)
-                if order == "dm"
-                else (planting_date.month, planting_date.day)
-            )
-            # ตรวจจาก "แถบสถานะ" (ค่า model จริง) ก่อน — fallback เป็นช่องกรอก
-            # วนอ่านซ้ำสั้นๆ เผื่อแถบสถานะอัปเดตช้ากว่า commit เสี้ยววินาที
-            # (กันตัดสิน "ไม่ติด" ผิดๆ แล้วไปลองสลับลำดับโดยไม่จำเป็น)
-            committed = False
-            for _ in range(4):
-                model_value = _read_model_planting_date()
-                if model_value is not None:
-                    committed = model_value == expected
-                    last_seen = f"status bar={model_value}"
-                else:
-                    after = self._parse_field_date(field.window_text())
-                    committed = bool(after) and (after[0], after[2]) == expected
-                    last_seen = f"field={field.window_text()!r}"
-                if committed:
-                    break
-                time.sleep(0.15)
-            if committed:
-                self._date_order = order  # จำลำดับที่ใช้ได้จริงไว้ใช้รอบถัดไป
+        # อ่านช่องกลับมายืนยันว่าค่าลงจริง (วน 4 รอบสั้นๆ เผื่ออัปเดตช้าเสี้ยววินาที)
+        # — ถ้าเครื่องไหน mask เป็น mm/dd (ยังไม่เคยเจอ) ช่องจะโชว์ไม่ตรง แล้วด่าน
+        # ตรวจไฟล์ .txt จะจับได้อีกชั้น
+        expected = (planting_date.day, planting_date.month)
+        for _ in range(4):
+            after = self._parse_field_date(field.window_text())
+            if after and (after[0], after[2]) == expected:
                 return
-            logger.warning(
-                "วันปลูกไม่ติดที่ model (ส่ง %r, เห็น %s) — ลองสลับลำดับวัน/เดือน", text, last_seen
-            )
+            time.sleep(0.1)
 
         raise CropWatReportedError(
-            f"CropWat ไม่รับวันปลูก {planting_date:%d/%m/%Y} เข้า model จริง (ลองทั้ง "
-            f"วัน/เดือน และ เดือน/วัน แล้ว, เห็น {last_seen}) — ตรวจรูปแบบวันที่ของ "
-            "Windows: Settings → Time & language → Language & region → Regional format "
-            "→ Short date = dd/MM/yyyy แล้วปิด-เปิด CropWat และรันใหม่"
+            f"CropWat ไม่รับวันปลูก {planting_date:%d/%m} เข้าช่องกรอก "
+            f"(เห็น field={field.window_text()!r}) — ลองปิด-เปิด CropWat แล้วรันใหม่"
         )
 
     # ------------------------------------------------------------------
