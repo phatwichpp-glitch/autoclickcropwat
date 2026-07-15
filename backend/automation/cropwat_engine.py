@@ -754,13 +754,29 @@ class CropWatEngine:
         """หมายเหตุ (v0.1.11): เอา polling loop 30 วิเต็มออกด้วยเหตุผลเดียวกับ
         calculate() — สำหรับขั้นนี้มี "สัญญาณเสร็จ" ที่ดีกว่าด้วยซ้ำ: หน้าต่างผลลัพธ์
         (TCropScheduleform) ต้องโผล่ขึ้นมา — _focus_mdi_child ด้านล่างรอหน้าต่างนี้
-        อยู่แล้ว (timeout 10 วิ) เป็นการยืนยันว่าคำนวณสำเร็จจริงในตัวเอง"""
+        อยู่แล้ว (timeout 10 วิ) เป็นการยืนยันว่าคำนวณสำเร็จจริงในตัวเอง
+
+        v0.5.9 — เจอบั๊กโครงสร้างที่มีมาแต่ต้น (เพิ่งชัดตอนรันเบื้องหลังหลายวันปลูก
+        ติดกันเร็วๆ, ยืนยันจาก screenshot จริงของผู้ใช้ที่แถบสถานะโชว์วันปลูกค้าง
+        เป็นวันนี้เป็นสีแดง ทั้งที่ตั้งวันปลูกใหม่ไปแล้ว): หน้าต่างนี้ถ้าเปิดค้างจาก
+        วันปลูกก่อนหน้าอยู่แล้ว _focus_mdi_child ด้านล่างจะ "เจอ" มันทันทีโดยไม่ต้อง
+        รอคำนวณใหม่เสร็จจริงเลย เพราะมันไม่เคยหายไปไหน — สัญญาณ "หน้าต่างโผล่แล้ว"
+        เลยกลายเป็นเท็จ ทำให้ export ไปได้ผลลัพธ์ค้างของวันปลูกก่อนหน้าซ้ำ (เหมือน
+        ที่เคยแก้ไว้แล้วสำหรับหน้าต่างกราฟใน capture_screenshots — จุดนี้ตกหล่นไป)
+        ปิดหน้าต่างเก่าทิ้งก่อนคำนวณทุกครั้ง บังคับให้ CropWat ต้องสร้างหน้าต่างใหม่
+        จริงๆ ตอนคำนวณเสร็จ ทำให้ _focus_mdi_child ด้านล่างเป็นสัญญาณ "คำนวณเสร็จ
+        จริง" ที่เชื่อถือได้อีกครั้ง"""
         self._require_connected()
         cfg = controls.CALCULATE
+        sched_cfg = controls.IRRIGATION_SCHEDULE
+        if sched_cfg.window_class_name:
+            self._close_stale_module_windows(
+                sched_cfg.window_class_name, None, "irrigation schedule table"
+            )
+
         self._invoke_menu(cfg.irrigation_scheduling_menu_path)
         self._raise_if_error_dialog("คำนวณ Irrigation Scheduling")
 
-        sched_cfg = controls.IRRIGATION_SCHEDULE
         if sched_cfg.window_class_name:
             self._focus_mdi_child(sched_cfg.window_class_name)
 
