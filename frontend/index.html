@@ -198,6 +198,17 @@
         </div>
 
         <div class="card">
+          <div class="card-head"><h2>เลือกไฟล์ Climate/Rain ตามเดือน (Shift-year)</h2></div>
+          <div class="card-body stack">
+            <label class="dontshow" style="font-size:13px; color:var(--text)">
+              <input type="checkbox" id="shift-year-per-candidate" />
+              เลือกไฟล์ให้ตรงกับเดือนที่ปลูกแต่ละวัน (แนะนำ — ค่าเริ่มต้น)
+            </label>
+            <span class="note">แต่ละวันปลูกที่ทดลองจะใช้ไฟล์ climate/rain ของเดือนนั้นๆ โดยตรง เช่น ปลูกเดือนเมษาใช้ไฟล์ Apr ปลูกเดือนพฤษภาใช้ไฟล์ May — ถ้าไม่มีไฟล์เดือนนั้นจริงๆ จะถอยไปใช้ไฟล์เดือน<b>ก่อนหน้า</b>ที่ใกล้ที่สุดให้เองอัตโนมัติ (เช่น ไม่มีไฟล์ Sep จะใช้ Aug แทน) — ปิดสวิตช์นี้เพื่อกลับไปพฤติกรรมเดิม (ทั้งปีใช้ไฟล์เดือนแรกสุดที่ทดลองปลูกไฟล์เดียวตลอดทั้งปี)</span>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="card-head"><h2>⏱ เวลาทำมือเทียบเท่า</h2></div>
           <div class="card-body stack">
             <span class="note">ใช้คำนวณตัวเลข "ชม. ทำมือเทียบเท่า" ใน Dashboard — นาทีต่อวันปลูก 1 วัน (รวมทุกขั้นตอน: หาไฟล์ รัน print ถ่ายภาพ กรอก Excel) × จำนวนวันปลูกทั้งหมด</span>

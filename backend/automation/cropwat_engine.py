@@ -1264,22 +1264,26 @@ class CropWatEngine:
         self,
         year: int,
         tasks: list[PlantingDateTask],
-        climate_file: Path,
-        rain_file: Path,
+        climate_file_for,
+        rain_file_for,
         export_dir: Path,
         screenshot_dir: Optional[Path] = None,
         on_candidate_done=None,
         should_stop=None,
     ) -> YearRunResult:
-        try:
-            self.open_climate_file(climate_file)
-            self.open_rain_file(rain_file)
-        except Exception as exc:  # noqa: BLE001 -- กันไม่ให้ 1 ปี error ล้มทั้ง batch
-            logger.warning("ปี %s เปิดไฟล์ climate/rain ไม่สำเร็จ: %s", year, exc)
-            return YearRunResult(
-                year=year, ok=False, error_message=f"เปิดไฟล์ climate/rain ไม่สำเร็จ: {exc}"
-            )
-
+        """v0.5.21 — เปลี่ยนจากรับ climate_file/rain_file ตายตัว (เปิดครั้งเดียว
+        ใช้ทั้งปี) เป็นรับ "ตัว resolve" (Callable[[เดือนปลูก], Path]) เรียกใหม่
+        ก่อนทุกวันปลูก — เปิดตามความหมายจริง: ระบบ shift-year เดิม (StationIndex.
+        resolve()) มี logic "เลือกไฟล์เดือน <= เดือนปลูก มากที่สุด ถ้าไม่มีเลย
+        ในปีนั้นถอยไปปีก่อนหน้า" อยู่แล้ว แต่ runner.py เคย resolve แค่ครั้งเดียว
+        จากเดือนแรกสุดของปีแล้วใช้ไฟล์เดียวซ้ำทุกวันปลูก (ยืนยันจาก screenshot
+        ผู้ใช้เดิม) ทำให้วันปลูกเดือนหลังๆ ในปีเดียวกันอาจไม่ได้ใช้ไฟล์เดือนที่
+        ตรงที่สุดทั้งที่มีอยู่จริง — ตอนนี้ runner.py ส่ง resolver ที่ behavior
+        ต่างกันตาม settings.shift_year_per_candidate (ดู _run_years_inner):
+        เปิด = resolve ใหม่ทุกวันปลูกตามเดือนจริง, ปิด = resolve ครั้งเดียวคงที่
+        (พฤติกรรมเดิมทุกประการ) — open_climate_file/open_rain_file เองมี dedup
+        "ข้ามถ้าไฟล์เป้าหมายเปิดอยู่แล้ว" อยู่แล้ว จึงเรียกซ้ำได้ฟรีไม่เปลืองเวลา
+        ถ้าเดือนไม่เปลี่ยนจากวันปลูกก่อนหน้า"""
         candidates = []
         stopped = False
         for task in tasks:
@@ -1291,6 +1295,27 @@ class CropWatEngine:
                 logger.info("ปี %s: ได้รับคำสั่งหยุด — หยุดหลังทำไป %s วันปลูก", year, len(candidates))
                 stopped = True
                 break
+            try:
+                climate_file = climate_file_for(task.planting_date.month)
+                rain_file = rain_file_for(task.planting_date.month)
+                self.open_climate_file(climate_file)
+                self.open_rain_file(rain_file)
+            except Exception as exc:  # noqa: BLE001 -- กันไม่ให้ 1 วันปลูก error ล้มทั้งปี
+                logger.warning(
+                    "ปี %s วันปลูก %s เปิดไฟล์ climate/rain ไม่สำเร็จ: %s",
+                    year, task.planting_date, exc,
+                )
+                result = CandidateRunResult(
+                    year=year, planting_date=task.planting_date, ok=False,
+                    error_message=f"เปิดไฟล์ climate/rain ไม่สำเร็จ: {exc}",
+                )
+                candidates.append(result)
+                if on_candidate_done is not None:
+                    try:
+                        on_candidate_done(result)
+                    except Exception:  # noqa: BLE001
+                        logger.exception("on_candidate_done callback ล้มเหลว (ไม่กระทบการรัน)")
+                continue
             result = self.run_candidate_planting_date(year, task, export_dir, screenshot_dir)
             candidates.append(result)
             # แจ้ง progress ระดับวันปลูกให้ผู้เรียก (runner ใช้ขับ progress bar

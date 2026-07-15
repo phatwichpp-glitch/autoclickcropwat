@@ -332,13 +332,24 @@ def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine
                 for d, shot in remaining
             ]
 
-            # ยืนยันจาก screenshot จริงของผู้ใช้แล้ว: ทั้งปีใช้ไฟล์ climate/rain
-            # เดียวกันตลอด ไม่สลับไฟล์กลางทางแม้วันปลูกจะข้ามเดือน (ไฟล์เป็นชุด
-            # ข้อมูลต่อเนื่อง 12 เดือน ครอบคลุมทุกวันปลูกที่ทดลองในปีนั้นอยู่แล้ว)
-            # ใช้เดือนของวันปลูกแรก(เร็วสุด)ของปีเป็นตัวอ้างอิง resolve
-            earliest_month = min(d.month for d, _ in date_flags)
-            climate_file = climate_index.resolve(year, earliest_month)
-            rain_file = rain_index.resolve(year, earliest_month)
+            # v0.5.21 — ตามคำขอผู้ใช้ (ค่า default ใหม่): resolve ไฟล์ climate/rain
+            # ใหม่ตามเดือนจริงของ "แต่ละวันปลูก" (climate_file_for/rain_file_for
+            # ถูกเรียกใหม่ใน engine.run_year ก่อนทุกวันปลูก) กติกา shift-year เดิม
+            # (เลือกไฟล์เดือน <= เดือนปลูก มากที่สุด ถ้าไม่มีเลยในปีถอยไปปีก่อนหน้า)
+            # อยู่ใน StationIndex.resolve() อยู่แล้ว แค่ต้องเรียกให้ตรงเดือนจริง
+            # ไม่ใช่ครั้งเดียวจากเดือนแรกสุดของปีแบบเดิม (ปิดสวิตช์นี้เพื่อกลับไป
+            # พฤติกรรมเดิม — ทั้งปีใช้ไฟล์เดือนแรกสุดไฟล์เดียว ยืนยันแล้วว่าไฟล์
+            # climate/rain เป็นชุดข้อมูลต่อเนื่อง 12 เดือน ครอบคลุมทุกวันปลูกในปี
+            # นั้นได้อยู่แล้ว แค่ไม่ตรงเดือนที่สุดเท่านั้น)
+            if settings.shift_year_per_candidate:
+                climate_file_for = lambda m, _y=year: climate_index.resolve(_y, m)  # noqa: E731
+                rain_file_for = lambda m, _y=year: rain_index.resolve(_y, m)  # noqa: E731
+            else:
+                earliest_month = min(d.month for d, _ in date_flags)
+                climate_file_fixed = climate_index.resolve(year, earliest_month)
+                rain_file_fixed = rain_index.resolve(year, earliest_month)
+                climate_file_for = lambda _m, _f=climate_file_fixed: _f  # noqa: E731
+                rain_file_for = lambda _m, _f=rain_file_fixed: _f  # noqa: E731
         except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
             run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
             continue
@@ -353,8 +364,8 @@ def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine
         result = engine.run_year(
             year=year,
             tasks=tasks,
-            climate_file=climate_file,
-            rain_file=rain_file,
+            climate_file_for=climate_file_for,
+            rain_file_for=rain_file_for,
             export_dir=txt_dir(settings),
             screenshot_dir=screenshot_dir(settings),
             on_candidate_done=_on_candidate_done,
