@@ -306,6 +306,16 @@ def check_shift_year_coverage(settings: Settings) -> list[dict]:
 
 def _run_years(years: list[int], settings: Settings) -> None:
     run_state.begin_run()
+
+    # โหมดเดสก์ท็อปซ่อน (v0.6.0): รัน CropWat บนเดสก์ท็อป Win32 แยกที่มองไม่เห็น
+    # บนจอผู้ใช้ — ต้องผูก thread นี้ (runner background thread) เข้ากับเดสก์ท็อป
+    # ซ่อน "ก่อน" ใช้ pywinauto ใดๆ แล้วเปิด CropWat ในนั้นเอง (ผู้ใช้เปิดเองไม่ได้
+    # เพราะอยู่คนละเดสก์ท็อป) โหมดนี้ไม่ต้องใช้ watcher/shield เลย เพราะไม่มีจอให้
+    # รบกวน — ตัดต้นตอของ error "Cannot make a visible window modal" ตอนสลับไฟล์
+    if settings.hidden_desktop_mode:
+        _run_years_hidden_desktop(years, settings)
+        return
+
     speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)
     engine = CropWatEngine(background_mode=settings.background_mode, speed_multiplier=speed_multiplier)
     try:
@@ -331,6 +341,41 @@ def _run_years(years: list[int], settings: Settings) -> None:
     finally:
         engine._exit_protected_mode()
         engine.stop_background_watcher()
+
+
+def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
+    """รันทั้ง batch บนเดสก์ท็อปซ่อน — เปิด CropWat เองในนั้น ไม่ต้อง watcher/shield
+    ต้องผูก thread + launch ก่อน connect เสมอ และปิด CropWat + เดสก์ท็อปตอนจบทุกกรณี"""
+    from desktop_session import DesktopSessionError, HiddenDesktopSession
+
+    session = HiddenDesktopSession(settings.cropwat_exe_path)
+    try:
+        session.bind_and_launch()
+    except DesktopSessionError as exc:
+        logger.error("เปิดเดสก์ท็อปซ่อนไม่สำเร็จ หยุดการรันทั้งหมด: %s", exc)
+        for year in years:
+            run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
+        run_state.end_run()
+        return
+
+    speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)
+    # background_mode=True เพื่อใช้การสั่งเมนูแบบ message ล้วน (เหมาะกับเดสก์ท็อป
+    # ที่ไม่มี input จริง) แต่ไม่เรียก watcher/shield เลย
+    engine = CropWatEngine(background_mode=True, speed_multiplier=speed_multiplier)
+    try:
+        try:
+            engine.connect()
+        except CropWatAutomationError as exc:
+            logger.error("connect() เดสก์ท็อปซ่อนล้มเหลว หยุดการรัน: %s", exc)
+            for year in years:
+                run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
+            run_state.end_run()
+            return
+        # _run_years_inner จัดการสถานะรายปี + end_run() เองครบทุกกรณี
+        _run_years_inner(years, settings, engine)
+    finally:
+        # ปิด CropWat + เดสก์ท็อปซ่อนเสมอ ไม่ว่าจะจบปกติหรือ error
+        session.stop()
 
 
 def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine) -> None:

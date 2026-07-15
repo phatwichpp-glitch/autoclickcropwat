@@ -122,6 +122,13 @@ class Settings(BaseModel):
     # (ไม่กระทบเครื่องที่ใช้ได้ปกติอยู่แล้ว) ดู SPEED_MULTIPLIERS ด้านล่าง
     speed_preset: str = "normal"
 
+    # โหมดเดสก์ท็อปซ่อน (v0.6.0, ทดลอง) — รัน CropWat บน Win32 Desktop object แยก
+    # ที่มองไม่เห็นบนจอ เมาส์/คีย์บอร์ดบนจอหลักไม่แตะเลย และไม่ต้องใช้ watcher/
+    # shield (ตัดต้นตอ error "Cannot make a visible window modal" ตอนสลับไฟล์) —
+    # ต้องตั้ง cropwat_exe_path ไว้ก่อน เพราะโปรแกรมต้องเปิด CropWat เองในเดสก์ท็อป
+    # ซ่อน (ผู้ใช้เปิดเองไม่ได้) ค่า default = ปิด (โหมดเดิมเป็นค่าเริ่มต้น)
+    hidden_desktop_mode: bool = False
+
     # เลือกไฟล์ climate/rain ตามเดือนของ "แต่ละวันปลูก" จริงๆ (v0.5.21 — ตามคำขอ
     # ผู้ใช้) กติกา shift-year (เดือน <= เดือนปลูก มากที่สุด ถ้าไม่มีเลยในปีนั้นให้
     # ถอยไปปีก่อนหน้า) มีอยู่แล้วใน StationIndex.resolve() แต่เดิม runner.py เรียก

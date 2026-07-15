@@ -57,6 +57,7 @@ async function loadConfig() {
   document.getElementById("soil-file").value = settings.soil_file || "";
   document.getElementById("manual-per-candidate").value = settings.manual_minutes_per_candidate;
   document.getElementById("background-mode").checked = !!settings.background_mode;
+  document.getElementById("hidden-desktop-mode").checked = !!settings.hidden_desktop_mode;
   document.getElementById("speed-preset").value = settings.speed_preset || "normal";
   document.getElementById("shift-year-per-candidate").checked = settings.shift_year_per_candidate !== false;
   document.getElementById("brand-sub").textContent = settings.input_dir
@@ -149,6 +150,7 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
     soil_file: document.getElementById("soil-file").value,
     manual_minutes_per_candidate: Number(document.getElementById("manual-per-candidate").value) || 0,
     background_mode: document.getElementById("background-mode").checked,
+    hidden_desktop_mode: document.getElementById("hidden-desktop-mode").checked,
     speed_preset: document.getElementById("speed-preset").value,
     shift_year_per_candidate: document.getElementById("shift-year-per-candidate").checked,
   });
