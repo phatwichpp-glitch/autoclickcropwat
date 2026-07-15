@@ -20,6 +20,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 MONTH_ABBR = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
 
@@ -49,23 +50,44 @@ class StationIndex:
         return sorted(m for (y, m) in self.files_by_year_month if y == year)
 
     def resolve(self, planting_year: int, planting_month: int) -> Path:
-        """กติกา shift-year ตาม spec: เลือกโฟลเดอร์ (ในที่นี้คือไฟล์) ที่เดือน
-        เริ่มต้น <= planting_month และมากที่สุดในปีนั้น ถ้าไม่มีเลยในปีนั้น ให้ข้าม
-        ไปหาเดือนเริ่มต้นมากที่สุดของปีก่อนหน้าแทน"""
-        months_this_year = [m for m in self.available_months(planting_year) if m <= planting_month]
-        if months_this_year:
-            chosen_month = max(months_this_year)
-            chosen_year = planting_year
-        else:
-            months_prev_year = self.available_months(planting_year - 1)
-            if not months_prev_year:
-                raise FileNotFoundError(
-                    f"ไม่พบไฟล์เดือนเริ่มต้นที่ใช้ได้ทั้งปี {planting_year} "
-                    f"และปี {planting_year - 1} (เดือนปลูก {planting_month})"
-                )
-            chosen_month = max(months_prev_year)
-            chosen_year = planting_year - 1
-        return self.files_by_year_month[(chosen_year, chosen_month)]
+        """v0.5.23 — เขียนใหม่จากบั๊กที่เจอผู้ใช้จริง: เดิม fallback ไปดูได้แค่
+        "ปีก่อนหน้าปีเดียว" ถ้าสถานีมีข้อมูลเริ่มทีหลังเดือนปลูกที่ขอ (เช่น สถานี
+        rain เริ่มมีข้อมูลเมษายน 1981 แต่ทดลองปลูกกุมภาพันธ์ 1981) ปีก่อนหน้าก็ไม่
+        มีข้อมูลเลยเหมือนกัน (สถานีเพิ่งเริ่มบันทึก) → fail ทันทีทั้งที่ไฟล์เดือน
+        ใกล้ๆ ในปีเดียวกัน (เม.ย.) มีอยู่จริง แค่อยู่ "ถัดไป" ไม่ใช่ "ก่อนหน้า"
+
+        กติกาใหม่ (เรียงลำดับความสำคัญ) ไล่หาทั่วทุกปีที่มีไฟล์จริง ไม่จำกัดแค่ปี
+        เดียวก่อน/หลัง:
+        1. เดือนเดียวกันหรือ "ก่อนหน้า" ที่ใกล้ที่สุด (ยังคงเป็นค่าหลักเหมือนเดิม —
+           ข้อมูลภูมิอากาศเดือนก่อนใช้แทนเดือนถัดมาได้สมเหตุสมผลกว่าใช้เดือนหลัง)
+        2. ถ้าไม่มี "ก่อนหน้า" เลยสักเดือน (สถานีมีข้อมูลเริ่มทีหลังเดือนที่ขอ)
+           ถอยไปใช้เดือน "ถัดไป" ที่ใกล้ที่สุดแทน — ดีกว่ารันไม่ได้เลย
+        3. ถ้าสถานีไม่มีไฟล์อะไรเลยจริงๆ ถึงจะ fail"""
+        if not self.files_by_year_month:
+            raise FileNotFoundError("ไม่พบไฟล์ climate/rain ในสถานีนี้เลยแม้แต่ไฟล์เดียว")
+
+        target_index = planting_year * 12 + (planting_month - 1)
+        best_backward: Optional[tuple[int, tuple[int, int]]] = None
+        best_forward: Optional[tuple[int, tuple[int, int]]] = None
+        for year, month in self.files_by_year_month:
+            file_index = year * 12 + (month - 1)
+            diff = target_index - file_index
+            if diff >= 0:
+                if best_backward is None or diff < best_backward[0]:
+                    best_backward = (diff, (year, month))
+            else:
+                fdiff = -diff
+                if best_forward is None or fdiff < best_forward[0]:
+                    best_forward = (fdiff, (year, month))
+
+        chosen = best_backward[1] if best_backward is not None else (
+            best_forward[1] if best_forward is not None else None
+        )
+        if chosen is None:
+            raise FileNotFoundError(
+                f"ไม่พบไฟล์เดือนที่ใช้ได้เลย (เดือนปลูก {planting_month}/{planting_year})"
+            )
+        return self.files_by_year_month[chosen]
 
 
 def _index_station(station_dir: Path, pattern: re.Pattern, glob_ext: str) -> StationIndex:
