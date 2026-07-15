@@ -247,13 +247,21 @@ class CropWatEngine:
         main_hwnd = self.main_window.handle
         flags = win32con.SWP_NOSIZE | win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE
 
+        # หน้าต่างชั่วคราวที่ "เราไม่เคยส่ง input ไปหาเลย" → ซ่อนสนิทด้วย SW_HIDE ได้
+        # (แรงกว่า alpha 0) ตัวการหลักที่กระพริบคือ TQRProgressForm ("Printing
+        # progress" ของ QuickReport ที่ CropWat ใช้พิมพ์-ลงไฟล์) — ยืนยันจากการจับ
+        # หน้าต่างจริงตอน export ว่าคือ class นี้ การพิมพ์ลงไฟล์ทำงานต่อได้ปกติแม้
+        # ซ่อนมันไป (progress เป็นแค่ภาพ ไม่เกี่ยวกับตัวเขียนไฟล์) — ต่างจาก Save As/
+        # Print/Open ที่ยังต้องส่ง message ไปกรอก จึงห้าม SW_HIDE (เก็บแค่ alpha+ย้าย)
+        _HIDE_CLASSES = {"TQRProgressForm"}
+        SW_HIDE = 0
+
         def _fling_offscreen(hwnd: int) -> None:
-            """v0.5.6: "ย้ายออกนอกจอ" อย่างเดียวเอาไม่อยู่ — ยืนยันจากผู้ใช้ว่า
-            Printing progress ยังโผล่ทั้งที่ hook ทำงาน: ฟอร์ม progress ของ Delphi
-            จัดตำแหน่งตัวเองกลับกลางจอระหว่างทำงาน เหวี่ยงไปก็เด้งกลับ — เพิ่มไม้
-            ตาย: ตั้ง WS_EX_LAYERED + alpha 0 ให้หน้าต่าง "โปร่งใสสนิท" ซึ่งติด
-            ถาวรกับ style ของหน้าต่าง ต่อให้มันย้ายกลับมากลางจอ/โชว์ซ้ำกี่รอบ
-            ก็มองไม่เห็นอยู่ดี (ยังย้ายออกนอกจอควบด้วยกันพลาด)"""
+            """v0.5.6: "ย้ายออกนอกจอ" อย่างเดียวเอาไม่อยู่ — ฟอร์ม progress ของ
+            Delphi จัดตำแหน่งตัวเองกลับกลางจอ เหวี่ยงไปก็เด้งกลับ จึงตั้ง WS_EX_LAYERED
+            + alpha 0 ให้ "โปร่งใสสนิท" ติดถาวรกับ style
+            v0.5.11: เพิ่ม SW_HIDE เจาะจงหน้าต่าง progress (ซ่อนสนิทกันกระพริบ) —
+            คู่กับการลด latency ของ pump loop (ดู _watch) ให้ hook ทำงานเกือบทันที"""
             try:
                 if hwnd == main_hwnd or not win32gui.IsWindow(hwnd):
                     return
@@ -266,6 +274,8 @@ class CropWatEngine:
                 win32gui.SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA)
                 if win32gui.GetWindowRect(hwnd)[0] > -20000:
                     win32gui.SetWindowPos(hwnd, 0, -32000, -32000, 0, 0, flags)
+                if win32gui.GetClassName(hwnd) in _HIDE_CLASSES:
+                    win32gui.ShowWindow(hwnd, SW_HIDE)
             except Exception:  # noqa: BLE001 -- หน้าต่างตายไประหว่างจัดการ = ปกติ
                 pass
 
@@ -310,22 +320,28 @@ class CropWatEngine:
                 logger.warning("ตั้ง WinEvent hook ไม่สำเร็จ — ใช้ polling สำรองอย่างเดียว")
 
             msg = wintypes.MSG()
-            poll_countdown = 0
+            QS_ALLINPUT = 0x04FF
+            next_poll = time.monotonic()
             while not stop_event.is_set():
                 # hook callback ถูกส่งผ่าน message queue ของ thread นี้ — ต้องปั๊มเสมอ
                 while user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 1):
                     user32.TranslateMessage(ctypes.byref(msg))
                     user32.DispatchMessageW(ctypes.byref(msg))
                 # polling สำรองทุก ~200ms เผื่อ event หลุด (เช่นหน้าต่างที่โผล่ก่อน hook ทัน)
-                poll_countdown -= 1
-                if poll_countdown <= 0:
-                    poll_countdown = 20
+                now = time.monotonic()
+                if now >= next_poll:
+                    next_poll = now + 0.2
                     try:
                         for hwnd in find_windows(process=pid, top_level_only=True):
                             _fling_offscreen(hwnd)
                     except Exception:  # noqa: BLE001
                         pass
-                time.sleep(0.01)
+                # v0.5.11: เดิม sleep(0.01) แบบตายตัว = หน่วงถึง 10ms ก่อนประมวลผล
+                # WinEvent ที่เข้าคิว — นั่นคือช่วงที่ "Printing progress" ทันวาด 1-2
+                # เฟรมแล้วกระพริบ เปลี่ยนเป็น MsgWaitForMultipleObjectsEx ที่ "ตื่น
+                # ทันที" ที่มี message เข้าคิว (timeout สั้นแค่กันไว้เช็ค stop_event +
+                # polling สำรอง) → hook เหวี่ยง/ซ่อนหน้าต่างได้เกือบก่อนมันวาดจอ
+                user32.MsgWaitForMultipleObjectsEx(0, None, 30, QS_ALLINPUT, 0)
 
             if hook:
                 user32.UnhookWinEvent(hook)
