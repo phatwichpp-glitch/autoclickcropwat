@@ -267,7 +267,16 @@ class ErrorDialogControls:
     # ยืนยันแล้ว: dialog error จริงของ CropWat คือ class "TMessageForm" title "Error"
     # (ลองสร้าง error โดยสั่งคำนวณตอนยังไม่มีไฟล์เปิดอยู่) ใส่ "Warning" ไว้ด้วย
     # เผื่อ CropWat ใช้ title นี้กับ dialog เตือนที่ไม่ถึงกับ error (ยังไม่ยืนยัน)
-    title_re: str | None = r"Error|Warning"
+    #
+    # v0.5.28 — ยืนยันจาก screenshot ผู้ใช้จริง: CropWat ยังโยน runtime error
+    # แบบ Delphi ดิบๆ ออกมาได้ด้วย ("Access violation at address 00000000...")
+    # ผ่าน dialog ที่ title เป็นชื่อโปรแกรมเอง "FAO CROPWAT 8.0 for Windows"
+    # (ไม่ใช่ "Error"/"Warning" เลย) — เดิม title_re จับไม่ได้ ปล่อยให้ dialog นี้
+    # ค้างอยู่แบบไม่มีใครรู้จัก โดน background watcher เหวี่ยงออกนอกจอไปแบบ
+    # มองไม่เห็น (ยังเป็น modal บล็อก CropWat อยู่) นี่คือสาเหตุจริงที่ยืนยันได้
+    # แล้วของปัญหา "CropWat ค้างสนิท" ที่รายงานมาก่อนหน้านี้ — เพิ่ม pattern นี้
+    # เข้าไปด้วยเพื่อให้ตรวจจับ+กด OK ปิดได้ปกติเหมือน error dialog อื่นๆ
+    title_re: str | None = r"Error|Warning|FAO CROPWAT"
     # สำคัญ: TMessageForm ไม่มี control แยกสำหรับข้อความ — มีแค่ปุ่ม OK ตัวเดียว
     # เป็นลูกของมัน ข้อความ error วาดตรงบนตัว dialog เอง ไม่ใช่ label แยก เลย
     # "อ่านข้อความละเอียดไม่ได้" ด้วยวิธี child_window ปกติ — ปล่อยเป็นค่าว่าง
