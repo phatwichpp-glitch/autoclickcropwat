@@ -56,8 +56,7 @@ async function loadConfig() {
   document.getElementById("crop-file").value = settings.crop_file || "";
   document.getElementById("soil-file").value = settings.soil_file || "";
   document.getElementById("manual-per-candidate").value = settings.manual_minutes_per_candidate;
-  document.getElementById("background-mode").checked = !!settings.background_mode;
-  document.getElementById("hidden-desktop-mode").checked = !!settings.hidden_desktop_mode;
+  document.getElementById("hidden-desktop-mode").checked = settings.hidden_desktop_mode !== false;
   document.getElementById("speed-preset").value = settings.speed_preset || "normal";
   document.getElementById("shift-year-per-candidate").checked = settings.shift_year_per_candidate !== false;
   document.getElementById("brand-sub").textContent = settings.input_dir
@@ -149,7 +148,6 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
     crop_file: document.getElementById("crop-file").value,
     soil_file: document.getElementById("soil-file").value,
     manual_minutes_per_candidate: Number(document.getElementById("manual-per-candidate").value) || 0,
-    background_mode: document.getElementById("background-mode").checked,
     hidden_desktop_mode: document.getElementById("hidden-desktop-mode").checked,
     speed_preset: document.getElementById("speed-preset").value,
     shift_year_per_candidate: document.getElementById("shift-year-per-candidate").checked,
@@ -715,6 +713,19 @@ document.getElementById("btn-force-close").addEventListener("click", async () =>
   showToast(data.killed ? `ปิด CropWat แล้ว (${data.killed} process) — เปิด CropWat ใหม่แล้วกดเริ่มรันได้เลย` : "ไม่พบ CropWat เปิดอยู่ — รีเซ็ตสถานะโปรแกรมนี้แล้ว");
   const status = await fetch("/api/status");
   renderStatus(await status.json());
+});
+
+document.getElementById("btn-peek-desktop").addEventListener("click", async () => {
+  showToast("กำลังสลับไปดูเดสก์ท็อปซ่อน... จะกลับมาเองใน 10 วินาที");
+  const res = await fetch("/api/desktop/peek", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seconds: 10 }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || "สลับไปดูเดสก์ท็อปซ่อนไม่สำเร็จ");
+  }
 });
 
 document.getElementById("btn-retry").addEventListener("click", async () => {

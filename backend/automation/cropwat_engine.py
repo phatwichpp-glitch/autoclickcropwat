@@ -129,8 +129,6 @@ class CropWatEngine:
         # มาจาก config.SPEED_MULTIPLIERS ตาม settings.speed_preset ของผู้ใช้ กัน
         # คอมรุ่นเก่าแฮงค์เพราะรอไม่พอ (ค่าเริ่มต้น 1.0 = พฤติกรรมเดิมทุกประการ)
         self.speed_multiplier = speed_multiplier
-        self._watcher_stop: Optional[threading.Event] = None
-        self._shield_stop: Optional[threading.Event] = None
 
     def _sleep(self, base_seconds: float) -> None:
         """time.sleep คูณด้วย speed_multiplier — ใช้แทน time.sleep() ตรงๆ ทุกจุด
@@ -138,105 +136,6 @@ class CropWatEngine:
         เวลารอสัญญาณ" เช่น deadline ของ error dialog ก็ scale เหมือนกันเพื่อความ
         สม่ำเสมอ)"""
         time.sleep(base_seconds * self.speed_multiplier)
-
-    # ------------------------------------------------------------------
-    # กันผู้ใช้คลิกพลาดใส่ CropWat ระหว่าง automation ทำงาน (v0.5.17)
-    #
-    # บั๊กร้ายแรงที่เจอจากผู้ใช้จริง: ถ้าคลิกเข้าไปในหน้าต่าง CropWat (แม้บังเอิญ
-    # คลิกโดนช่องกรอก) ระหว่างที่โหมดเบื้องหลังกำลังทำงานอยู่ โปรแกรมจะแฮงค์/เด้ง
-    # error พร้อมเสียงเตือน — สาเหตุคือ v0.5.12 ใช้ SetFocus() ตัวจริง (ผ่าน
-    # AttachThreadInput) เพื่อ commit วันปลูกเข้า model จริง (จำเป็นจริงๆ — พิสูจน์
-    # แล้วว่าวิธี message-based ล้วนๆ ไม่เคย commit ได้) การใช้ SetFocus จริงทำให้
-    # CropWat มีสถานะ "focus จริง" ที่ผู้ใช้แย่งไปแตะพร้อมกันได้ ถ้าจังหวะชนกัน
-    # CropWat จะสับสนว่าใครกำลังแก้ไขช่องไหนอยู่
-    #
-    # ลองแก้ด้วย EnableWindow(FALSE) (เทคนิคที่ Windows เองใช้ตอนโชว์ modal
-    # dialog) ก่อน แต่ทดสอบจริงแล้วพัง: มันบล็อกคำสั่งเมนูของเราเองด้วย (ยืนยัน
-    # จากการทดสอบ: PostMessage(WM_COMMAND) ยังส่งสำเร็จ แต่ CropWat ไม่ประมวลผล
-    # คำสั่งเมนูเลยถ้าหน้าต่างถูก disable อยู่ — File->Open dialog ไม่โผล่มาเลย)
-    # เปลี่ยนแนวทางเป็น "หน้าต่างโปร่งใสลอยทับ CropWat พอดี" แทน — CropWat มองเห็น
-    # ปกติทุกอย่าง (โปร่งใสเกือบสนิท, alpha ต่ำมากแต่ไม่ใช่ WS_EX_TRANSPARENT จึง
-    # ยังรับคลิกได้จริง) ผู้ใช้คลิกจะโดนหน้าต่างนี้ดักไว้แทนที่จะไปถึง CropWat จริง
-    # ส่วน PostMessage/SendMessage/SetFocus ของเรายิงตรงไปที่ HWND อยู่แล้ว ไม่ผ่าน
-    # การคลิกบนจอเลย จึงไม่ถูกหน้าต่างที่ลอยทับกีดขวางแต่อย่างใด
-    def _enter_protected_mode(self) -> None:
-        """v0.5.18 — บั๊กร้ายแรงที่เจอจากผู้ใช้จริง (เครื่อง i9-14900): ตัว shield
-        เดิม (v0.5.17) ครอบ "ขนาดเท่า CropWat" ตลอดเวลาแบบ topmost ค้างไว้ — ถ้า
-        CropWat ถูกเปิดแบบเต็มจอ (maximized, ซึ่งเป็นวิธีใช้งานปกติ) หน้าต่างที่
-        ครอบพอดีตัวก็เท่ากับครอบ "เกือบทั้งจอ" ไปด้วย แถม topmost ค้างตลอดทำให้
-        แม้สลับไปแอปอื่น (alt-tab) shield ก็ยังลอยทับแอปนั้นอยู่ดี (topmost ไม่สน
-        ว่าใคร foreground) ผลคือคลิกไม่ได้ทั้งจอ ไม่ใช่แค่ตอนใช้ CropWat
-
-        แก้ด้วยการโชว์ shield "เฉพาะตอนที่ CropWat เป็นหน้าต่างที่ผู้ใช้กำลังมอง/
-        ใช้งานอยู่จริง" (foreground window เป็นของ process CropWat) เท่านั้น —
-        พอผู้ใช้สลับไปแอปอื่น shield จะหายไปทันที ไม่บังอะไรเลย เสี่ยงแค่ช่วงสั้นๆ
-        (~150ms) หลังสลับมาที่ CropWat ก่อน shield จะทันโผล่ ซึ่งยอมรับได้เพราะการ
-        สลับหน้าต่าง (alt-tab/คลิก taskbar) เองไม่ได้กดโดนช่องกรอกไหนอยู่แล้ว"""
-        if not self.background_mode or self.main_window is None or self._shield_stop is not None:
-            return
-        stop_event = threading.Event()
-        self._shield_stop = stop_event
-        main_hwnd = self.main_window.handle
-        cropwat_pid = self.app.process if self.app is not None else None
-
-        def _shield_loop() -> None:
-            import tkinter as tk
-
-            root = tk.Tk()
-            root.overrideredirect(True)
-            root.attributes("-topmost", True)
-            root.attributes("-alpha", 0.01)  # เกือบมองไม่เห็น แต่ยังรับคลิกได้จริง
-            root.configure(bg="black")
-            root.withdraw()
-
-            def _cropwat_is_foreground() -> bool:
-                fg = win32gui.GetForegroundWindow()
-                if not fg:
-                    return False
-                try:
-                    _, fg_pid = win32process.GetWindowThreadProcessId(fg)
-                except Exception:  # noqa: BLE001
-                    return False
-                return fg_pid == cropwat_pid
-
-            def _sync():
-                if stop_event.is_set():
-                    try:
-                        root.destroy()
-                    except Exception:  # noqa: BLE001
-                        pass
-                    return
-                try:
-                    if (
-                        win32gui.IsWindow(main_hwnd)
-                        and win32gui.IsWindowVisible(main_hwnd)
-                        and not win32gui.IsIconic(main_hwnd)
-                        and _cropwat_is_foreground()
-                    ):
-                        left, top, right, bottom = win32gui.GetWindowRect(main_hwnd)
-                        if right > left and bottom > top:
-                            root.geometry(f"{right - left}x{bottom - top}+{left}+{top}")
-                            root.deiconify()
-                            root.lift()
-                        else:
-                            root.withdraw()
-                    else:
-                        root.withdraw()
-                except Exception:  # noqa: BLE001
-                    pass
-                root.after(120, _sync)
-
-            root.after(50, _sync)
-            root.mainloop()
-
-        threading.Thread(target=_shield_loop, daemon=True, name="click-shield").start()
-
-    def _exit_protected_mode(self) -> None:
-        """ต้องเรียกเสมอตอนจบการรัน (ใน finally) ไม่งั้นหน้าต่างโปร่งใสจะลอยทับ
-        CropWat ค้างอยู่ตลอด ผู้ใช้คลิกไม่ได้แม้รันเสร็จแล้ว"""
-        if self._shield_stop is not None:
-            self._shield_stop.set()
-            self._shield_stop = None
 
     # ------------------------------------------------------------------
     # Step 0: ต่อเข้ากับ CropWat ที่เปิดอยู่แล้ว (ผู้ใช้เปิดโปรแกรมเองก่อนหน้านี้)
@@ -418,210 +317,6 @@ class CropWatEngine:
         # เมธอดชื่อ item_id() (ยืนยันจาก source ของ pywinauto — ไม่ใช่ .id())
         win32gui.PostMessage(self.main_window.handle, win32con.WM_COMMAND, item.item_id(), 0)
         self._sleep(0.15)  # settle: ให้เวลา CropWat ประมวลผลคำสั่งนี้ก่อนยิงคำสั่งถัดไป
-
-    def start_background_watcher(self) -> None:
-        """โหมดเบื้องหลัง (v0.5.4): thread เฝ้ายามที่สแกน "ทุก" หน้าต่าง top-level
-        ของ process CropWat ที่ไม่ใช่หน้าต่างหลัก แล้วย้ายออกนอกจอทันทีที่โผล่
-        (ตรวจทุก 40ms) — จับได้หมดรวมถึงหน้าต่างที่ CropWat เด้งเอง-หายเองโดยเรา
-        ไม่ได้กรอกอะไร เช่น "Printing progress" ระหว่าง print (ยืนยันจาก screenshot
-        ผู้ใช้ว่าคือตัวที่ยังกระพริบหลัง v0.5.3 — การย้ายเฉพาะ dialog ที่เรารู้จัก
-        ตอนจะกรอกไม่ครอบคลุมตัวนี้) — เรียกตอนเริ่มรัน และต้อง stop ตอนจบรันเสมอ
-        ไม่งั้นถ้าผู้ใช้กลับมาใช้ CropWat เองต่อ dialog ของเขาจะโดนเหวี่ยงหนีจอไปด้วย"""
-        if not self.background_mode or self._watcher_stop is not None:
-            return
-        self._require_connected()
-        stop_event = threading.Event()
-        self._watcher_stop = stop_event
-        pid = self.app.process
-        main_hwnd = self.main_window.handle
-        flags = win32con.SWP_NOSIZE | win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE
-
-        # หน้าต่างชั่วคราวที่ "เราไม่เคยส่ง input ไปหาเลย" → ซ่อนสนิทด้วย SW_HIDE ได้
-        # (แรงกว่า alpha 0) ตัวการหลักที่กระพริบคือ TQRProgressForm ("Printing
-        # progress" ของ QuickReport ที่ CropWat ใช้พิมพ์-ลงไฟล์) — ยืนยันจากการจับ
-        # หน้าต่างจริงตอน export ว่าคือ class นี้ การพิมพ์ลงไฟล์ทำงานต่อได้ปกติแม้
-        # ซ่อนมันไป (progress เป็นแค่ภาพ ไม่เกี่ยวกับตัวเขียนไฟล์) — ต่างจาก Save As/
-        # Print/Open ที่ยังต้องส่ง message ไปกรอก จึงห้าม SW_HIDE (เก็บแค่ alpha+ย้าย)
-        _HIDE_CLASSES = {"TQRProgressForm"}
-        SW_HIDE = 0
-        SW_SHOW = 5
-
-        # v1.0 — ทางออกฉุกเฉินอัตโนมัติ: ยืนยันจากผู้ใช้จริงว่า CropWat เคยค้าง
-        # สนิทกดปิดเองไม่ได้เลย (ต้องเข้า Task Manager) ต้นเหตุที่เป็นไปได้มากสุด
-        # คือมี dialog ที่ automation "จำไม่ได้" (title ไม่ตรง pattern ใดๆ ที่เช็ค
-        # ไว้) โผล่ขึ้นมาแล้วโดนเหวี่ยง+โปร่งใสสนิทไปด้วยเหมือนหน้าต่างที่รู้จัก —
-        # กลายเป็น modal ที่มองไม่เห็นแต่ยังบล็อกอินพุตทั้งหมดไปที่หน้าต่างหลัก
-        # ผู้ใช้เลยกดอะไรก็ไม่ติด แก้ด้วยการจับเวลาไว้ ถ้าหน้าต่างไหนถูกเหวี่ยงค้าง
-        # ไว้นานเกิน REVEAL_TIMEOUT_SECONDS (นานกว่า wait ที่มีตัวคุมทุกจุดในระบบ
-        # มาก — ของปกติควรถูกจัดการเสร็จภายในเสี้ยววินาทีถึงไม่กี่วินาที) ให้ "คืน"
-        # หน้าต่างนั้นกลับมาเห็นได้/คลิกได้ตามปกติ พร้อมปลด shield กันคลิก
-        # (_exit_protected_mode) ชั่วคราว เพื่อให้ผู้ใช้กดเองได้ทันที แทนที่จะปล่อย
-        # ให้ค้างมองไม่เห็นตลอดไป — เป็นตาข่ายชั้นสุดท้าย ไม่ได้แก้ที่ต้นเหตุว่าทำไม
-        # dialog นั้นถึงโผล่มา (ยังไม่เคยเจอ/reproduce ได้ตอนพัฒนา) ต้องอาศัย
-        # ผู้ใช้จริงยืนยันว่าใช้ได้ผลรอบต่อไปที่เจอ
-        REVEAL_TIMEOUT_SECONDS = 8.0
-        _flung_at: dict[int, float] = {}
-
-        def _fling_offscreen(hwnd: int) -> None:
-            """v0.5.6: "ย้ายออกนอกจอ" อย่างเดียวเอาไม่อยู่ — ฟอร์ม progress ของ
-            Delphi จัดตำแหน่งตัวเองกลับกลางจอ เหวี่ยงไปก็เด้งกลับ จึงตั้ง WS_EX_LAYERED
-            + alpha 0 ให้ "โปร่งใสสนิท" ติดถาวรกับ style
-            v0.5.11: เพิ่ม SW_HIDE เจาะจงหน้าต่าง progress (ซ่อนสนิทกันกระพริบ) —
-            คู่กับการลด latency ของ pump loop (ดู _watch) ให้ hook ทำงานเกือบทันที"""
-            try:
-                if hwnd == main_hwnd or not win32gui.IsWindow(hwnd):
-                    return
-                _flung_at.setdefault(hwnd, time.monotonic())
-                GWL_EXSTYLE = -20
-                WS_EX_LAYERED = 0x00080000
-                LWA_ALPHA = 0x2
-                ex_style = win32gui.GetWindowLong(hwnd, GWL_EXSTYLE)
-                if not ex_style & WS_EX_LAYERED:
-                    win32gui.SetWindowLong(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED)
-                win32gui.SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA)
-                if win32gui.GetWindowRect(hwnd)[0] > -20000:
-                    win32gui.SetWindowPos(hwnd, 0, -32000, -32000, 0, 0, flags)
-                if win32gui.GetClassName(hwnd) in _HIDE_CLASSES:
-                    win32gui.ShowWindow(hwnd, SW_HIDE)
-            except Exception:  # noqa: BLE001 -- หน้าต่างตายไประหว่างจัดการ = ปกติ
-                pass
-
-        def _reveal_stuck_windows() -> None:
-            """เรียกทุกรอบ poll (~200ms) — เช็คว่ามีหน้าต่างที่เหวี่ยงค้างไว้นานเกิน
-            REVEAL_TIMEOUT_SECONDS โดยยังไม่ตายไปเองไหม (ถ้าตายแล้ว = จัดการเสร็จ
-            ปกติ ไม่ใช่ค้าง) ถ้าเจอ คืนให้มองเห็น/คลิกได้ + ปลด shield ให้ผู้ใช้
-            กู้สถานการณ์เองได้ทันที"""
-            if not _flung_at:
-                return
-            stuck: list[int] = []
-            for hwnd, flung_at in list(_flung_at.items()):
-                if not win32gui.IsWindow(hwnd):
-                    del _flung_at[hwnd]  # หายไปเองแล้ว (ปิดสำเร็จ/จัดการเสร็จปกติ)
-                    continue
-                if time.monotonic() - flung_at > REVEAL_TIMEOUT_SECONDS:
-                    stuck.append(hwnd)
-                    del _flung_at[hwnd]
-            if not stuck:
-                return
-            logger.warning(
-                "เจอหน้าต่าง %s บาน ที่ automation จำไม่ได้และถูกเหวี่ยงออกนอกจอค้าง "
-                "ไว้นานเกิน %.0f วินาที (อาจทำให้ CropWat ค้างสนิท) — คืนให้มองเห็น/"
-                "คลิกได้ตามปกติ ปลด shield ชั่วคราว ให้ผู้ใช้กดเองได้",
-                len(stuck), REVEAL_TIMEOUT_SECONDS,
-            )
-            try:
-                self._exit_protected_mode()
-            except Exception:  # noqa: BLE001 -- ปลด shield ไม่ได้ก็ยังพยายาม reveal ต่อ
-                pass
-            for hwnd in stuck:
-                try:
-                    GWL_EXSTYLE = -20
-                    WS_EX_LAYERED = 0x00080000
-                    ex_style = win32gui.GetWindowLong(hwnd, GWL_EXSTYLE)
-                    win32gui.SetWindowLong(hwnd, GWL_EXSTYLE, ex_style & ~WS_EX_LAYERED)
-                    win32gui.ShowWindow(hwnd, SW_SHOW)
-                    left, top, right, bottom = win32gui.GetWindowRect(main_hwnd)
-                    cx, cy = (left + right) // 2, (top + bottom) // 2
-                    w, h = 400, 200
-                    win32gui.SetWindowPos(
-                        hwnd, 0, cx - w // 2, cy - h // 2, 0, 0,
-                        win32con.SWP_NOSIZE | win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE,
-                    )
-                    win32gui.SetForegroundWindow(hwnd)
-                except Exception:  # noqa: BLE001 -- หน้าต่างตายไประหว่างจัดการ/OS บล็อก foreground steal = ปกติ
-                    pass
-
-        def _watch() -> None:
-            """v0.5.5: เปลี่ยนจาก polling ทุก 40ms (ช้าไป — ตายังจับแวบ 40-100ms
-            ได้ ยืนยันจากผู้ใช้ว่า "Printing progress" ยังโผล่) เป็น WinEvent hook
-            แบบ event-driven: Windows เรียก callback เราทันทีที่หน้าต่างของ
-            process CropWat "ถูกสร้าง" (EVENT_OBJECT_CREATE — ก่อนวาดตัวเองเสร็จ)
-            → เหวี่ยงออกนอกจอตั้งแต่ยังไม่ทันปรากฏบนจอจริง
-            หมายเหตุ: hook ต้องลงทะเบียน + วน message loop ใน thread เดียวกัน
-            และต้องเก็บ reference ของ callback ไว้กัน GC เก็บกลางอากาศ"""
-            import ctypes
-            from ctypes import wintypes
-
-            user32 = ctypes.windll.user32
-            # v0.5.14 — ยืนยันจากผู้ใช้: เครื่องรุ่นเก่ายังเห็น Printing progress
-            # กระพริบทั้งที่วัดบนเครื่องพัฒนาได้ 0ms — ยกความสำคัญ (priority) ของ
-            # thread นี้ให้สูงสุด ลดโอกาสที่ OS จะเลื่อนคิวการประมวลผล WinEvent
-            # callback ออกไปตอนเครื่องมีงานอื่นแย่ง CPU (ช่วยได้บางส่วน ไม่ใช่ทาง
-            # แก้ทั้งหมด — ตัว WINEVENT_OUTOFCONTEXT เองมี latency ข้าม process
-            # ในตัวอยู่แล้วซึ่งลดต่อไม่ได้ด้วยวิธีนี้)
-            try:
-                THREAD_PRIORITY_TIME_CRITICAL = 15
-                kernel32 = ctypes.windll.kernel32
-                kernel32.SetThreadPriority(
-                    kernel32.GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL
-                )
-            except Exception:  # noqa: BLE001 -- ตั้ง priority ไม่ได้ก็รันต่อแบบปกติ
-                pass
-            EVENT_OBJECT_CREATE = 0x8000
-            EVENT_OBJECT_SHOW = 0x8002
-            WINEVENT_OUTOFCONTEXT = 0x0
-            OBJID_WINDOW = 0
-            GA_ROOT = 2
-
-            WinEventProc = ctypes.WINFUNCTYPE(
-                None, wintypes.HANDLE, wintypes.DWORD, wintypes.HWND,
-                wintypes.LONG, wintypes.LONG, wintypes.DWORD, wintypes.DWORD,
-            )
-
-            def _on_event(_hook, _event, hwnd, id_object, _id_child, _tid, _time):
-                if not hwnd or id_object != OBJID_WINDOW:
-                    return
-                # เฉพาะหน้าต่าง top-level (ลูกๆ ข้างในไม่เกี่ยว)
-                if user32.GetAncestor(hwnd, GA_ROOT) != hwnd:
-                    return
-                _fling_offscreen(hwnd)
-
-            callback = WinEventProc(_on_event)
-            # ช่วง CREATE(0x8000)..SHOW(0x8002) + กรองเฉพาะ process ของ CropWat
-            hook = user32.SetWinEventHook(
-                EVENT_OBJECT_CREATE, EVENT_OBJECT_SHOW, 0, callback,
-                pid, 0, WINEVENT_OUTOFCONTEXT,
-            )
-            if not hook:
-                logger.warning("ตั้ง WinEvent hook ไม่สำเร็จ — ใช้ polling สำรองอย่างเดียว")
-
-            msg = wintypes.MSG()
-            QS_ALLINPUT = 0x04FF
-            next_poll = time.monotonic()
-            while not stop_event.is_set():
-                # hook callback ถูกส่งผ่าน message queue ของ thread นี้ — ต้องปั๊มเสมอ
-                while user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 1):
-                    user32.TranslateMessage(ctypes.byref(msg))
-                    user32.DispatchMessageW(ctypes.byref(msg))
-                # polling สำรองทุก ~200ms เผื่อ event หลุด (เช่นหน้าต่างที่โผล่ก่อน hook ทัน)
-                now = time.monotonic()
-                if now >= next_poll:
-                    next_poll = now + 0.2
-                    try:
-                        for hwnd in find_windows(process=pid, top_level_only=True):
-                            _fling_offscreen(hwnd)
-                    except Exception:  # noqa: BLE001
-                        pass
-                    _reveal_stuck_windows()
-                # v0.5.11: เดิม sleep(0.01) แบบตายตัว = หน่วงถึง 10ms ก่อนประมวลผล
-                # WinEvent ที่เข้าคิว — นั่นคือช่วงที่ "Printing progress" ทันวาด 1-2
-                # เฟรมแล้วกระพริบ เปลี่ยนเป็น MsgWaitForMultipleObjectsEx ที่ "ตื่น
-                # ทันที" ที่มี message เข้าคิว (timeout สั้นแค่กันไว้เช็ค stop_event +
-                # polling สำรอง) → hook เหวี่ยง/ซ่อนหน้าต่างได้เกือบก่อนมันวาดจอ
-                user32.MsgWaitForMultipleObjectsEx(0, None, 30, QS_ALLINPUT, 0)
-
-            if hook:
-                user32.UnhookWinEvent(hook)
-            del callback  # ปลด reference หลัง unhook แล้วเท่านั้น
-
-        threading.Thread(target=_watch, daemon=True, name="transient-window-watcher").start()
-        logger.info("เริ่ม watcher (WinEvent hook) เฝ้าเหวี่ยงหน้าต่างชั่วคราวออกนอกจอ")
-
-    def stop_background_watcher(self) -> None:
-        if self._watcher_stop is not None:
-            self._watcher_stop.set()
-            self._watcher_stop = None
-            logger.info("หยุด watcher หน้าต่างชั่วคราวแล้ว")
 
     def _hide_dialog_offscreen(self, dialog) -> None:
         """โหมดเบื้องหลัง (v0.5.3): ย้าย dialog ที่ CropWat เด้งขึ้นมา (Open/Save/
@@ -1576,18 +1271,19 @@ class CropWatEngine:
 # ------------------------------------------------------------------
 #
 # ยืนยันจากรายงานผู้ใช้จริง: บางครั้ง CropWat ค้างแบบกดปิดเองไม่ได้เลย (แม้แต่
-# กด X) ต้องเข้า Task Manager เท่านั้น — ต้นเหตุที่เป็นไปได้มากที่สุดคือมี dialog
-# ที่ automation "จำไม่ได้" (title ไม่ตรงกับ pattern ใดๆ ที่เช็คไว้ เช่น
-# _answer_no_to_save_prompt/_poll_error_dialog) โผล่ขึ้นมาระหว่างรันในโหมด
-# เบื้องหลัง แล้วโดน start_background_watcher เหวี่ยงออกนอกจอ + โปร่งใสสนิท
-# (alpha=0) ไปด้วย — เพราะ watcher เดิมเหวี่ยง "ทุก" หน้าต่างลูกของ process แบบ
-# ไม่เลือก ไม่ใช่แค่ตัวที่เรารู้จัก (ดู start_background_watcher/_fling_offscreen)
-# หน้าต่างนั้นยังเป็น modal ของ CropWat อยู่ (มองไม่เห็นแต่ยังบล็อกอินพุตทั้งหมด
-# ไปที่หน้าต่างหลัก) ผู้ใช้เลยกดอะไรก็ไม่ติดเลยแม้แต่ปิดโปรแกรม
+# กด X) ต้องเข้า Task Manager เท่านั้น — เดิมต้นเหตุหลักคือ watcher ของโหมด
+# เบื้องหลังเก่าเหวี่ยง dialog ที่ไม่รู้จักออกนอกจอทั้งที่ยังเป็น modal อยู่
+# (ระบบนั้นถูกถอดออกทั้งหมดใน v0.7.0 แล้ว — โหมดเดสก์ท็อปซ่อนไม่ต้องเหวี่ยง
+# อะไรเลย) ปุ่มนี้ยังเก็บไว้เป็นทางออกฉุกเฉินสุดท้ายเผื่อ CropWat crash เอง
+# (Access violation ฯลฯ ซึ่งเป็นบั๊กภายในของ CropWat)
 #
 # ฟังก์ชันนี้ไม่ต้องมี engine instance ที่ connect() สำเร็จอยู่ก่อน (เผื่อ state
 # ฝั่งเราเองก็อาจพังไปแล้วจากการค้างเดียวกัน) — หา CropWat จาก title/class เดียว
-# กับที่ connect() ใช้โดยตรง แล้วสั่ง taskkill /F ที่ระดับ process เลย
+# กับที่ connect() ใช้โดยตรง
+#
+# หมายเหตุ (v0.7.0): find_windows เห็นเฉพาะหน้าต่างบนเดสก์ท็อปของ thread ที่
+# เรียก — CropWat บนเดสก์ท็อปซ่อนจะไม่ถูกเจอจากตรงนี้ runner.force_reset จัดการ
+# ปิด session เดสก์ท็อปซ่อน (ผ่าน process handle ตรงๆ) แยกต่างหากอยู่แล้ว
 def force_close_cropwat() -> int:
     """หา CropWat ที่เปิดอยู่ทั้งหมดแล้วสั่งปิดแบบบังคับ คืนจำนวน process ที่ปิด
     สำเร็จ (0 = ไม่เจอ CropWat เปิดอยู่เลย)

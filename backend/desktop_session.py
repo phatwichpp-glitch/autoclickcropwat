@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import threading
 import time
 from pathlib import Path
 from typing import Optional
@@ -36,11 +37,106 @@ logger = logging.getLogger("desktop_session")
 
 _user32 = ctypes.windll.user32
 _GENERIC_ALL = 0x10000000
+_DESKTOP_SWITCHDESKTOP = 0x0100
 _DESKTOP_NAME = "CropWatAutoRunnerDesktop"
+
+# path มาตรฐานที่ตัวติดตั้ง CropWat 8.0 ใช้ — ลองหาให้เองถ้าผู้ใช้ยังไม่ได้ตั้งค่า
+_DEFAULT_EXE_CANDIDATES = [
+    r"C:\Program Files (x86)\CROPWAT\cropwat.exe",
+    r"C:\Program Files\CROPWAT\cropwat.exe",
+]
 
 
 class DesktopSessionError(Exception):
     """เปิดเดสก์ท็อปซ่อน/launch CropWat ในนั้นไม่สำเร็จ"""
+
+
+def resolve_cropwat_exe(configured_path: str) -> Optional[Path]:
+    """คืน path ไฟล์ CropWat ที่ใช้ได้จริง: ใช้ค่าที่ตั้งไว้ก่อน ถ้าว่าง/ไม่มีจริง
+    ลองหาตาม path มาตรฐานของตัวติดตั้ง — คืน None ถ้าไม่เจอเลย"""
+    if configured_path:
+        p = Path(configured_path)
+        if p.is_file():
+            return p
+    for cand in _DEFAULT_EXE_CANDIDATES:
+        p = Path(cand)
+        if p.is_file():
+            return p
+    return None
+
+
+# --------------------------------------------------------------------------
+# "แอบดู" เดสก์ท็อปซ่อน (v0.7.0) — สลับจอไปดูชั่วคราวแล้วกลับมาเอง
+#
+# ปัญหาคลาสสิกของ SwitchDesktop: พอสลับไปเดสก์ท็อปซ่อนแล้ว เมาส์/คีย์บอร์ดของ
+# ผู้ใช้จะอยู่บนเดสก์ท็อปนั้น — หน้าเว็บ/ปุ่มของโปรแกรมเรา (อยู่เดสก์ท็อปหลัก)
+# กดไม่ได้อีกต่อไป จึงต้องมี "ตั๋วกลับอัตโนมัติ": timer thread ที่สลับกลับให้เอง
+# เสมอหลังครบเวลา (SwitchDesktop เรียกจาก thread ไหนก็ได้ ไม่ต้อง bind กับ
+# เดสก์ท็อปเป้าหมาย) — ตาข่ายสุดท้ายถ้าทุกอย่างพัง: Ctrl+Alt+Del แล้ว Cancel
+# จะพากลับเดสก์ท็อปหลักได้เสมอ (พฤติกรรมมาตรฐานของ Windows)
+# --------------------------------------------------------------------------
+
+_peek_lock = threading.Lock()
+_peek_until: float = 0.0
+
+
+def hidden_desktop_exists() -> bool:
+    """เช็คว่าเดสก์ท็อปซ่อนมีอยู่จริงตอนนี้ไหม (มีอยู่ = มี run ที่ใช้มันทำงานอยู่)"""
+    h = _user32.OpenDesktopW(_DESKTOP_NAME, 0, False, _DESKTOP_SWITCHDESKTOP)
+    if not h:
+        return False
+    _user32.CloseDesktop(h)
+    return True
+
+
+def peek_hidden_desktop(seconds: float = 10.0) -> bool:
+    """สลับจอไปดูเดสก์ท็อปซ่อนชั่วคราว แล้ว "กลับมาเองอัตโนมัติ" หลังครบเวลา —
+    คืน False ถ้าเดสก์ท็อปซ่อนไม่มีอยู่ (ยังไม่มีการรันโหมดนี้อยู่)
+
+    เรียกซ้ำระหว่างที่กำลังดูอยู่ = ต่อเวลา (ขยับ deadline ออกไป) ไม่เปิด timer
+    ซ้อนกันเพิ่ม"""
+    global _peek_until
+    hdesk = _user32.OpenDesktopW(_DESKTOP_NAME, 0, False, _DESKTOP_SWITCHDESKTOP)
+    if not hdesk:
+        return False
+
+    with _peek_lock:
+        already_peeking = _peek_until > time.monotonic()
+        _peek_until = time.monotonic() + seconds
+
+    if not _user32.SwitchDesktop(hdesk):
+        _user32.CloseDesktop(hdesk)
+        raise DesktopSessionError(
+            f"สลับไปเดสก์ท็อปซ่อนไม่สำเร็จ (SwitchDesktop err={ctypes.get_last_error()})"
+        )
+    _user32.CloseDesktop(hdesk)
+    logger.info("สลับจอไปดูเดสก์ท็อปซ่อน %.0f วินาที", seconds)
+
+    if not already_peeking:
+        threading.Thread(target=_auto_return, daemon=True, name="desktop-peek-return").start()
+    return True
+
+
+def return_to_default_desktop() -> None:
+    """สลับจอกลับเดสก์ท็อปหลัก (Default) ทันที"""
+    global _peek_until
+    with _peek_lock:
+        _peek_until = 0.0
+    h = _user32.OpenDesktopW("Default", 0, False, _DESKTOP_SWITCHDESKTOP)
+    if h:
+        _user32.SwitchDesktop(h)
+        _user32.CloseDesktop(h)
+        logger.info("สลับจอกลับเดสก์ท็อปหลักแล้ว")
+
+
+def _auto_return() -> None:
+    while True:
+        with _peek_lock:
+            remaining = _peek_until - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(remaining, 0.5))
+    return_to_default_desktop()
 
 
 class HiddenDesktopSession:
@@ -61,12 +157,13 @@ class HiddenDesktopSession:
     def bind_and_launch(self) -> int:
         """สร้างเดสก์ท็อปซ่อน → ผูก thread ปัจจุบันเข้ากับมัน → เปิด CropWat ในนั้น
         → รอจนหน้าต่างหลักโผล่ + ปิด Welcome dialog คืน pid ของ CropWat ที่เปิด"""
-        exe = Path(self.exe_path)
-        if not exe.is_file():
+        exe = resolve_cropwat_exe(self.exe_path)
+        if exe is None:
             raise DesktopSessionError(
-                f"ไม่พบไฟล์โปรแกรม CropWat: {self.exe_path} — โหมดเดสก์ท็อปซ่อนต้อง"
-                "ตั้ง path ไฟล์ .exe ของ CropWat ในหน้าตั้งค่าก่อน (เพราะโปรแกรมต้อง"
-                "เปิด CropWat ให้เองในเดสก์ท็อปซ่อน)"
+                "หาไฟล์โปรแกรม CropWat ไม่เจอ — โหมดเดสก์ท็อปซ่อนต้องตั้ง path ไฟล์ "
+                ".exe ของ CropWat ในหน้าตั้งค่า (การ์ด 'โปรแกรม CropWat 8.0') ก่อน "
+                "เพราะโปรแกรมต้องเปิด CropWat ให้เองในเดสก์ท็อปซ่อน (ลองหาที่ "
+                "C:\\Program Files (x86)\\CROPWAT\\ ให้แล้วก็ไม่เจอ)"
             )
 
         # เก็บ desktop เดิมของ thread ไว้คืนตอนจบ (GetThreadDesktop คืน pseudo-

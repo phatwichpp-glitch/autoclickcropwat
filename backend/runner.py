@@ -193,8 +193,18 @@ def force_reset() -> int:
     ไม่ต้องรอ thread เก่า (ที่อาจค้างอยู่ในนั้นตลอดไปเพราะรอ dialog ที่กด/ปิดเองไม่
     ได้) จบตามธรรมชาติ — thread เก่าถ้ายังค้างอยู่จริงจะกลายเป็น zombie เฉยๆ (ไม่มี
     ผลอะไรต่อ ไม่แตะ state ที่แชร์กันอันตราย เพราะ engine ของมันคุย CropWat ตัวเก่า
-    ที่ตายไปแล้วเท่านั้น) คืนจำนวน process CropWat ที่ปิดสำเร็จ"""
+    ที่ตายไปแล้วเท่านั้น) คืนจำนวน process CropWat ที่ปิดสำเร็จ
+
+    v0.7.0: ปิด CropWat บนเดสก์ท็อปซ่อนด้วย (find_windows มองไม่เห็นข้ามเดสก์ท็อป
+    ต้องปิดผ่าน process handle ของ session ตรงๆ)"""
     killed = force_close_cropwat()
+    session = _active_hidden_session
+    if session is not None:
+        try:
+            session.stop()
+            killed += 1
+        except Exception:  # noqa: BLE001 -- session ปิดไปเองแล้ว = ปกติ
+            pass
     run_state.request_stop()  # เผื่อ thread เก่ายังไม่ตาย ให้รู้ว่าควรหยุดถ้าตื่นมาเช็ค
     run_state.end_run()
     return killed
@@ -305,19 +315,22 @@ def check_shift_year_coverage(settings: Settings) -> list[dict]:
 
 
 def _run_years(years: list[int], settings: Settings) -> None:
+    """v0.7.0 — เหลือ 2 โหมดที่พิสูจน์แล้วว่าเสถียรเท่านั้น:
+    1. เดสก์ท็อปซ่อน (default): CropWat รันบนเดสก์ท็อปแยกที่มองไม่เห็น ไม่มีการ
+       เหวี่ยงหน้าต่าง/shield ใดๆ ทั้งสิ้น (ระบบพวกนั้นคือต้นเหตุ crash — ถอดออก
+       หมดแล้ว)
+    2. โหมดคลาสสิก (ปิดสวิตช์): เห็น CropWat บนจอ ดึงหน้าต่างขึ้นมาระหว่างรัน
+       (background_mode=False ดั้งเดิมที่พิสูจน์มานานว่าเสถียร) — สำหรับเครื่องที่
+       โหมดเดสก์ท็อปซ่อนใช้ไม่ได้"""
     run_state.begin_run()
 
-    # โหมดเดสก์ท็อปซ่อน (v0.6.0): รัน CropWat บนเดสก์ท็อป Win32 แยกที่มองไม่เห็น
-    # บนจอผู้ใช้ — ต้องผูก thread นี้ (runner background thread) เข้ากับเดสก์ท็อป
-    # ซ่อน "ก่อน" ใช้ pywinauto ใดๆ แล้วเปิด CropWat ในนั้นเอง (ผู้ใช้เปิดเองไม่ได้
-    # เพราะอยู่คนละเดสก์ท็อป) โหมดนี้ไม่ต้องใช้ watcher/shield เลย เพราะไม่มีจอให้
-    # รบกวน — ตัดต้นตอของ error "Cannot make a visible window modal" ตอนสลับไฟล์
     if settings.hidden_desktop_mode:
         _run_years_hidden_desktop(years, settings)
         return
 
+    # โหมดคลาสสิก: ผู้ใช้เปิด CropWat ค้างไว้เอง หน้าต่างถูกดึงขึ้นมาระหว่างรัน
     speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)
-    engine = CropWatEngine(background_mode=settings.background_mode, speed_multiplier=speed_multiplier)
+    engine = CropWatEngine(background_mode=False, speed_multiplier=speed_multiplier)
     try:
         engine.connect()
     except CropWatAutomationError as exc:
@@ -326,26 +339,19 @@ def _run_years(years: list[int], settings: Settings) -> None:
             run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
         run_state.end_run()
         return
+    _run_years_inner(years, settings, engine)
 
-    # โหมดเบื้องหลัง: เปิด watcher เฝ้าย้ายหน้าต่างชั่วคราว (Printing progress ฯลฯ)
-    # ออกนอกจอตลอดการรัน — ต้อง stop เสมอตอนจบ (finally ด้านล่าง) ไม่งั้น dialog
-    # ของผู้ใช้ที่กลับมาใช้ CropWat เองหลังรันจะโดนเหวี่ยงหนีจอไปด้วย
-    engine.start_background_watcher()
-    # v0.5.17: ปิดกั้นไม่ให้ผู้ใช้คลิก/พิมพ์ใส่ CropWat ได้จริงตลอดการรัน (กัน
-    # แฮงค์/error จากการชนกันของ input จริงกับ SetFocus ที่ automation ใช้เอง —
-    # ดู CropWatEngine._enter_protected_mode) ต้องปลดล็อกเสมอตอนจบ (finally)
-    # ไม่งั้น CropWat จะค้าง disabled ถาวรจนกว่าจะปิด-เปิดใหม่
-    engine._enter_protected_mode()
-    try:
-        _run_years_inner(years, settings, engine)
-    finally:
-        engine._exit_protected_mode()
-        engine.stop_background_watcher()
+
+# session เดสก์ท็อปซ่อนที่กำลังรันอยู่ — เก็บไว้ให้ force_reset ปิดได้ (CropWat บน
+# เดสก์ท็อปซ่อนมองไม่เห็นจาก find_windows ของ thread บนเดสก์ท็อปปกติ จึงต้องปิด
+# ผ่าน process handle ของ session ตรงๆ) และให้ปุ่ม "ดูเดสก์ท็อปซ่อน" เช็คว่ามีอยู่
+_active_hidden_session = None
 
 
 def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
-    """รันทั้ง batch บนเดสก์ท็อปซ่อน — เปิด CropWat เองในนั้น ไม่ต้อง watcher/shield
+    """รันทั้ง batch บนเดสก์ท็อปซ่อน — เปิด CropWat เองในนั้น
     ต้องผูก thread + launch ก่อน connect เสมอ และปิด CropWat + เดสก์ท็อปตอนจบทุกกรณี"""
+    global _active_hidden_session
     from desktop_session import DesktopSessionError, HiddenDesktopSession
 
     session = HiddenDesktopSession(settings.cropwat_exe_path)
@@ -358,9 +364,10 @@ def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
         run_state.end_run()
         return
 
+    _active_hidden_session = session
     speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)
-    # background_mode=True เพื่อใช้การสั่งเมนูแบบ message ล้วน (เหมาะกับเดสก์ท็อป
-    # ที่ไม่มี input จริง) แต่ไม่เรียก watcher/shield เลย
+    # background_mode=True = สั่งเมนูแบบ message ล้วน (เหมาะกับเดสก์ท็อปที่ไม่มี
+    # input จริง) — ไม่มี watcher/shield ในระบบอีกต่อไป (ถอดออกทั้งหมดใน v0.7.0)
     engine = CropWatEngine(background_mode=True, speed_multiplier=speed_multiplier)
     try:
         try:
@@ -375,6 +382,7 @@ def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
         _run_years_inner(years, settings, engine)
     finally:
         # ปิด CropWat + เดสก์ท็อปซ่อนเสมอ ไม่ว่าจะจบปกติหรือ error
+        _active_hidden_session = None
         session.stop()
 
 

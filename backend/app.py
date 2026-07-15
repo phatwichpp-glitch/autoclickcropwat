@@ -290,6 +290,45 @@ async def force_close_cropwat() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# เดสก์ท็อปซ่อน (v0.7.0): แอบดู/กลับ — สลับจอไปดู CropWat ที่กำลังรันในเดสก์ท็อป
+# ซ่อนชั่วคราว แล้วกลับมาเองอัตโนมัติ (จำเป็นต้องกลับเอง เพราะระหว่างดูอยู่
+# ผู้ใช้กดปุ่มบนหน้าเว็บนี้ไม่ได้ — หน้าเว็บอยู่เดสก์ท็อปหลัก)
+# ---------------------------------------------------------------------------
+
+class DesktopPeekRequest(BaseModel):
+    seconds: float = 10.0
+
+
+@app.post("/api/desktop/peek")
+async def desktop_peek(req: DesktopPeekRequest) -> dict:
+    import desktop_session
+
+    # อนุญาตเฉพาะระหว่างรันจริง — desktop object อาจค้างอยู่หลังรันจบ (system
+    # process เช่น ctfmon ฝากหน้าต่างไว้หลังการสลับ ทำลายเองไม่ได้ ไม่มีผลเสีย
+    # นอกจาก object เปล่าค้าง) ถ้าไม่ guard ผู้ใช้จะสลับไปเจอเดสก์ท็อปว่างเปล่า งง
+    if not runner.is_run_active():
+        raise HTTPException(
+            409, "ยังไม่ได้กำลังรันอยู่ — ปุ่มนี้ใช้ดู CropWat ระหว่างรันในโหมดเดสก์ท็อปซ่อนเท่านั้น"
+        )
+    seconds = max(3.0, min(req.seconds, 60.0))
+    switched = await asyncio.to_thread(desktop_session.peek_hidden_desktop, seconds)
+    if not switched:
+        raise HTTPException(
+            404,
+            "ยังไม่มีเดสก์ท็อปซ่อนทำงานอยู่ — การรันปัจจุบันอาจใช้โหมดคลาสสิก (ปิดสวิตช์เดสก์ท็อปซ่อนไว้)",
+        )
+    return {"ok": True, "seconds": seconds}
+
+
+@app.post("/api/desktop/return")
+async def desktop_return() -> dict:
+    import desktop_session
+
+    await asyncio.to_thread(desktop_session.return_to_default_desktop)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
 # เฟส 2: สร้าง/อัปเดต Excel — อ่าน .txt ทั้งหมดที่มีอยู่จริง เขียนทับ sheet Result
 # ใหม่ทั้งแผ่น เรียกซ้ำได้ทุกเมื่อ ไม่ต้องรอเฟส 1 (รัน CropWat) เสร็จก่อน
 # ---------------------------------------------------------------------------

@@ -77,6 +77,7 @@
               <button id="btn-launch-cropwat" class="btn btn-ghost" type="button" title="เปิดโปรแกรม CropWat 8.0 (ต้องตั้งค่า path ในแท็บตั้งค่าก่อน)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>เปิด CropWat</button>
               <button id="btn-start" class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>เริ่มรันทั้งหมด</button>
               <button id="btn-stop" class="btn btn-danger-ghost"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>หยุด</button>
+              <button id="btn-peek-desktop" class="btn btn-ghost" type="button" title="สลับจอไปดู CropWat ที่กำลังรันในเดสก์ท็อปซ่อน 10 วินาที แล้วกลับมาที่หน้าจอนี้เองอัตโนมัติ (ถ้าอยากกลับเร็วกว่านั้น: กด Ctrl+Alt+Del แล้ว Cancel)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>ดูเดสก์ท็อปซ่อน (10 วิ)</button>
               <button id="btn-force-close" class="btn btn-danger-ghost sm" type="button" title="ใช้เมื่อ CropWat ค้างสนิท กดปิดเองไม่ได้เลย — ปุ่มนี้บังคับปิด CropWat + รีเซ็ตสถานะโปรแกรมนี้ ไม่ต้องปิด-เปิดโปรแกรมนี้ใหม่"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>CropWat ค้าง? ปิดฉุกเฉิน</button>
             </div>
           </div>
@@ -196,24 +197,13 @@
         </div>
 
         <div class="card">
-          <div class="card-head"><h2>โหมดเบื้องหลัง (ทดลอง)</h2></div>
-          <div class="card-body stack">
-            <label class="dontshow" style="font-size:13px; color:var(--text)">
-              <input type="checkbox" id="background-mode" />
-              รันแบบเบื้องหลัง — ใช้คอมทำงานอื่นได้ระหว่างรัน
-            </label>
-            <span class="note">ควบคุม CropWat ด้วยการส่งคำสั่งตรง ไม่แตะเมาส์/คีย์บอร์ด/focus ของเครื่องเลย CropWat อยู่หลังหน้าต่างอื่นได้ <b>แต่ห้ามย่อ (minimize) หน้าต่าง CropWat</b> — ถ้ารันแล้วมีปัญหา ให้ติ๊กออกเพื่อกลับไปโหมดปกติ (ดึงหน้าต่างขึ้นมาระหว่างรัน) แล้วบันทึกการตั้งค่า</span>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><h2>🖥 โหมดเดสก์ท็อปซ่อน (ทดลอง — แก้ปัญหา CropWat ค้าง/crash)</h2></div>
+          <div class="card-head"><h2>🖥 โหมดเดสก์ท็อปซ่อน (ค่าเริ่มต้น — แนะนำ)</h2></div>
           <div class="card-body stack">
             <label class="dontshow" style="font-size:13px; color:var(--text)">
               <input type="checkbox" id="hidden-desktop-mode" />
               รันบนเดสก์ท็อปซ่อน — แยกขาดจากจอ/เมาส์/คีย์บอร์ดของคุณ 100%
             </label>
-            <span class="note"><b>แนะนำถ้าเจอ CropWat ค้าง/crash บ่อยตอนข้ามเดือน/ปี</b> — โปรแกรมจะเปิด CropWat ในเดสก์ท็อปที่มองไม่เห็นแยกต่างหาก (คุณใช้คอมทำงานอื่นได้เต็มที่ เผลอคลิกยังไงก็ไม่กระทบ) และไม่ต้องเหวี่ยงหน้าต่างหนีจอ ซึ่งเป็นตัวจุดชนวน error ตอนสลับไฟล์ <b>ต้องตั้ง path ไฟล์ .exe ของ CropWat ด้านบนก่อน</b> (การ์ด "โปรแกรม CropWat 8.0") เพราะโปรแกรมจะเปิด CropWat ให้เอง — <b>ไม่ต้องเปิด CropWat ค้างไว้เอง</b> เมื่อเปิดโหมดนี้ (เป็นของทดลอง ถ้าผลเพี้ยนให้ปิดสวิตช์กลับไปโหมดเดิม)</span>
+            <span class="note">โปรแกรมจะ<b>เปิด CropWat ให้เอง</b>ในเดสก์ท็อปที่มองไม่เห็นแยกต่างหาก — คุณใช้คอมทำงานอื่นได้เต็มที่ เผลอคลิกยังไงก็ไม่กระทบ และเสถียรกว่ามากตอนสลับไฟล์ข้ามเดือน/ปี (ระบบเก่าที่เหวี่ยงหน้าต่างหนีจอซึ่งเคยทำให้ CropWat ค้าง/crash ถูกถอดออกทั้งหมดแล้ว) <b>ไม่ต้องเปิด CropWat ค้างไว้เอง</b> แค่ตั้ง path ไฟล์ .exe ที่การ์ด "โปรแกรม CropWat 8.0" ด้านบน (ถ้าติดตั้งไว้ที่มาตรฐานระบบจะหาให้เอง) — ระหว่างรันกดปุ่ม "ดูเดสก์ท็อปซ่อน" ที่ Dashboard เพื่อแอบดูได้ <b>ปิดสวิตช์นี้</b> = โหมดคลาสสิก: เห็น CropWat ทำงานบนจอจริง (ต้องเปิด CropWat ค้างไว้เอง และไม่ควรใช้เครื่องระหว่างรัน)</span>
           </div>
         </div>
 
@@ -305,12 +295,12 @@
           <div>วาง path โฟลเดอร์ข้อมูล &rarr; กด <b>สแกน</b> ให้ระบบตรวจว่าเจอครบ &rarr; วาง path โฟลเดอร์ผลลัพธ์ &rarr; กด <b>บันทึกการตั้งค่า</b> (ทำครั้งเดียว ค่าอยู่ถาวร)</div>
         </li>
         <li>
-          <b>เปิดโปรแกรม CropWat 8.0 ทิ้งไว้</b>
-          <div>แค่เปิดโปรแกรมเปล่าๆ พอ ไม่ต้องเปิดไฟล์อะไรเลย — ระบบเปิดไฟล์ให้เองทั้งหมด</div>
+          <b>ไม่ต้องเปิด CropWat เอง (โหมดเดสก์ท็อปซ่อน — ค่าเริ่มต้น)</b>
+          <div>โปรแกรมจะเปิด CropWat ให้เองใน<b>เดสก์ท็อปซ่อน</b>ที่แยกจากจอของคุณ 100% — ใช้คอมทำงานอื่นได้เต็มที่ระหว่างรัน เผลอคลิกยังไงก็ไม่กระทบ (แค่ตั้ง path ไฟล์ CROPWAT.exe ในแท็บตั้งค่าครั้งแรก ถ้าติดตั้งไว้ที่มาตรฐานระบบหาให้เอง) — อยากเห็นว่า CropWat กำลังทำอะไร กดปุ่ม <b>"ดูเดสก์ท็อปซ่อน"</b> ที่ Dashboard ได้ จอจะสลับไปดู 10 วินาทีแล้วกลับมาเอง</div>
         </li>
         <li>
           <b>เริ่มรัน (แท็บ "Dashboard")</b>
-          <div>เลือกช่วงปี + วันปลูกในปฏิทิน &rarr; กด <b>เริ่มรันทั้งหมด</b> (หรือกด <kbd>Ctrl+Alt+F9</kbd> จากที่ไหนก็ได้) — โหมดเบื้องหลัง (ค่าเริ่มต้น) ใช้คอมทำงานอื่นไปได้เลยระหว่างรัน แค่<b>อย่าย่อ (minimize) หน้าต่าง CropWat</b> วางไว้หลังหน้าต่างอื่นได้ ดูความคืบหน้าจากแถบลอยมุมขวาล่างจอ (<kbd>Ctrl+Alt+F10</kbd> = หยุด)</div>
+          <div>เลือกช่วงปี + วันปลูกในปฏิทิน &rarr; กด <b>เริ่มรันทั้งหมด</b> (หรือกด <kbd>Ctrl+Alt+F9</kbd> จากที่ไหนก็ได้) ดูความคืบหน้าจากแถบลอยมุมขวาล่างจอ (<kbd>Ctrl+Alt+F10</kbd> = หยุด)</div>
         </li>
         <li>
           <b>เสร็จแล้วสร้างไฟล์ผลลัพธ์</b>
