@@ -282,6 +282,65 @@ class CropWatEngine:
             "เมนู Window ใน CropWat แล้วปิดหน้าต่างที่ซ้ำให้เหลือแค่บานเดียวก่อนรันใหม่"
         )
 
+    @staticmethod
+    def _module_window_has_file(hwnd: int) -> bool:
+        """หน้าต่างโมดูลที่ "โหลดไฟล์จริงอยู่" จะมี full path ต่อท้าย title เสมอ
+        (เช่น 'Daily ETo Penman-Monteith - D:\\...\\425201clim_1983apr.PED')
+        ส่วนฟอร์มเปล่าที่สร้างจาก File->New จะเป็น '... - untitled' (ไม่มี '\\')
+        — ใช้แยกว่าบานไหนคือของจริง บานไหนคือฟอร์มเปล่าที่ค้าง"""
+        title = win32gui.GetWindowText(hwnd) or ""
+        return "\\" in title
+
+    def _resolve_duplicate_module_windows(self, class_name: str, handles: list[int]) -> list[int]:
+        """v0.5.34 — self-heal หน้าต่างโมดูลซ้ำแทนที่จะยอมแพ้ทันที: ยืนยันจาก
+        screenshot ผู้ใช้จริงว่าตัวที่ซ้ำคือฟอร์มเปล่า 'untitled' ที่ File->New
+        สร้างไว้เบิกทางแล้วปิดไม่สำเร็จ (race กับ watcher/print dialog) — ถ้ามีบาน
+        ที่ "โหลดไฟล์จริง" อยู่ ให้ปิดบานเปล่า/ค้างทั้งหมด เก็บบานที่มีไฟล์ไว้
+        (เลือกบานที่มีไฟล์ล่าสุด = handle ใหม่สุด) แล้วคืนรายการที่เหลือ — กู้เอง
+        ได้โดยไม่ต้องให้ผู้ใช้ไปปิดหน้าต่างเองในเมนู Window อีกต่อไป
+
+        ถ้า "ไม่มีบานไหนโหลดไฟล์เลย" หรือ "มีบานโหลดไฟล์มากกว่า 1 บานจริงๆ" ถึงจะ
+        raise DuplicateWindowError (กรณีที่เดาไม่ได้จริงๆ ไม่กล้าปิดมั่ว)"""
+        titled = [h for h in handles if self._module_window_has_file(h)]
+        empty = [h for h in handles if not self._module_window_has_file(h)]
+
+        if not titled:
+            # ไม่มีบานไหนโหลดไฟล์จริงเลย — เดาไม่ได้ว่าอันไหนถูก
+            raise DuplicateWindowError(self._duplicate_window_message(class_name, handles))
+
+        # เก็บบานที่โหลดไฟล์ล่าสุด (handle มากสุด = สร้างทีหลังสุด) ปิดที่เหลือทั้งหมด
+        keep = max(titled)
+        to_close = [h for h in handles if h != keep]
+        for hwnd in to_close:
+            reason = "เปล่า/untitled" if hwnd in empty else "ไฟล์อื่น"
+            logger.warning(
+                "%s: เจอหน้าต่างซ้ำ — ปิดบาน %s '%s' อัตโนมัติ (self-heal) เก็บบานที่โหลดไฟล์จริงไว้",
+                class_name, reason, win32gui.GetWindowText(hwnd) or "(ไม่มีชื่อ)",
+            )
+            self._force_close_window(hwnd)
+
+        remaining = find_windows(
+            class_name=class_name, top_level_only=False, process=self.app.process
+        )
+        if len(remaining) > 1:
+            # ปิดไม่สำเร็จ/ยังกำกวม — ยอมแพ้แบบมีข้อความชัด
+            raise DuplicateWindowError(self._duplicate_window_message(class_name, remaining))
+        return remaining
+
+    def _force_close_window(self, hwnd: int, timeout: float = 5.0) -> None:
+        """ปิดหน้าต่าง MDI child แบบพยายามหนัก: WM_CLOSE ซ้ำทุก 1 วิ + ตอบ No ให้
+        save-prompt + เคลียร์ error dialog ที่อาจบัง จนกว่าจะปิดได้หรือหมดเวลา"""
+        deadline = time.monotonic() + timeout
+        next_signal = 0.0
+        while win32gui.IsWindow(hwnd) and time.monotonic() < deadline:
+            now = time.monotonic()
+            if now >= next_signal:
+                win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+                next_signal = now + 1.0
+            self._answer_no_to_save_prompt()
+            self._poll_error_dialog()
+            self._sleep(0.15)
+
     def _focus_mdi_child(self, class_name: str):
         """หา MDI child window ด้วย class_name (คงที่ไม่ว่าจะโหลดไฟล์ไหนอยู่) แล้ว
         ดึงขึ้นมา active — ต้องทำก่อนเรียกเมนู File->Open/File->Print เสมอ เพราะ
@@ -306,7 +365,7 @@ class CropWatEngine:
             class_name=class_name, top_level_only=False, process=self.app.process
         )
         if len(handles) > 1:
-            raise DuplicateWindowError(self._duplicate_window_message(class_name, handles))
+            handles = self._resolve_duplicate_module_windows(class_name, handles)
 
         try:
             window = self.app.window(class_name=class_name, top_level_only=False)
@@ -314,13 +373,14 @@ class CropWatEngine:
         except ElementAmbiguousError:
             # v0.5.32 — ยืนยันจากผู้ใช้จริง: เช็คจำนวนหน้าต่างข้างบนแล้วผ่าน (เจอ
             # แค่ 1 ตอนนั้น) แต่ระหว่างที่ยังไม่ทันเรียกบรรทัดนี้ มีหน้าต่างที่ 2 โผล่
-            # ขึ้นมาแทรก (race condition) ปล่อยให้ pywinauto โยน ElementAmbiguousError
-            # ดิบๆ ออกไปตรงๆ ("There are 2 elements that match...") ผู้ใช้อ่านไม่รู้
-            # เรื่อง — เช็คซ้ำแล้วแปลงเป็นข้อความเดียวกับด้านบนเสมอ
+            # ขึ้นมาแทรก (race condition) — v0.5.34 ลอง self-heal ก่อน (ปิดฟอร์มเปล่า
+            # "untitled" ที่ค้าง) แล้วค่อยลองใหม่ ถ้ายังกำกวมจริงถึงจะยอมแพ้
             handles = find_windows(
                 class_name=class_name, top_level_only=False, process=self.app.process
             )
-            raise DuplicateWindowError(self._duplicate_window_message(class_name, handles))
+            self._resolve_duplicate_module_windows(class_name, handles)
+            window = self.app.window(class_name=class_name, top_level_only=False)
+            window.wait("exists enabled visible ready", timeout=10)
         if self.background_mode:
             # สั่ง MDI activate ผ่าน message ตรงไปที่ MDIClient — ไม่แตะ foreground
             # ของระบบเลย (สถานะ "MDI child ไหน active" เป็นเรื่องภายในโปรแกรม)
@@ -1204,8 +1264,12 @@ class CropWatEngine:
         dialogs: list[int] = []
         for class_name in cfg.dialog_class_names:
             try:
+                # visible_only=False — dialog ที่โดน watcher เหวี่ยงออกนอกจอ/ตั้ง
+                # alpha=0 ยังต้องหาเจอ+กดปิดได้ (find_windows default visible_only=True
+                # เสี่ยงพลาดถ้าอนาคตมีการ SW_HIDE dialog เหล่านี้)
                 for hwnd in find_windows(
-                    class_name=class_name, top_level_only=True, process=self.app.process
+                    class_name=class_name, top_level_only=True,
+                    process=self.app.process, visible_only=False,
                 ):
                     title = win32gui.GetWindowText(hwnd) or ""
                     if title_pattern.match(title):
