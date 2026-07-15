@@ -160,11 +160,24 @@ class CropWatEngine:
     # ส่วน PostMessage/SendMessage/SetFocus ของเรายิงตรงไปที่ HWND อยู่แล้ว ไม่ผ่าน
     # การคลิกบนจอเลย จึงไม่ถูกหน้าต่างที่ลอยทับกีดขวางแต่อย่างใด
     def _enter_protected_mode(self) -> None:
+        """v0.5.18 — บั๊กร้ายแรงที่เจอจากผู้ใช้จริง (เครื่อง i9-14900): ตัว shield
+        เดิม (v0.5.17) ครอบ "ขนาดเท่า CropWat" ตลอดเวลาแบบ topmost ค้างไว้ — ถ้า
+        CropWat ถูกเปิดแบบเต็มจอ (maximized, ซึ่งเป็นวิธีใช้งานปกติ) หน้าต่างที่
+        ครอบพอดีตัวก็เท่ากับครอบ "เกือบทั้งจอ" ไปด้วย แถม topmost ค้างตลอดทำให้
+        แม้สลับไปแอปอื่น (alt-tab) shield ก็ยังลอยทับแอปนั้นอยู่ดี (topmost ไม่สน
+        ว่าใคร foreground) ผลคือคลิกไม่ได้ทั้งจอ ไม่ใช่แค่ตอนใช้ CropWat
+
+        แก้ด้วยการโชว์ shield "เฉพาะตอนที่ CropWat เป็นหน้าต่างที่ผู้ใช้กำลังมอง/
+        ใช้งานอยู่จริง" (foreground window เป็นของ process CropWat) เท่านั้น —
+        พอผู้ใช้สลับไปแอปอื่น shield จะหายไปทันที ไม่บังอะไรเลย เสี่ยงแค่ช่วงสั้นๆ
+        (~150ms) หลังสลับมาที่ CropWat ก่อน shield จะทันโผล่ ซึ่งยอมรับได้เพราะการ
+        สลับหน้าต่าง (alt-tab/คลิก taskbar) เองไม่ได้กดโดนช่องกรอกไหนอยู่แล้ว"""
         if not self.background_mode or self.main_window is None or self._shield_stop is not None:
             return
         stop_event = threading.Event()
         self._shield_stop = stop_event
         main_hwnd = self.main_window.handle
+        cropwat_pid = self.app.process if self.app is not None else None
 
         def _shield_loop() -> None:
             import tkinter as tk
@@ -175,6 +188,16 @@ class CropWatEngine:
             root.attributes("-alpha", 0.01)  # เกือบมองไม่เห็น แต่ยังรับคลิกได้จริง
             root.configure(bg="black")
             root.withdraw()
+
+            def _cropwat_is_foreground() -> bool:
+                fg = win32gui.GetForegroundWindow()
+                if not fg:
+                    return False
+                try:
+                    _, fg_pid = win32process.GetWindowThreadProcessId(fg)
+                except Exception:  # noqa: BLE001
+                    return False
+                return fg_pid == cropwat_pid
 
             def _sync():
                 if stop_event.is_set():
@@ -188,6 +211,7 @@ class CropWatEngine:
                         win32gui.IsWindow(main_hwnd)
                         and win32gui.IsWindowVisible(main_hwnd)
                         and not win32gui.IsIconic(main_hwnd)
+                        and _cropwat_is_foreground()
                     ):
                         left, top, right, bottom = win32gui.GetWindowRect(main_hwnd)
                         if right > left and bottom > top:
@@ -200,7 +224,7 @@ class CropWatEngine:
                         root.withdraw()
                 except Exception:  # noqa: BLE001
                     pass
-                root.after(150, _sync)
+                root.after(120, _sync)
 
             root.after(50, _sync)
             root.mainloop()
