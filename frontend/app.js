@@ -115,6 +115,16 @@ function showToast(msg) {
   toastEl._hideTimer = setTimeout(() => toastEl.classList.remove("show"), 1800);
 }
 
+async function copyText(text, okMessage = "คัดลอกแล้ว") {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(okMessage);
+  } catch {
+    showToast("คัดลอกไม่สำเร็จ — เบราว์เซอร์ไม่อนุญาต");
+  }
+}
+
 let calendarSaveTimer = null;
 function scheduleCalendarAutoSave() {
   clearTimeout(calendarSaveTimer);
@@ -391,10 +401,9 @@ document.getElementById("btn-launch-cropwat").addEventListener("click", async ()
   showToast("กำลังเปิด CropWat...");
 });
 
-document.getElementById("btn-open-output").addEventListener("click", async () => {
-  const path = document.getElementById("output-dir").value || settings.output_dir;
+async function openFolder(path, emptyMessage) {
   if (!path) {
-    alert("ยังไม่ได้ตั้งค่าโฟลเดอร์ผลลัพธ์");
+    alert(emptyMessage);
     return;
   }
   const res = await fetch("/api/open-folder", {
@@ -406,6 +415,22 @@ document.getElementById("btn-open-output").addEventListener("click", async () =>
     const err = await res.json().catch(() => ({}));
     alert(err.detail || "เปิดโฟลเดอร์ไม่สำเร็จ");
   }
+}
+
+document.getElementById("btn-open-output").addEventListener("click", () => {
+  openFolder(document.getElementById("output-dir").value || settings.output_dir, "ยังไม่ได้ตั้งค่าโฟลเดอร์ผลลัพธ์");
+});
+
+document.getElementById("btn-open-input").addEventListener("click", () => {
+  openFolder(document.getElementById("input-dir").value || settings.input_dir, "ยังไม่ได้ตั้งค่าโฟลเดอร์ข้อมูลต้นทาง");
+});
+
+document.getElementById("btn-copy-input").addEventListener("click", () => {
+  copyText(document.getElementById("input-dir").value, "คัดลอก path แล้ว");
+});
+
+document.getElementById("btn-copy-output").addEventListener("click", () => {
+  copyText(document.getElementById("output-dir").value, "คัดลอก path แล้ว");
 });
 
 function renderScanResults(scan) {
@@ -528,6 +553,7 @@ function renderStatus(snapshot) {
   const errorBadge = document.getElementById("error-count-badge");
   errorBadge.hidden = errorCount === 0;
   if (errorCount > 0) errorBadge.textContent = `⚠ ${errorCount} ปีมีปัญหา`;
+  document.getElementById("btn-copy-all-errors").hidden = errorCount === 0;
 
   // พอรันจบ (idle) รีเฟรชความคืบหน้าไฟล์ output อัตโนมัติ ให้เห็นว่าทำต่อได้ถึงไหน
   if (!isRunning && wasRunning) fetchOutputProgress();
@@ -548,11 +574,37 @@ function renderStatus(snapshot) {
     if (y.status === "error" && y.error_message) {
       const detail = document.createElement("div");
       detail.className = "year-row";
-      detail.innerHTML = `<div class="err-msg">${y.error_message}</div>`;
+      const wrap = document.createElement("div");
+      wrap.className = "err-msg";
+      const text = document.createElement("span");
+      text.className = "err-text";
+      text.textContent = y.error_message;
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "btn-copy-err";
+      copyBtn.title = "คัดลอกข้อความ error นี้";
+      copyBtn.textContent = "คัดลอก";
+      copyBtn.addEventListener("click", () => copyText(`ปี ${y.year}: ${y.error_message}`));
+      wrap.appendChild(text);
+      wrap.appendChild(copyBtn);
+      detail.appendChild(wrap);
       list.appendChild(detail);
     }
   }
 }
+
+document.getElementById("btn-copy-all-errors").addEventListener("click", async () => {
+  const res = await fetch("/api/status");
+  const snapshot = await res.json();
+  const lines = (snapshot.years || [])
+    .filter((y) => y.status === "error" && y.error_message)
+    .map((y) => `ปี ${y.year}: ${y.error_message}`);
+  if (!lines.length) {
+    showToast("ไม่มีปีที่มีปัญหา");
+    return;
+  }
+  copyText(lines.join("\n\n"), `คัดลอก error ${lines.length} ปีแล้ว`);
+});
 
 async function fetchStatus() {
   const res = await fetch("/api/status");
