@@ -40,6 +40,14 @@ _TXT_RE = re.compile(r"^(?P<year>\d{4})_(?P<mmdd>\d{4})\.txt$")
 _SHOT_RE = re.compile(r"^(?P<year>\d{4})_(?P<mmdd>\d{4})_schedule\.png$")
 
 
+def _peek_pause_check() -> None:
+    """ส่งให้ engine เรียกที่จุดปลอดภัยระหว่างวันปลูก — park การทำงานชั่วคราวถ้า
+    ผู้ใช้กำลังแอบดูเดสก์ท็อปซ่อนอยู่ (ดู desktop_session.wait_if_peek_paused)"""
+    import desktop_session
+
+    desktop_session.wait_if_peek_paused()
+
+
 def _scan_valid_outputs(settings: Settings) -> tuple[set, set, list[str]]:
     """ตรวจไฟล์ output แบบละเอียด "อ่านเนื้อไฟล์จริง" ไม่ใช่แค่ดูว่ามีไฟล์:
 
@@ -502,6 +510,7 @@ def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine
             screenshot_dir=screenshot_dir(settings),
             on_candidate_done=_on_candidate_done,
             should_stop=run_state.is_stop_requested,
+            pause_check=_peek_pause_check,
         )
 
         if result.stopped:

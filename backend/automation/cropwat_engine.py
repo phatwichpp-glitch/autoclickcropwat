@@ -1250,6 +1250,7 @@ class CropWatEngine:
         screenshot_dir: Optional[Path] = None,
         on_candidate_done=None,
         should_stop=None,
+        pause_check=None,
     ) -> YearRunResult:
         """v0.5.21 — เปลี่ยนจากรับ climate_file/rain_file ตายตัว (เปิดครั้งเดียว
         ใช้ทั้งปี) เป็นรับ "ตัว resolve" (Callable[[เดือนปลูก], Path]) เรียกใหม่
@@ -1267,6 +1268,12 @@ class CropWatEngine:
         candidates = []
         stopped = False
         for task in tasks:
+            # v0.7.2 — "จุดปลอดภัย" ระหว่างวันปลูก (ไม่มี dialog เปิดค้าง) ให้ระบบ
+            # แอบดูเดสก์ท็อปซ่อน park การทำงานไว้ก่อน SwitchDesktop ได้ — กันไม่ให้
+            # การสลับจอไปชนจังหวะที่ CropWat กำลังจะโชว์ modal dialog (File->Open)
+            # ซึ่งเป็นต้นเหตุ error "Cannot make a visible window modal" ตอน peek
+            if pause_check is not None:
+                pause_check()
             # เช็คคำสั่งหยุด "ก่อนเริ่มทุกวันปลูก" ไม่ใช่แค่ตอนขึ้นปีใหม่ (v0.2.3 —
             # เดิมกดหยุดแล้วต้องรอจนครบทั้งปีถึงหยุดจริง) — หยุดกลางวันปลูกที่
             # กำลังทำอยู่ไม่ได้ เพราะจะทิ้ง CropWat ค้างครึ่งทาง (dialog เปิดค้าง

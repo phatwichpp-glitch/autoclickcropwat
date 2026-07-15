@@ -79,6 +79,27 @@ def resolve_cropwat_exe(configured_path: str) -> Optional[Path]:
 _peek_lock = threading.Lock()
 _peek_until: float = 0.0
 
+# v0.7.2 — ประสานงาน "หยุด automation ชั่วคราวตอนแอบดู": _pause_requested ตั้งโดย
+# peek เพื่อขอให้ engine ไป park ที่จุดปลอดภัย (ระหว่างวันปลูก ไม่มี dialog เปิด)
+# _parked ตั้งโดย engine เมื่อ park แล้ว — peek รอ event นี้ก่อน SwitchDesktop เสมอ
+# เพื่อไม่ให้การสลับจอชนจังหวะ CropWat โชว์ modal (ต้นเหตุ "Cannot make a visible
+# window modal")
+_pause_requested = threading.Event()
+_parked = threading.Event()
+
+
+def wait_if_peek_paused() -> None:
+    """engine เรียกที่ "จุดปลอดภัย" ระหว่างวันปลูก — ถ้ามีการขอ peek อยู่ ให้ park
+    (บอก peek ว่าพร้อมสลับจอได้แล้ว) แล้วค้างจนกว่า peek จะจบ"""
+    if not _pause_requested.is_set():
+        return
+    logger.info("automation park ที่จุดปลอดภัยระหว่างแอบดูเดสก์ท็อปซ่อน")
+    _parked.set()
+    while _pause_requested.is_set():
+        time.sleep(0.2)
+    _parked.clear()
+    logger.info("แอบดูจบ — automation ทำงานต่อ")
+
 
 def hidden_desktop_exists() -> bool:
     """เช็คว่าเดสก์ท็อปซ่อนมีอยู่จริงตอนนี้ไหม (มีอยู่ = มี run ที่ใช้มันทำงานอยู่)"""
@@ -93,6 +114,12 @@ def peek_hidden_desktop(seconds: float = 10.0) -> bool:
     """สลับจอไปดูเดสก์ท็อปซ่อนชั่วคราว แล้ว "กลับมาเองอัตโนมัติ" หลังครบเวลา —
     คืน False ถ้าเดสก์ท็อปซ่อนไม่มีอยู่ (ยังไม่มีการรันโหมดนี้อยู่)
 
+    v0.7.2 — park automation ที่จุดปลอดภัยก่อนสลับจอเสมอ (รอ engine ทำวันปลูกที่
+    กำลังทำอยู่ให้จบ ไม่มี dialog เปิดค้าง) แล้วค่อย SwitchDesktop — กัน error
+    "Cannot make a visible window modal" ที่เกิดตอนสลับจอชนจังหวะ CropWat โชว์
+    modal (File->Open) ผู้ใช้จะเห็น CropWat หยุดนิ่งตอนแอบดู (สภาพ ณ ตอนนั้น) แล้ว
+    ทำงานต่อเองเมื่อจอกลับ
+
     เรียกซ้ำระหว่างที่กำลังดูอยู่ = ต่อเวลา (ขยับ deadline ออกไป) ไม่เปิด timer
     ซ้อนกันเพิ่ม"""
     global _peek_until
@@ -104,8 +131,18 @@ def peek_hidden_desktop(seconds: float = 10.0) -> bool:
         already_peeking = _peek_until > time.monotonic()
         _peek_until = time.monotonic() + seconds
 
+    if not already_peeking:
+        # ขอให้ engine park ที่จุดปลอดภัยก่อน แล้วรอจน park จริง (มีเพดานเวลา
+        # เผื่อวันปลูกที่กำลังทำใช้เวลานาน/ไม่มี run active) — ครบเพดานก็สลับไป
+        # best-effort ไม่บล็อกผู้ใช้ค้าง
+        _pause_requested.set()
+        parked = _parked.wait(timeout=40.0)
+        if not parked:
+            logger.warning("รอ automation park ไม่ทันใน 40 วิ — สลับจอแบบ best-effort")
+
     if not _user32.SwitchDesktop(hdesk):
         _user32.CloseDesktop(hdesk)
+        _pause_requested.clear()
         raise DesktopSessionError(
             f"สลับไปเดสก์ท็อปซ่อนไม่สำเร็จ (SwitchDesktop err={ctypes.get_last_error()})"
         )
@@ -118,7 +155,7 @@ def peek_hidden_desktop(seconds: float = 10.0) -> bool:
 
 
 def return_to_default_desktop() -> None:
-    """สลับจอกลับเดสก์ท็อปหลัก (Default) ทันที"""
+    """สลับจอกลับเดสก์ท็อปหลัก (Default) ทันที + ปลด pause ให้ automation ทำงานต่อ"""
     global _peek_until
     with _peek_lock:
         _peek_until = 0.0
@@ -127,6 +164,9 @@ def return_to_default_desktop() -> None:
         _user32.SwitchDesktop(h)
         _user32.CloseDesktop(h)
         logger.info("สลับจอกลับเดสก์ท็อปหลักแล้ว")
+    # ปลด park ให้ engine ทำงานต่อ (ทำหลังสลับจอกลับแล้ว — CropWat ไม่ได้เป็น
+    # input desktop อีกต่อไป จึงโชว์ modal ได้ปลอดภัย)
+    _pause_requested.clear()
 
 
 def _auto_return() -> None:
