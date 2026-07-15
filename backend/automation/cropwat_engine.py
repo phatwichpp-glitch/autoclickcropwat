@@ -273,6 +273,15 @@ class CropWatEngine:
         if self.app is None or self.main_window is None:
             raise CropWatNotRunningError("ยังไม่ได้ connect() เข้ากับ CropWat")
 
+    @staticmethod
+    def _duplicate_window_message(class_name: str, handles: list[int]) -> str:
+        titles = [win32gui.GetWindowText(h) or "(ไม่มีชื่อ)" for h in handles]
+        return (
+            f"เจอหน้าต่างโมดูลนี้ ({class_name}) เปิดค้างพร้อมกัน {len(handles)} "
+            f"หน้าต่าง: {', '.join(titles)} — ระบุไม่ได้ว่าอันไหนถูกต้อง กรุณาเปิด "
+            "เมนู Window ใน CropWat แล้วปิดหน้าต่างที่ซ้ำให้เหลือแค่บานเดียวก่อนรันใหม่"
+        )
+
     def _focus_mdi_child(self, class_name: str):
         """หา MDI child window ด้วย class_name (คงที่ไม่ว่าจะโหลดไฟล์ไหนอยู่) แล้ว
         ดึงขึ้นมา active — ต้องทำก่อนเรียกเมนู File->Open/File->Print เสมอ เพราะ
@@ -297,15 +306,21 @@ class CropWatEngine:
             class_name=class_name, top_level_only=False, process=self.app.process
         )
         if len(handles) > 1:
-            titles = [win32gui.GetWindowText(h) or "(ไม่มีชื่อ)" for h in handles]
-            raise DuplicateWindowError(
-                f"เจอหน้าต่างโมดูลนี้ ({class_name}) เปิดค้างพร้อมกัน {len(handles)} "
-                f"หน้าต่าง: {', '.join(titles)} — ระบุไม่ได้ว่าอันไหนถูกต้อง กรุณาเปิด "
-                "เมนู Window ใน CropWat แล้วปิดหน้าต่างที่ซ้ำให้เหลือแค่บานเดียวก่อนรันใหม่"
-            )
+            raise DuplicateWindowError(self._duplicate_window_message(class_name, handles))
 
-        window = self.app.window(class_name=class_name, top_level_only=False)
-        window.wait("exists enabled visible ready", timeout=10)
+        try:
+            window = self.app.window(class_name=class_name, top_level_only=False)
+            window.wait("exists enabled visible ready", timeout=10)
+        except ElementAmbiguousError:
+            # v0.5.32 — ยืนยันจากผู้ใช้จริง: เช็คจำนวนหน้าต่างข้างบนแล้วผ่าน (เจอ
+            # แค่ 1 ตอนนั้น) แต่ระหว่างที่ยังไม่ทันเรียกบรรทัดนี้ มีหน้าต่างที่ 2 โผล่
+            # ขึ้นมาแทรก (race condition) ปล่อยให้ pywinauto โยน ElementAmbiguousError
+            # ดิบๆ ออกไปตรงๆ ("There are 2 elements that match...") ผู้ใช้อ่านไม่รู้
+            # เรื่อง — เช็คซ้ำแล้วแปลงเป็นข้อความเดียวกับด้านบนเสมอ
+            handles = find_windows(
+                class_name=class_name, top_level_only=False, process=self.app.process
+            )
+            raise DuplicateWindowError(self._duplicate_window_message(class_name, handles))
         if self.background_mode:
             # สั่ง MDI activate ผ่าน message ตรงไปที่ MDIClient — ไม่แตะ foreground
             # ของระบบเลย (สถานะ "MDI child ไหน active" เป็นเรื่องภายในโปรแกรม)
@@ -620,13 +635,23 @@ class CropWatEngine:
             if handle == keep_handle:
                 continue
             logger.info("%s: ปิดหน้าต่างเก่า/ซ้ำ '%s'", module_label, title or "(ไม่มีชื่อ)")
-            win32gui.PostMessage(handle, win32con.WM_CLOSE, 0, 0)
-            deadline = time.monotonic() + 5
+            # v0.5.32 — ยืนยันจากผู้ใช้จริง: ส่ง WM_CLOSE ครั้งเดียวแล้วรอเฉยๆ ไม่พอ
+            # บางครั้งหน้าต่างไม่ตอบสนองครั้งแรก (จังหวะไม่ตรง/มี dialog บังอยู่) —
+            # ส่งซ้ำทุก 1 วิ + เช็ค error dialog ที่อาจบล็อกการปิดอยู่ด้วย (ไม่ใช่แค่
+            # save-prompt) ยืดเวลารอจาก 5 เป็น 8 วิ ให้สอดคล้องกับ
+            # REVEAL_TIMEOUT_SECONDS ของ background watcher
+            deadline = time.monotonic() + 8
+            next_close_signal = 0.0
             while win32gui.IsWindow(handle) and time.monotonic() < deadline:
+                now = time.monotonic()
+                if now >= next_close_signal:
+                    win32gui.PostMessage(handle, win32con.WM_CLOSE, 0, 0)
+                    next_close_signal = now + 1.0
                 self._answer_no_to_save_prompt()
+                self._poll_error_dialog()
                 self._sleep(0.15)
             if win32gui.IsWindow(handle):
-                logger.warning("%s: ปิดหน้าต่าง '%s' ไม่สำเร็จภายใน 5 วินาที", module_label, title)
+                logger.warning("%s: ปิดหน้าต่าง '%s' ไม่สำเร็จภายใน 8 วินาที", module_label, title)
         return keep_handle is not None
 
     def open_module_file(
