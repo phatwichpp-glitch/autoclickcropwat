@@ -1,56 +1,65 @@
 """
 os_dialogs.py
 ==============
-Native Windows folder-picker + "open in Explorer" — ใช้ tkinter.filedialog
-(มากับ Python อยู่แล้ว เหมือนที่ overlay.py/cropwat_engine.py ใช้ tkinter อยู่แล้ว)
-ให้ผู้ใช้เลือก path โฟลเดอร์ด้วยการคลิกแทนการพิมพ์/แปะเอง — ลดจุดพังจากการพิมพ์
-path ผิดสำหรับผู้ใช้ที่ไม่ถนัดคอมพิวเตอร์ (v1.0 UX pass)
+Native Windows folder/file-picker + "open in Explorer" / "launch exe"
 
-ต้องเรียกผ่าน asyncio.to_thread() จาก endpoint เสมอ (เป็น blocking call รอผู้ใช้
-คลิกเลือกโฟลเดอร์/ปิด dialog) ห้ามเรียกตรงจาก async def เพราะจะบล็อก event loop
-ทั้งตัวจนกว่าผู้ใช้จะปิด dialog — สร้าง Tk root ของตัวเองแยกทุกครั้ง ไม่ยุ่งกับ
-root ของ overlay.py (รันอยู่ใน thread ของตัวเองอยู่แล้ว)
+v0.5.31 — CRASH FIX ยืนยันจาก Event Viewer จริงของผู้ใช้: โปรแกรมทั้งตัวปิดตัว
+เองแบบไม่มี log/MessageBox เลย ("Faulting module: tcl86t.dll, Exception code:
+0x80000003" ซ้ำหลายรอบ) ต้นเหตุคือไฟล์นี้เคย (v0.5.26) ใช้ tkinter.filedialog
+สร้าง tk.Tk() root ใหม่ทุกครั้งที่กดปุ่ม Browse บน thread ของ FastAPI
+(asyncio.to_thread) — ในขณะที่ overlay.py มี tk.Tk() root ของ tray icon/overlay
+รันอยู่แล้วตลอดเวลาบน thread แยกของตัวเอง (มีชีวิตอยู่ตั้งแต่เปิดโปรแกรมจนปิด
+ไม่ใช่แค่ตอนรัน) — Tcl/Tk **ไม่รองรับหลาย interpreter คนละ thread ในโปรเซส
+เดียวกัน** พอมี 2 root พร้อมกันคนละ thread, Tcl ยิง internal consistency check
+(breakpoint trap) ทำให้ process ทั้งตัวตายทันทีแบบไม่มีทาง catch เป็น Python
+exception ได้เลย (เป็น native crash ระดับ DLL)
+
+แก้โดยเลิกใช้ tkinter ในไฟล์นี้เด็ดขาด เปลี่ยนไปใช้ Win32 common dialog ตรงๆ
+แทน (win32gui.GetOpenFileNameW สำหรับไฟล์, Shell.Application COM object สำหรับ
+โฟลเดอร์) ทั้งคู่ไม่แตะ Tcl/Tk เลย ปลอดภัย 100% ต่อให้เรียกจาก thread ไหนก็ตาม
+พร้อมกันกับ overlay ที่รันอยู่ — ทั้งสอง API เป็น dependency ที่มีอยู่แล้ว
+(win32gui/win32com ใช้อยู่แล้วในโปรเจกต์นี้)
 """
 
 from __future__ import annotations
 
 import os
-import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog
+
+import win32com.client
+import win32con
+import win32gui
 
 
 def pick_folder(initial_dir: str = "", title: str = "เลือกโฟลเดอร์") -> str | None:
-    """เปิด native folder picker ของ Windows คืน path ที่เลือก หรือ None ถ้ากด
-    ยกเลิก/ปิดหน้าต่างเฉยๆ"""
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes("-topmost", True)
-    start = initial_dir if initial_dir and Path(initial_dir).is_dir() else None
+    """เปิด native folder picker ของ Windows (Shell.Application.BrowseForFolder)
+    คืน path ที่เลือก หรือ None ถ้ากดยกเลิก/ปิดหน้าต่างเฉยๆ"""
+    start = initial_dir if initial_dir and Path(initial_dir).is_dir() else ""
     try:
-        chosen = filedialog.askdirectory(parent=root, initialdir=start, title=title)
-    finally:
-        root.destroy()
-    return chosen or None
+        shell = win32com.client.Dispatch("Shell.Application")
+        folder = shell.BrowseForFolder(0, title, 0, start)
+        if folder is None:
+            return None
+        return folder.Self.Path or None
+    except Exception:  # noqa: BLE001 -- ผู้ใช้กดยกเลิก หรือ COM ล้มเหลว = ถือว่าไม่ได้เลือก
+        return None
 
 
 def pick_file(initial_dir: str = "", title: str = "เลือกไฟล์") -> str | None:
-    """เปิด native file picker ของ Windows (กรองเฉพาะ .exe — ใช้เลือกไฟล์โปรแกรม
-    CropWat 8.0) คืน path ที่เลือก หรือ None ถ้ากดยกเลิก"""
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes("-topmost", True)
-    start = initial_dir if initial_dir and Path(initial_dir).is_dir() else None
+    """เปิด native file picker ของ Windows (win32gui.GetOpenFileNameW — Win32
+    common dialog ดั้งเดิม กรองเฉพาะ .exe) คืน path ที่เลือก หรือ None ถ้ากด
+    ยกเลิก (GetOpenFileNameW โยน exception ตอนยกเลิก ไม่ใช่คืนค่าว่าง)"""
+    start = initial_dir if initial_dir and Path(initial_dir).is_dir() else ""
     try:
-        chosen = filedialog.askopenfilename(
-            parent=root,
-            initialdir=start,
-            title=title,
-            filetypes=[("Program", "*.exe"), ("All files", "*.*")],
+        filename, _, _ = win32gui.GetOpenFileNameW(
+            InitialDir=start,
+            Filter="Program (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0",
+            Title=title,
+            Flags=win32con.OFN_FILEMUSTEXIST | win32con.OFN_PATHMUSTEXIST | win32con.OFN_EXPLORER,
         )
-    finally:
-        root.destroy()
-    return chosen or None
+    except Exception:  # noqa: BLE001 -- ผู้ใช้กดยกเลิก = โยน exception ไม่ใช่คืนค่าว่าง
+        return None
+    return filename or None
 
 
 def open_in_explorer(path: str) -> None:
