@@ -23,6 +23,7 @@
     <div class="conn">
       <button id="btn-update" class="btn btn-primary sm" hidden type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>อัปเดต</button>
       <button id="btn-help" class="btn btn-ghost sm" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>วิธีใช้</button>
+      <button id="btn-check-update" class="btn btn-ghost sm" type="button" title="ตรวจว่ามีเวอร์ชันใหม่ไหมตอนนี้เลย"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>ตรวจอัปเดต</button>
       <span class="ver" id="app-version"></span>
       <span class="dot" id="conn-dot"></span>
       <span id="conn-label">กำลังเชื่อมต่อ...</span>
@@ -73,6 +74,7 @@
               </div>
             </div>
             <div class="summary-actions">
+              <button id="btn-launch-cropwat" class="btn btn-ghost" type="button" title="เปิดโปรแกรม CropWat 8.0 (ต้องตั้งค่า path ในแท็บตั้งค่าก่อน)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>เปิด CropWat</button>
               <button id="btn-start" class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>เริ่มรันทั้งหมด</button>
               <button id="btn-stop" class="btn btn-danger-ghost"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>หยุด</button>
               <button id="btn-force-close" class="btn btn-danger-ghost sm" type="button" title="ใช้เมื่อ CropWat ค้างสนิท กดปิดเองไม่ได้เลย — ปุ่มนี้บังคับปิด CropWat + รีเซ็ตสถานะโปรแกรมนี้ ไม่ต้องปิด-เปิดโปรแกรมนี้ใหม่"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>CropWat ค้าง? ปิดฉุกเฉิน</button>
@@ -139,6 +141,20 @@
               <span class="note">วาง climate, rain, crop, soil ไว้ในนี้แบบไหนก็ได้ ระบบหาและจัดเรียงให้เอง</span>
             </label>
             <div id="scan-results"><!-- filled by JS --></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>โปรแกรม CropWat 8.0</h2></div>
+          <div class="card-body stack">
+            <label class="field">
+              <span class="lbl">path ไฟล์ .exe ของ CropWat 8.0 (ไม่บังคับ — ตั้งไว้เพื่อใช้ปุ่ม "เปิด CropWat" ในหน้า Dashboard)</span>
+              <div class="path-field">
+                <input type="text" id="cropwat-exe-path" placeholder="เช่น C:\CROPWAT8.0\CROPWAT.exe" />
+                <button id="btn-browse-cropwat-exe" class="btn btn-ghost sm" type="button" title="เลือกไฟล์ CROPWAT.exe ด้วยการคลิก"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>เลือกไฟล์</button>
+              </div>
+              <span class="note">ตั้งไว้แล้วจะมีปุ่ม "เปิด CropWat" ที่หน้า Dashboard ให้กดเปิดโปรแกรมได้เลย ไม่ต้องไปหาไอคอนเอง</span>
+            </label>
           </div>
         </div>
 

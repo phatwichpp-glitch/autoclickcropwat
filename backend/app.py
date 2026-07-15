@@ -130,6 +130,26 @@ async def open_folder(req: OpenFolderRequest) -> dict:
     return {"ok": True}
 
 
+@app.post("/api/browse-file")
+async def browse_file(req: BrowseFolderRequest) -> dict:
+    path = await asyncio.to_thread(os_dialogs.pick_file, req.initial_dir)
+    return {"path": path}
+
+
+@app.post("/api/launch-cropwat")
+async def launch_cropwat() -> dict:
+    """เปิดโปรแกรม CropWat 8.0 ให้จาก path ที่ตั้งไว้ในหน้าตั้งค่า (cropwat_exe_path)
+    — ไม่ auto-detect เอง (ผู้ใช้ต้องเลือก path ก่อนครั้งแรกผ่านปุ่ม Browse)"""
+    settings = load_settings()
+    if not settings.cropwat_exe_path:
+        raise HTTPException(400, "ยังไม่ได้ตั้งค่า path โปรแกรม CropWat 8.0 — ไปที่แท็บตั้งค่าก่อน")
+    try:
+        await asyncio.to_thread(os_dialogs.launch_exe, settings.cropwat_exe_path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------------------
 # Scan โฟลเดอร์ต้นทาง (หน้าตั้งค่า) — หา climate/rain station, crop, soil ให้เอง
 # และรายงานว่าปีไหนมีไฟล์ครบ/ขาดบ้าง ก่อนเริ่มรันจริง

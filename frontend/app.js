@@ -50,6 +50,7 @@ async function loadConfig() {
   document.getElementById("end-year").value = settings.default_end_year;
   document.getElementById("input-dir").value = settings.input_dir || "";
   document.getElementById("output-dir").value = settings.output_dir || "";
+  document.getElementById("cropwat-exe-path").value = settings.cropwat_exe_path || "";
   document.getElementById("climate-station-dir").value = settings.climate_station_dir || "";
   document.getElementById("rain-station-dir").value = settings.rain_station_dir || "";
   document.getElementById("crop-file").value = settings.crop_file || "";
@@ -131,6 +132,7 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
   const ok = await saveConfig({
     input_dir: document.getElementById("input-dir").value,
     output_dir: document.getElementById("output-dir").value,
+    cropwat_exe_path: document.getElementById("cropwat-exe-path").value,
     climate_station_dir: document.getElementById("climate-station-dir").value,
     rain_station_dir: document.getElementById("rain-station-dir").value,
     crop_file: document.getElementById("crop-file").value,
@@ -361,6 +363,32 @@ document.getElementById("btn-browse-input").addEventListener("click", () => {
 
 document.getElementById("btn-browse-output").addEventListener("click", () => {
   browseFolder(document.getElementById("output-dir"));
+});
+
+async function pickFile(inputEl) {
+  const res = await fetch("/api/browse-file", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ initial_dir: inputEl.value }),
+  });
+  const data = await res.json();
+  if (data.path) {
+    inputEl.value = data.path;
+  }
+}
+
+document.getElementById("btn-browse-cropwat-exe").addEventListener("click", () => {
+  pickFile(document.getElementById("cropwat-exe-path"));
+});
+
+document.getElementById("btn-launch-cropwat").addEventListener("click", async () => {
+  const res = await fetch("/api/launch-cropwat", { method: "POST" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || "เปิด CropWat ไม่สำเร็จ");
+    return;
+  }
+  showToast("กำลังเปิด CropWat...");
 });
 
 document.getElementById("btn-open-output").addEventListener("click", async () => {
@@ -707,23 +735,33 @@ function connectWebSocket() {
 // ---------------------------------------------------------------------------
 const updateModal = document.getElementById("update-modal");
 
-async function checkUpdate() {
+async function checkUpdate(manual = false) {
+  const btn = document.getElementById("btn-check-update");
+  if (manual && btn) btn.disabled = true;
   try {
     const res = await fetch("/api/update/check");
     const info = await res.json();
     document.getElementById("app-version").textContent = `v${info.current}`;
     if (info.update_available) {
-      const btn = document.getElementById("btn-update");
-      btn.hidden = false;
-      btn.lastChild.textContent = `อัปเดตเป็น v${info.latest}`;
+      const updBtn = document.getElementById("btn-update");
+      updBtn.hidden = false;
+      updBtn.lastChild.textContent = `อัปเดตเป็น v${info.latest}`;
       // เด้งแจ้งเตือนเต็มจอ "ทุกครั้ง" ที่เปิดโปรแกรมแล้วมีเวอร์ชันใหม่ (จงใจไม่มี
       // ปุ่ม "ไม่ต้องเตือนอีก" — กันคนใช้เวอร์ชันเก่าค้างไว้ทั้งที่ตัวแก้บั๊กออกแล้ว)
       document.getElementById("upd-ver").textContent = `v${info.latest}`;
       document.getElementById("upd-notes").textContent = (info.notes || "").trim();
       updateModal.hidden = false;
+    } else if (manual) {
+      showToast(`ใช้เวอร์ชันล่าสุดอยู่แล้ว (v${info.current})`);
     }
-  } catch { /* ออฟไลน์/เช็คไม่ได้ = ไม่ต้องโชว์อะไร */ }
+  } catch {
+    if (manual) showToast("ตรวจอัปเดตไม่สำเร็จ — ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต");
+  } finally {
+    if (manual && btn) btn.disabled = false;
+  }
 }
+
+document.getElementById("btn-check-update").addEventListener("click", () => checkUpdate(true));
 
 const updatingModal = document.getElementById("updating-modal");
 

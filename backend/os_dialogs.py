@@ -34,10 +34,38 @@ def pick_folder(initial_dir: str = "", title: str = "เลือกโฟลเ
     return chosen or None
 
 
+def pick_file(initial_dir: str = "", title: str = "เลือกไฟล์") -> str | None:
+    """เปิด native file picker ของ Windows (กรองเฉพาะ .exe — ใช้เลือกไฟล์โปรแกรม
+    CropWat 8.0) คืน path ที่เลือก หรือ None ถ้ากดยกเลิก"""
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    start = initial_dir if initial_dir and Path(initial_dir).is_dir() else None
+    try:
+        chosen = filedialog.askopenfilename(
+            parent=root,
+            initialdir=start,
+            title=title,
+            filetypes=[("Program", "*.exe"), ("All files", "*.*")],
+        )
+    finally:
+        root.destroy()
+    return chosen or None
+
+
 def open_in_explorer(path: str) -> None:
     """เปิดโฟลเดอร์ใน Windows Explorer — โยน FileNotFoundError ถ้า path ไม่ใช่
     โฟลเดอร์จริง (caller แปลงเป็น HTTP error ให้ผู้ใช้เห็นสาเหตุชัดเจน)"""
     p = Path(path)
     if not p.is_dir():
         raise FileNotFoundError(f"ไม่พบโฟลเดอร์: {path}")
+    os.startfile(str(p))  # type: ignore[attr-defined]  # Windows-only API
+
+
+def launch_exe(path: str) -> None:
+    """เปิดโปรแกรม (เช่น CropWat 8.0) จาก path ที่ตั้งค่าไว้ — โยน
+    FileNotFoundError ถ้า path ไม่ใช่ไฟล์จริง"""
+    p = Path(path)
+    if not p.is_file():
+        raise FileNotFoundError(f"ไม่พบไฟล์โปรแกรม: {path}")
     os.startfile(str(p))  # type: ignore[attr-defined]  # Windows-only API
