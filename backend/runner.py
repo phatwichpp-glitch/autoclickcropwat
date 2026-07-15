@@ -248,9 +248,15 @@ def _run_years(years: list[int], settings: Settings) -> None:
     # ออกนอกจอตลอดการรัน — ต้อง stop เสมอตอนจบ (finally ด้านล่าง) ไม่งั้น dialog
     # ของผู้ใช้ที่กลับมาใช้ CropWat เองหลังรันจะโดนเหวี่ยงหนีจอไปด้วย
     engine.start_background_watcher()
+    # v0.5.17: ปิดกั้นไม่ให้ผู้ใช้คลิก/พิมพ์ใส่ CropWat ได้จริงตลอดการรัน (กัน
+    # แฮงค์/error จากการชนกันของ input จริงกับ SetFocus ที่ automation ใช้เอง —
+    # ดู CropWatEngine._enter_protected_mode) ต้องปลดล็อกเสมอตอนจบ (finally)
+    # ไม่งั้น CropWat จะค้าง disabled ถาวรจนกว่าจะปิด-เปิดใหม่
+    engine._enter_protected_mode()
     try:
         _run_years_inner(years, settings, engine)
     finally:
+        engine._exit_protected_mode()
         engine.stop_background_watcher()
 
 
@@ -295,6 +301,10 @@ def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine
     total_candidates = sum(len(planting_dates_for_year(settings, y)) for y in years)
     completed = {"n": _count_done_in_plan(settings, years, txt_ok, shots_ok)}
     run_state.set_candidate_progress(completed["n"], total_candidates)
+    # v0.5.17: บอก state ว่ามีกี่วันปลูก "เสร็จไปแล้วจากรอบก่อนหน้า" (resume) —
+    # กัน ETA คำนวณความเร็วจากของเก่าที่ไม่ได้ทำอะไรในรอบนี้เลย (ดู
+    # RunState._estimate_eta_seconds)
+    run_state.set_baseline_done(completed["n"])
 
     for year in years:
         if run_state.is_stop_requested():

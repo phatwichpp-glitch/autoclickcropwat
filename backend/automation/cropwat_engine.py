@@ -130,6 +130,7 @@ class CropWatEngine:
         # คอมรุ่นเก่าแฮงค์เพราะรอไม่พอ (ค่าเริ่มต้น 1.0 = พฤติกรรมเดิมทุกประการ)
         self.speed_multiplier = speed_multiplier
         self._watcher_stop: Optional[threading.Event] = None
+        self._shield_stop: Optional[threading.Event] = None
 
     def _sleep(self, base_seconds: float) -> None:
         """time.sleep คูณด้วย speed_multiplier — ใช้แทน time.sleep() ตรงๆ ทุกจุด
@@ -137,6 +138,81 @@ class CropWatEngine:
         เวลารอสัญญาณ" เช่น deadline ของ error dialog ก็ scale เหมือนกันเพื่อความ
         สม่ำเสมอ)"""
         time.sleep(base_seconds * self.speed_multiplier)
+
+    # ------------------------------------------------------------------
+    # กันผู้ใช้คลิกพลาดใส่ CropWat ระหว่าง automation ทำงาน (v0.5.17)
+    #
+    # บั๊กร้ายแรงที่เจอจากผู้ใช้จริง: ถ้าคลิกเข้าไปในหน้าต่าง CropWat (แม้บังเอิญ
+    # คลิกโดนช่องกรอก) ระหว่างที่โหมดเบื้องหลังกำลังทำงานอยู่ โปรแกรมจะแฮงค์/เด้ง
+    # error พร้อมเสียงเตือน — สาเหตุคือ v0.5.12 ใช้ SetFocus() ตัวจริง (ผ่าน
+    # AttachThreadInput) เพื่อ commit วันปลูกเข้า model จริง (จำเป็นจริงๆ — พิสูจน์
+    # แล้วว่าวิธี message-based ล้วนๆ ไม่เคย commit ได้) การใช้ SetFocus จริงทำให้
+    # CropWat มีสถานะ "focus จริง" ที่ผู้ใช้แย่งไปแตะพร้อมกันได้ ถ้าจังหวะชนกัน
+    # CropWat จะสับสนว่าใครกำลังแก้ไขช่องไหนอยู่
+    #
+    # ลองแก้ด้วย EnableWindow(FALSE) (เทคนิคที่ Windows เองใช้ตอนโชว์ modal
+    # dialog) ก่อน แต่ทดสอบจริงแล้วพัง: มันบล็อกคำสั่งเมนูของเราเองด้วย (ยืนยัน
+    # จากการทดสอบ: PostMessage(WM_COMMAND) ยังส่งสำเร็จ แต่ CropWat ไม่ประมวลผล
+    # คำสั่งเมนูเลยถ้าหน้าต่างถูก disable อยู่ — File->Open dialog ไม่โผล่มาเลย)
+    # เปลี่ยนแนวทางเป็น "หน้าต่างโปร่งใสลอยทับ CropWat พอดี" แทน — CropWat มองเห็น
+    # ปกติทุกอย่าง (โปร่งใสเกือบสนิท, alpha ต่ำมากแต่ไม่ใช่ WS_EX_TRANSPARENT จึง
+    # ยังรับคลิกได้จริง) ผู้ใช้คลิกจะโดนหน้าต่างนี้ดักไว้แทนที่จะไปถึง CropWat จริง
+    # ส่วน PostMessage/SendMessage/SetFocus ของเรายิงตรงไปที่ HWND อยู่แล้ว ไม่ผ่าน
+    # การคลิกบนจอเลย จึงไม่ถูกหน้าต่างที่ลอยทับกีดขวางแต่อย่างใด
+    def _enter_protected_mode(self) -> None:
+        if not self.background_mode or self.main_window is None or self._shield_stop is not None:
+            return
+        stop_event = threading.Event()
+        self._shield_stop = stop_event
+        main_hwnd = self.main_window.handle
+
+        def _shield_loop() -> None:
+            import tkinter as tk
+
+            root = tk.Tk()
+            root.overrideredirect(True)
+            root.attributes("-topmost", True)
+            root.attributes("-alpha", 0.01)  # เกือบมองไม่เห็น แต่ยังรับคลิกได้จริง
+            root.configure(bg="black")
+            root.withdraw()
+
+            def _sync():
+                if stop_event.is_set():
+                    try:
+                        root.destroy()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    return
+                try:
+                    if (
+                        win32gui.IsWindow(main_hwnd)
+                        and win32gui.IsWindowVisible(main_hwnd)
+                        and not win32gui.IsIconic(main_hwnd)
+                    ):
+                        left, top, right, bottom = win32gui.GetWindowRect(main_hwnd)
+                        if right > left and bottom > top:
+                            root.geometry(f"{right - left}x{bottom - top}+{left}+{top}")
+                            root.deiconify()
+                            root.lift()
+                        else:
+                            root.withdraw()
+                    else:
+                        root.withdraw()
+                except Exception:  # noqa: BLE001
+                    pass
+                root.after(150, _sync)
+
+            root.after(50, _sync)
+            root.mainloop()
+
+        threading.Thread(target=_shield_loop, daemon=True, name="click-shield").start()
+
+    def _exit_protected_mode(self) -> None:
+        """ต้องเรียกเสมอตอนจบการรัน (ใน finally) ไม่งั้นหน้าต่างโปร่งใสจะลอยทับ
+        CropWat ค้างอยู่ตลอด ผู้ใช้คลิกไม่ได้แม้รันเสร็จแล้ว"""
+        if self._shield_stop is not None:
+            self._shield_stop.set()
+            self._shield_stop = None
 
     # ------------------------------------------------------------------
     # Step 0: ต่อเข้ากับ CropWat ที่เปิดอยู่แล้ว (ผู้ใช้เปิดโปรแกรมเองก่อนหน้านี้)
@@ -624,8 +700,7 @@ class CropWatEngine:
     # ------------------------------------------------------------------
     # Step 2: ตั้งวันปลูกใน module Crop (crop file เองคงที่ทุกปี ไม่ต้องเปิดใหม่)
     # ------------------------------------------------------------------
-    @staticmethod
-    def _real_set_focus(hwnd: int) -> None:
+    def _real_set_focus(self, hwnd: int) -> None:
         """v0.5.12 — ย้าย focus จริงข้าม process ด้วย SetFocus() ผ่าน AttachThreadInput
         (ไม่ใช่ post message จำลอง WM_SETFOCUS) บทเรียนสำคัญที่สุดจากการ probe ซ้ำ
         หลายสิบรอบระหว่าง audit: TCropForm's TMaskEdit มีค่า "ข้อความที่เห็น" กับ

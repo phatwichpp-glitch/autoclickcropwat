@@ -36,6 +36,13 @@ class RunState:
         # ปรับตามความเร็วเครื่อง/ความเร็ว automation/จำนวน screenshot ที่ต้องถ่าย
         # ในแต่ละวันปลูกจริงๆ
         self._run_started_at: Optional[float] = None
+        # v0.5.17 — บั๊กที่เจอจากผู้ใช้จริง (ETA เพี้ยน "1 นาที" แล้วพุ่งเป็น
+        # "2 นาที" ทั้งที่ยังไม่เสร็จ): ตอน resume, candidate_done เริ่มจากเลขสูง
+        # ทันที (เช่น 206) ที่ elapsed≈0 ทำให้คำนวณ "วินาที/วันปลูก" ต่ำเวอร์
+        # เกินจริงตั้งแต่ติ๊กแรก แล้วค่อยๆ ไต่ขึ้นตามจริงพอวันปลูกใหม่ๆ (ที่ช้ากว่า
+        # มาก) เริ่มเสร็จ — เก็บ "จำนวนที่เสร็จไปแล้วก่อนรอบนี้จะเริ่ม" (baseline)
+        # ไว้แยก แล้วคำนวณความเร็วจากเฉพาะวันปลูกที่ "เสร็จจริงในรอบรันนี้" เท่านั้น
+        self._baseline_done = 0
 
         # websocket subscribers ต้องถูกแตะจาก asyncio loop เท่านั้น
         self._subscribers: set[asyncio.Queue] = set()
@@ -64,6 +71,15 @@ class RunState:
             self._candidate_done = 0
             self._candidate_total = 0
             self._run_started_at = time.monotonic()
+            self._baseline_done = 0
+        self._notify()
+
+    def set_baseline_done(self, done: int) -> None:
+        """เรียกครั้งเดียวตอนเริ่มรัน (หลัง begin_run) — บอกว่ามีกี่วันปลูกที่
+        "เสร็จไปแล้วจากรอบก่อนหน้า" ก่อนรอบนี้จะเริ่มทำอะไรเลย ใช้แยกคำนวณ ETA
+        จากความเร็วที่ทำได้จริงในรอบนี้เท่านั้น ดู _estimate_eta_seconds"""
+        with self._lock:
+            self._baseline_done = done
         self._notify()
 
     def set_candidate_progress(self, done: int, total: int) -> None:
@@ -141,25 +157,34 @@ class RunState:
                 eta_seconds=eta_seconds,
             )
 
-    def _estimate_eta_seconds(self) -> Optional[float]:
-        """v0.5.14: ประมาณเวลาที่เหลือจาก "ความเร็วเฉลี่ยจริงที่ทำได้" ในรอบรันนี้
-        (วินาทีที่ผ่านไปจริง ÷ จำนวนวันปลูกที่เสร็จแล้ว) แทนตัวเลขคงที่ — ปรับตาม
-        ความเร็วเครื่อง/ตั้งค่าความเร็ว/จำนวน screenshot ที่ต้องถ่ายจริงในแต่ละ
-        วันปลูกโดยอัตโนมัติ ต้องเรียกในนี้เท่านั้น (ไม่ล็อกซ้ำ — caller ถือ lock
-        อยู่แล้ว) คืน None ถ้ายังประมาณไม่ได้ (ยังไม่เริ่ม/ยังไม่มีวันปลูกเสร็จเลย)
+    # ต้องมีวันปลูกที่ "เสร็จจริงในรอบรันนี้" อย่างน้อยกี่อันก่อนจะกล้าประมาณ ETA
+    # — ตัวอย่างเดียวแกว่งง่ายเกินไป (เช่น วันปลูกแรกบังเอิญเร็ว/ช้าผิดปกติ)
+    _MIN_SAMPLES_FOR_ETA = 2
 
-        หมายเหตุ: ถ้าเป็นการรันต่อจากที่ค้าง (resume) ตัวเลขช่วงแรกจะดูเร็วเกินจริง
-        เล็กน้อย เพราะ candidate_done รวมของเก่าที่เสร็จไปแล้วในรอบก่อนหน้าด้วย
-        ทั้งที่รอบนี้ยังไม่ได้ทำอะไรเลย — จะแม่นขึ้นเรื่อยๆ เมื่อทำต่อไปสักพัก"""
+    def _estimate_eta_seconds(self) -> Optional[float]:
+        """v0.5.17 — เขียนใหม่หลังเจอบั๊กจากผู้ใช้จริง (ETA บอก "1 นาที" แล้วพุ่ง
+        เป็น "2 นาที" ทั้งที่ยังไม่เสร็จ งงว่าคำนวณถอยหลังได้ไง): เดิม (v0.5.14)
+        ใช้ candidate_done ทั้งหมดหาร elapsed ทั้งหมด — พอเป็นการ resume ที่มีของ
+        เก่าเสร็จไปแล้วเยอะ (เช่น 206 วันปลูก) candidate_done จะกระโดดขึ้นสูง
+        ทันทีที่ elapsed≈0 ทำให้ "วินาที/วันปลูก" ต่ำเวอร์เกินจริงตั้งแต่ติ๊กแรก
+        (ดูเหมือนเร็วมาก) แล้วค่อยๆ ไต่ขึ้นตามจริงเมื่อวันปลูกใหม่ๆ ที่ช้ากว่ามาก
+        เริ่มเสร็จทีละอัน — ตัวเลขเลย "เพิ่มขึ้น" ระหว่างรันซึ่งดูขัดสามัญสำนึก
+
+        แก้ด้วยการนับความเร็วจากเฉพาะวันปลูกที่ "เสร็จจริงในรอบรันนี้" เท่านั้น
+        (ไม่รวมของเก่าที่ resume มา ดู _baseline_done/set_baseline_done) และรอให้
+        มีตัวอย่างจริงอย่างน้อย _MIN_SAMPLES_FOR_ETA ก่อนกล้าฟันธง กัน sample
+        เดียวที่อาจเร็ว/ช้าผิดปกติทำให้เดาพลาดไปไกล — ต้องเรียกในนี้เท่านั้น (ไม่
+        ล็อกซ้ำ — caller ถือ lock อยู่แล้ว) คืน None ถ้ายังประมาณไม่ได้"""
+        newly_done = self._candidate_done - self._baseline_done
         if (
             self._overall_state != OverallRunState.RUNNING
             or self._run_started_at is None
-            or self._candidate_done <= 0
+            or newly_done < self._MIN_SAMPLES_FOR_ETA
             or self._candidate_total <= self._candidate_done
         ):
             return None
         elapsed = time.monotonic() - self._run_started_at
-        seconds_per_candidate = elapsed / self._candidate_done
+        seconds_per_candidate = elapsed / newly_done
         remaining = self._candidate_total - self._candidate_done
         return seconds_per_candidate * remaining
 
