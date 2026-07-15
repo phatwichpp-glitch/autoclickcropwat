@@ -131,6 +131,11 @@ class Settings(BaseModel):
     # หน้าต่างขึ้นมาระหว่างรัน ผู้ใช้ต้องเปิด CropWat ค้างไว้เอง)
     hidden_desktop_mode: bool = True
 
+    # v0.7.1 (user-journey audit): เป้าหมายจริงของผู้ใช้คือ "ไฟล์ส่งงาน" (Result.xlsx
+    # + Screenshots.docx) ไม่ใช่ .txt ดิบ — รันจบครบแบบไม่มี error ให้สร้างทั้งสอง
+    # ไฟล์ต่อเลยอัตโนมัติ ไม่ต้องกลับมากดเองอีก 2 คลิกทุกครั้ง
+    auto_build_outputs: bool = True
+
     # เลือกไฟล์ climate/rain ตามเดือนของ "แต่ละวันปลูก" จริงๆ (v0.5.21 — ตามคำขอ
     # ผู้ใช้) กติกา shift-year (เดือน <= เดือนปลูก มากที่สุด ถ้าไม่มีเลยในปีนั้นให้
     # ถอยไปปีก่อนหน้า) มีอยู่แล้วใน StationIndex.resolve() แต่เดิม runner.py เรียก

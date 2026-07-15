@@ -165,7 +165,56 @@ def _tray_icon_image(running: bool):
     return img
 
 
+# ไอคอน tray ที่กำลังแสดงอยู่ — ให้ notify() ใช้ยิง Windows toast notification
+# ได้จากทุกที่ในโปรแกรม (เช่น runner แจ้ง "รันเสร็จแล้ว") None = tray ยังไม่ขึ้น
+_tray_icon = None
+
+
+def notify(title: str, message: str) -> None:
+    """ยิง Windows notification ผ่าน tray icon (v0.7.1 — จาก user-journey audit:
+    เดิมรันเสร็จ/หยุด/พังแบบ "เงียบสนิท" ผู้ใช้ที่ไปทำงานอื่นอยู่ไม่มีทางรู้เลยว่า
+    งานเสร็จหรือยัง ต้องคอยเปิดหน้าเว็บ/ชี้เมาส์ดู tooltip เอาเอง) — เรียกจาก
+    thread ไหนก็ได้ ปลอดภัยแบบ no-op ถ้า tray ยังไม่พร้อม"""
+    icon = _tray_icon
+    if icon is None:
+        return
+    try:
+        icon.notify(message, title)
+    except Exception:  # noqa: BLE001 -- notification เป็นของเสริม พังแล้วห้ามล้มงานหลัก
+        logger.debug("ยิง notification ไม่สำเร็จ", exc_info=True)
+
+
+def _open_output_folder(_icon=None, _item=None) -> None:
+    """เปิดโฟลเดอร์ผลลัพธ์ใน Explorer จากเมนู tray — ทางลัดที่ใช้บ่อยสุดหลังรันเสร็จ"""
+    try:
+        from config import load_settings
+
+        out = load_settings().output_dir
+        if out and Path(out).is_dir():
+            os.startfile(out)  # type: ignore[attr-defined]
+        else:
+            notify("CropWat Auto-runner", "ยังไม่ได้ตั้งค่าโฟลเดอร์ผลลัพธ์ หรือโฟลเดอร์ยังไม่ถูกสร้าง")
+    except Exception:  # noqa: BLE001
+        logger.exception("เปิดโฟลเดอร์ผลลัพธ์จาก tray ไม่สำเร็จ")
+
+
+def _peek_desktop(_icon=None, _item=None) -> None:
+    """สลับจอไปดูเดสก์ท็อปซ่อน 10 วิจากเมนู tray (กลับเองอัตโนมัติ)"""
+    try:
+        import runner
+        import desktop_session
+
+        if not runner.is_run_active():
+            notify("CropWat Auto-runner", "ยังไม่ได้กำลังรันอยู่ — ดูเดสก์ท็อปซ่อนได้เฉพาะระหว่างรัน")
+            return
+        if not desktop_session.peek_hidden_desktop(10.0):
+            notify("CropWat Auto-runner", "การรันปัจจุบันไม่ได้ใช้โหมดเดสก์ท็อปซ่อน")
+    except Exception:  # noqa: BLE001
+        logger.exception("ดูเดสก์ท็อปซ่อนจาก tray ไม่สำเร็จ")
+
+
 def _tray_loop() -> None:
+    global _tray_icon
     import pystray
 
     def _open_window(_icon=None, _item=None) -> None:
@@ -176,6 +225,8 @@ def _tray_loop() -> None:
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("▶ เริ่มรันทั้งหมด", lambda _i, _m: _start_run()),
         pystray.MenuItem("⏹ หยุด", lambda _i, _m: _stop_run()),
+        pystray.MenuItem("👁 ดูเดสก์ท็อปซ่อน (10 วิ)", _peek_desktop),
+        pystray.MenuItem("📂 เปิดโฟลเดอร์ผลลัพธ์", _open_output_folder),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("✕ ปิดโปรแกรม", lambda _i, _m: _quit_app()),
     )
@@ -183,6 +234,7 @@ def _tray_loop() -> None:
     icon = pystray.Icon(
         "CropWatAutoRunner", _tray_icon_image(running=False), "CropWat Auto-runner", menu
     )
+    _tray_icon = icon
 
     def _watch(icon: "pystray.Icon") -> None:
         """poll run_state ทุก 500ms แล้วสลับไอคอน (จุดเขียว) + tooltip ตามสถานะ —
@@ -313,6 +365,9 @@ def _overlay_loop() -> None:
     # tkinter.messagebox) กันโค้ดถามยืนยัน "ปิดโปรแกรม" ซ้ำซ้อน 2 ที่
     _mk_button(top_row, "✕", _quit_app, fg=DIM).pack(side="right")
     _mk_button(top_row, "⚙", _open_app_window, fg=DIM).pack(side="right")
+    # v0.7.1 (user-journey audit): ปุ่มแอบดูเดสก์ท็อปซ่อนจาก overlay ตรงๆ —
+    # จุดที่ผู้ใช้มองระหว่างรันคือ overlay อยู่แล้ว ไม่ต้องอ้อมไปเปิดหน้าเว็บ
+    _mk_button(top_row, "👁", _peek_desktop, fg=DIM).pack(side="right")
     _mk_button(top_row, "⏹", _stop_run, fg="#ff7b7b").pack(side="right")
     _mk_button(top_row, "▶", _start_run, fg=BAR_DONE).pack(side="right")
 

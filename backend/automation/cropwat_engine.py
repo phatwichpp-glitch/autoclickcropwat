@@ -182,38 +182,28 @@ class CropWatEngine:
         )
 
     @staticmethod
-    def _module_window_has_file(hwnd: int) -> bool:
-        """หน้าต่างโมดูลที่ "โหลดไฟล์จริงอยู่" จะมี full path ต่อท้าย title เสมอ
-        (เช่น 'Daily ETo Penman-Monteith - D:\\...\\425201clim_1983apr.PED')
-        ส่วนฟอร์มเปล่าที่สร้างจาก File->New จะเป็น '... - untitled' (ไม่มี '\\')
-        — ใช้แยกว่าบานไหนคือของจริง บานไหนคือฟอร์มเปล่าที่ค้าง"""
-        title = win32gui.GetWindowText(hwnd) or ""
-        return "\\" in title
+    def _is_empty_module_window(hwnd: int) -> bool:
+        """ฟอร์มเปล่าที่ File->New สร้างไว้เบิกทาง (ยังไม่โหลดไฟล์) — title จะลงท้าย
+        'untitled' หรือว่างเปล่า ต่างจากบานที่โหลดไฟล์แล้วซึ่งมี path เต็มต่อท้าย"""
+        title = (win32gui.GetWindowText(hwnd) or "").strip().lower()
+        return title == "" or title.endswith("untitled")
 
     def _resolve_duplicate_module_windows(self, class_name: str, handles: list[int]) -> list[int]:
-        """v0.5.34 — self-heal หน้าต่างโมดูลซ้ำแทนที่จะยอมแพ้ทันที: ยืนยันจาก
-        screenshot ผู้ใช้จริงว่าตัวที่ซ้ำคือฟอร์มเปล่า 'untitled' ที่ File->New
-        สร้างไว้เบิกทางแล้วปิดไม่สำเร็จ (race กับ watcher/print dialog) — ถ้ามีบาน
-        ที่ "โหลดไฟล์จริง" อยู่ ให้ปิดบานเปล่า/ค้างทั้งหมด เก็บบานที่มีไฟล์ไว้
-        (เลือกบานที่มีไฟล์ล่าสุด = handle ใหม่สุด) แล้วคืนรายการที่เหลือ — กู้เอง
-        ได้โดยไม่ต้องให้ผู้ใช้ไปปิดหน้าต่างเองในเมนู Window อีกต่อไป
-
-        ถ้า "ไม่มีบานไหนโหลดไฟล์เลย" หรือ "มีบานโหลดไฟล์มากกว่า 1 บานจริงๆ" ถึงจะ
-        raise DuplicateWindowError (กรณีที่เดาไม่ได้จริงๆ ไม่กล้าปิดมั่ว)"""
-        titled = [h for h in handles if self._module_window_has_file(h)]
-        empty = [h for h in handles if not self._module_window_has_file(h)]
-
-        if not titled:
-            # ไม่มีบานไหนโหลดไฟล์จริงเลย — เดาไม่ได้ว่าอันไหนถูก
-            raise DuplicateWindowError(self._duplicate_window_message(class_name, handles))
-
-        # เก็บบานที่โหลดไฟล์ล่าสุด (handle มากสุด = สร้างทีหลังสุด) ปิดที่เหลือทั้งหมด
-        keep = max(titled)
-        to_close = [h for h in handles if h != keep]
-        for hwnd in to_close:
-            reason = "เปล่า/untitled" if hwnd in empty else "ไฟล์อื่น"
+        """v0.7.1 — เขียนใหม่จากการรันจริงบทผู้ใช้ (journey audit): เจอกรณีที่ทั้ง
+        2 บานไม่มี path ในชื่อ (เช่น 'Day ETo PenMon' + '... - untitled') ทำให้
+        ตรรกะเดิม (เก็บเฉพาะบานที่มี backslash) หาบานเก็บไม่เจอ → raise → ทุกวัน
+        ปลูกหลังจากนั้นล้มทั้งปี — เปลี่ยนหลักการเป็น "ลดให้เหลือบานเดียวเสมอ ไม่
+        ยอมแพ้ ไม่ raise": ปิดฟอร์มเปล่า 'untitled' ทิ้งก่อน (ส่วนเกินแน่ๆ) เก็บ 1
+        บานที่เหลือ — เลือกบานที่โหลดไฟล์แล้วใหม่สุด ถ้าไม่มีเลยก็เก็บบานใหม่สุด
+        (handle มากสุด = สร้างทีหลังสุด) การรันแบบทิ้งไว้ต้อง self-heal เองเสมอ"""
+        loaded = [h for h in handles if not self._is_empty_module_window(h)]
+        keep = max(loaded) if loaded else max(handles)
+        for hwnd in handles:
+            if hwnd == keep:
+                continue
+            reason = "ฟอร์มเปล่า/untitled" if self._is_empty_module_window(hwnd) else "บานเก่า/ซ้ำ"
             logger.warning(
-                "%s: เจอหน้าต่างซ้ำ — ปิดบาน %s '%s' อัตโนมัติ (self-heal) เก็บบานที่โหลดไฟล์จริงไว้",
+                "%s: หน้าต่างซ้ำ — ปิดบาน %s '%s' อัตโนมัติ (self-heal)",
                 class_name, reason, win32gui.GetWindowText(hwnd) or "(ไม่มีชื่อ)",
             )
             self._force_close_window(hwnd)
@@ -222,9 +212,15 @@ class CropWatEngine:
             class_name=class_name, top_level_only=False, process=self.app.process
         )
         if len(remaining) > 1:
-            # ปิดไม่สำเร็จ/ยังกำกวม — ยอมแพ้แบบมีข้อความชัด
-            raise DuplicateWindowError(self._duplicate_window_message(class_name, remaining))
-        return remaining
+            # ปิดไม่ลงรอบแรก — best-effort ปิดทุกบานยกเว้นใหม่สุดอีกครั้ง
+            newest = max(remaining)
+            for hwnd in remaining:
+                if hwnd != newest:
+                    self._force_close_window(hwnd, timeout=3.0)
+            remaining = find_windows(
+                class_name=class_name, top_level_only=False, process=self.app.process
+            )
+        return remaining or handles
 
     def _force_close_window(self, hwnd: int, timeout: float = 5.0) -> None:
         """ปิดหน้าต่าง MDI child แบบพยายามหนัก: WM_CLOSE ซ้ำทุก 1 วิ + ตอบ No ให้
@@ -471,22 +467,42 @@ class CropWatEngine:
         if not file_path.exists():
             raise FileNotFoundError(f"ไม่พบไฟล์: {file_path}")
 
+        # v0.7.1 — บั๊กที่จับได้จากการรันจริงบทผู้ใช้: มีหน้าต่างชื่อตรง title_re
+        # ("Open") มากกว่า 1 บาน (เช่น dialog ของไฟล์ก่อนหน้ายังไม่ทันปิดสนิทตอน
+        # เรียกไฟล์ถัดไป) ทำให้ self.app.window(title_re=...) โยน ambiguous ดิบๆ
+        # ("There are 2 elements...") ล้มทั้ง batch — แก้ทั้งวงจร: (1) เคลียร์
+        # dialog เก่าที่ค้างก่อนเรียกเมนู (2) ชี้เป้า dialog ใหม่ด้วย hwnd ตรงๆ
+        # (เลือกเฉพาะบานที่ visible, เอาบานที่ไม่เคยเห็นก่อนเรียกเมนู) (3) หลังกด
+        # Open ต้อง "รอจน dialog ปิดจริง" ก่อนไปต่อ — กันการทิ้ง dialog ค้างเป็น
+        # ระเบิดเวลาให้ไฟล์ถัดไป
+        stale = self._find_file_dialogs(dialog_title_re)
+        for hwnd in stale:
+            logger.warning("เจอ dialog เปิดไฟล์ค้างจากขั้นก่อนหน้า — ปิดทิ้งก่อน (hwnd=%#x)", hwnd)
+            win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+            self._sleep(0.3)
+        before = set(self._find_file_dialogs(dialog_title_re))
+
         self._invoke_menu("File->Open")
 
         # ยืนยันจาก screenshot จริงของผู้ใช้ (v0.1.12): ก่อน dialog เปิดไฟล์จะโผล่
         # CropWat อาจเด้งถาม "Save changes to current climate/rain data ?"
-        # (Yes/No/Cancel) ถ้านับว่าข้อมูลในหน้าต่างเดิมถูกแก้ค้างอยู่ — เป็น modal
-        # ที่บังไม่ให้ dialog เปิดไฟล์โผล่จนกว่าจะตอบ ต้องคอยเช็คแล้วตอบ No ให้
-        # ระหว่างรอ ไม่งั้น flow ค้างจน timeout ทั้งที่ทุกอย่างปกติดี
-        dialog = self.app.window(title_re=dialog_title_re)
+        # (Yes/No/Cancel) — เป็น modal ที่บังไม่ให้ dialog เปิดไฟล์โผล่จนกว่าจะตอบ
+        # ต้องคอยเช็คแล้วตอบ No ให้ระหว่างรอ
+        dialog_hwnd: Optional[int] = None
         deadline = time.monotonic() + 10
-        while not dialog.exists(timeout=0):
+        while dialog_hwnd is None:
+            fresh = [h for h in self._find_file_dialogs(dialog_title_re) if h not in before]
+            if fresh:
+                dialog_hwnd = fresh[-1]  # บานใหม่ล่าสุด
+                break
             self._answer_no_to_save_prompt()
             if time.monotonic() > deadline:
                 raise StepTimeoutError(
                     f"dialog เปิดไฟล์ (title_re={dialog_title_re!r}) ไม่โผล่ภายใน 10 วินาที"
                 )
             self._sleep(0.2)
+
+        dialog = self.app.window(handle=dialog_hwnd)
         self._hide_dialog_offscreen(dialog)
         dialog.wait("exists enabled visible ready", timeout=10)
         self._sleep(0.3)  # เผื่อเวลาให้ dialog พร้อมรับ input จริงๆ ก่อนพิมพ์
@@ -507,6 +523,42 @@ class CropWatEngine:
             )
 
         dialog[open_button].click()
+
+        # รอจน dialog ปิดจริง (ไฟล์ถูกเปิดแล้ว) — ถ้า 3 วิแล้วยังอยู่ ลองกด Open
+        # ซ้ำหนึ่งครั้ง (message แรกอาจหลุด) ก่อนจะ fail ชัดเจน
+        close_deadline = time.monotonic() + 3.0
+        retried = False
+        while win32gui.IsWindow(dialog_hwnd) and win32gui.IsWindowVisible(dialog_hwnd):
+            if time.monotonic() > close_deadline:
+                if not retried:
+                    retried = True
+                    ok_btn = self._find_child_button(dialog_hwnd, r"&?Open$")
+                    if ok_btn is not None:
+                        win32gui.SendMessage(ok_btn, self._BM_CLICK, 0, 0)
+                    close_deadline = time.monotonic() + 3.0
+                    continue
+                raise StepTimeoutError(
+                    f"กด Open แล้ว dialog เปิดไฟล์ไม่ยอมปิด (ไฟล์ {file_path.name}) — "
+                    "CropWat อาจไม่ยอมรับไฟล์นี้"
+                )
+            self._answer_no_to_save_prompt()
+            self._sleep(0.15)
+
+    def _find_file_dialogs(self, title_re: str) -> list[int]:
+        """หา file dialog (#32770) ของ process ที่ title ตรง pattern และ "มองเห็น
+        ได้จริง" เท่านั้น — คืนเรียงตาม hwnd (บานใหม่มักได้ hwnd ใหม่กว่า)"""
+        pattern = re.compile(title_re)
+        out: list[int] = []
+        try:
+            for hwnd in find_windows(
+                class_name="#32770", top_level_only=True,
+                process=self.app.process, visible_only=False,
+            ):
+                if win32gui.IsWindowVisible(hwnd) and pattern.match(win32gui.GetWindowText(hwnd) or ""):
+                    out.append(hwnd)
+        except ElementNotFoundError:
+            pass
+        return sorted(out)
 
     # ------------------------------------------------------------------
     # Step 1a: เปิดไฟล์ Climate (.PED) ของปีนั้น

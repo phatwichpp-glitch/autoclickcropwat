@@ -57,6 +57,12 @@ async function loadConfig() {
   document.getElementById("soil-file").value = settings.soil_file || "";
   document.getElementById("manual-per-candidate").value = settings.manual_minutes_per_candidate;
   document.getElementById("hidden-desktop-mode").checked = settings.hidden_desktop_mode !== false;
+  document.getElementById("auto-build-outputs").checked = settings.auto_build_outputs !== false;
+  // ปุ่ม "เปิด CropWat" มีประโยชน์เฉพาะโหมดคลาสสิก (ผู้ใช้ต้องเปิด CropWat เอง) —
+  // โหมดเดสก์ท็อปซ่อนโปรแกรมเปิดให้เองอยู่แล้ว โชว์ไว้มีแต่ทำให้งง
+  document.getElementById("btn-launch-cropwat").hidden = settings.hidden_desktop_mode !== false;
+  // ปุ่มดูเดสก์ท็อปซ่อนกลับกัน: มีประโยชน์เฉพาะโหมดเดสก์ท็อปซ่อน
+  document.getElementById("btn-peek-desktop").hidden = settings.hidden_desktop_mode === false;
   document.getElementById("speed-preset").value = settings.speed_preset || "normal";
   document.getElementById("shift-year-per-candidate").checked = settings.shift_year_per_candidate !== false;
   document.getElementById("brand-sub").textContent = settings.input_dir
@@ -149,6 +155,7 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
     soil_file: document.getElementById("soil-file").value,
     manual_minutes_per_candidate: Number(document.getElementById("manual-per-candidate").value) || 0,
     hidden_desktop_mode: document.getElementById("hidden-desktop-mode").checked,
+    auto_build_outputs: document.getElementById("auto-build-outputs").checked,
     speed_preset: document.getElementById("speed-preset").value,
     shift_year_per_candidate: document.getElementById("shift-year-per-candidate").checked,
   });

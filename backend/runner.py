@@ -412,6 +412,12 @@ def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine
             run_state.set_year_status(
                 year, YearRunStatus.ERROR, error_message=f"เตรียมไฟล์/สถานีไม่สำเร็จ: {exc}"
             )
+        try:
+            import overlay
+
+            overlay.notify("การรันล้มเหลวตั้งแต่เริ่ม", f"เตรียมไฟล์/สถานีไม่สำเร็จ: {str(exc)[:120]}")
+        except Exception:  # noqa: BLE001
+            pass
         run_state.end_run()
         return
 
@@ -519,7 +525,55 @@ def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine
                 year, YearRunStatus.ERROR, error_message=result.error_message
             )
 
+    _finish_run(years, settings)
     run_state.end_run()
+
+
+def _finish_run(years: list[int], settings: Settings) -> None:
+    """v0.7.1 (user-journey audit) — ปิดจ็อบให้จบในตัว: เดิมรันเสร็จแบบ "เงียบ
+    สนิท" แล้วผู้ใช้ต้องกลับมากดสร้าง Excel + Word เองอีก 2 คลิกทุกครั้ง ทั้งที่
+    เป้าหมายจริงของผู้ใช้คือ "ไฟล์ส่งงาน 2 ไฟล์" ไม่ใช่ .txt ดิบ — ถ้ารันจบครบ
+    (ไม่ได้กดหยุด) ให้สร้าง Excel+Word ให้เองเลย (ปิดได้ผ่าน auto_build_outputs)
+    แล้วยิง Windows notification สรุปผลเสมอ ให้รู้ทันทีแม้กำลังทำงานอื่นอยู่"""
+    snap = run_state.snapshot()
+    done_years = sum(1 for y in snap.years if y.status == YearRunStatus.DONE)
+    error_years = sum(1 for y in snap.years if y.status == YearRunStatus.ERROR)
+    stopped = run_state.is_stop_requested()
+
+    built_note = ""
+    if not stopped and error_years == 0 and settings.auto_build_outputs and settings.output_dir:
+        try:
+            build_excel(settings)
+            build_word(settings)
+            built_note = " — สร้าง Excel + Word ให้แล้ว เปิดโฟลเดอร์ผลลัพธ์ได้เลย"
+            logger.info("auto-build: สร้าง Result.xlsx + Screenshots.docx หลังรันเสร็จแล้ว")
+        except Exception:  # noqa: BLE001 -- auto-build เป็นของเสริม พังแล้วห้ามล้มการรันที่เสร็จแล้ว
+            logger.exception("auto-build ไฟล์ผลลัพธ์ไม่สำเร็จ (กดสร้างเองจากหน้าเว็บได้)")
+            built_note = " — สร้างไฟล์อัตโนมัติไม่สำเร็จ กดสร้างเองจากหน้าเว็บได้"
+
+    try:
+        import overlay
+
+        if stopped:
+            overlay.notify(
+                "หยุดการรันแล้ว",
+                f"ทำไปแล้ว {snap.candidate_done}/{snap.candidate_total} วันปลูก — "
+                "กดเริ่มรันอีกครั้งเพื่อทำต่อจากจุดเดิมได้เลย",
+            )
+        elif error_years:
+            overlay.notify(
+                "รันเสร็จ แต่มีปัญหาบางปี",
+                f"สำเร็จ {done_years} ปี มีปัญหา {error_years} ปี — เปิดโปรแกรมเพื่อดู"
+                " รายละเอียดและกดรันปีที่มีปัญหาซ้ำ",
+            )
+        else:
+            overlay.notify(
+                "รันเสร็จครบแล้ว ✓",
+                f"{snap.candidate_done}/{snap.candidate_total} วันปลูก สำเร็จทั้ง "
+                f"{done_years} ปี{built_note}",
+            )
+    except Exception:  # noqa: BLE001
+        logger.debug("แจ้งเตือนผลรันไม่สำเร็จ", exc_info=True)
 
 
 def build_excel(settings: Settings) -> int:
