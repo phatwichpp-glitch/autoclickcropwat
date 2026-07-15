@@ -75,6 +75,7 @@
             <div class="summary-actions">
               <button id="btn-start" class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>เริ่มรันทั้งหมด</button>
               <button id="btn-stop" class="btn btn-danger-ghost"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>หยุด</button>
+              <button id="btn-force-close" class="btn btn-danger-ghost sm" type="button" title="ใช้เมื่อ CropWat ค้างสนิท กดปิดเองไม่ได้เลย — ปุ่มนี้บังคับปิด CropWat + รีเซ็ตสถานะโปรแกรมนี้ ไม่ต้องปิด-เปิดโปรแกรมนี้ใหม่"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>CropWat ค้าง? ปิดฉุกเฉิน</button>
             </div>
           </div>
         </div>
@@ -92,6 +93,7 @@
             <a id="btn-download" class="btn btn-ghost sm" href="/api/download"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Result.xlsx</a>
             <button id="btn-build-word" class="btn btn-ghost sm"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>สร้างไฟล์ Word (ภาพ)</button>
             <a id="btn-download-word" class="btn btn-ghost sm" href="/api/download-word"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Screenshots.docx</a>
+            <button id="btn-open-output" class="btn btn-ghost sm" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>เปิดโฟลเดอร์ผลลัพธ์</button>
           </div>
         </div>
         <div class="card-body">
@@ -131,6 +133,7 @@
               <span class="lbl">เลือกโฟลเดอร์เดียว ที่รวมทุกอย่างไว้ข้างใน</span>
               <div class="path-field">
                 <input type="text" id="input-dir" placeholder="เช่น D:\Cropwat\autoclickcropwat\cropwat" />
+                <button id="btn-browse-input" class="btn btn-ghost sm" type="button" title="เลือกโฟลเดอร์ด้วยการคลิก แทนการพิมพ์ path เอง"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>เลือกโฟลเดอร์</button>
                 <button id="btn-scan" class="btn btn-ghost sm"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>สแกน</button>
               </div>
               <span class="note">วาง climate, rain, crop, soil ไว้ในนี้แบบไหนก็ได้ ระบบหาและจัดเรียงให้เอง</span>
@@ -146,6 +149,7 @@
               <span class="lbl">เลือกโฟลเดอร์เดียวสำหรับผลลัพธ์ทั้งหมด</span>
               <div class="path-field">
                 <input type="text" id="output-dir" placeholder="เช่น D:\Cropwat\autoclickcropwat\output" />
+                <button id="btn-browse-output" class="btn btn-ghost sm" type="button" title="เลือกโฟลเดอร์ด้วยการคลิก แทนการพิมพ์ path เอง"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>เลือกโฟลเดอร์</button>
               </div>
               <span class="note">ระบบสร้างโครงสร้างข้างในให้เองตามนี้:</span>
             </label>

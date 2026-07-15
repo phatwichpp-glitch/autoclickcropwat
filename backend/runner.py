@@ -15,7 +15,7 @@ import re
 import threading
 from pathlib import Path
 
-from automation.cropwat_engine import CropWatEngine, PlantingDateTask
+from automation.cropwat_engine import CropWatEngine, PlantingDateTask, force_close_cropwat
 from automation.exceptions import CropWatAutomationError
 from config import (
     SPEED_MULTIPLIERS,
@@ -27,7 +27,7 @@ from config import (
     txt_dir,
 )
 from file_engine import paths as file_paths
-from models import YearRunStatus
+from models import OverallRunState, YearRunStatus
 from state import run_state
 
 logger = logging.getLogger("runner")
@@ -164,21 +164,40 @@ def scan_output_progress(settings: Settings) -> dict:
 
 
 def is_run_active() -> bool:
-    with _run_lock:
-        return _active_thread is not None and _active_thread.is_alive()
+    """v1.0 — เดิมเช็คจาก _active_thread.is_alive() ตรงๆ ซึ่งผิดเวลา thread ค้าง
+    (เช่น เจอ dialog ที่ automation จำไม่ได้ ถูกเหวี่ยงออกนอกจอไปแบบมองไม่เห็น
+    ทำให้ CropWat ค้างสนิท) — thread ยัง "alive" ตลอดไปทั้งที่ไม่ขยับต่อแล้ว ทำให้
+    กดเริ่มรันใหม่ไม่ได้แม้จะปิด-เปิด CropWat ใหม่แล้วก็ตาม ต้องปิดโปรแกรมเราทั้งตัว
+    ถึงจะรีเซ็ตได้ (บั๊กที่ผู้ใช้ยืนยันเจอจริง) — เปลี่ยนไปยึด run_state.overall_state
+    (ที่ begin_run()/end_run() ควบคุมชัดเจน) เป็นความจริงแทน ตัดขาดจากสุขภาพของ
+    thread เดิมไปเลย ให้ force_reset() (ปุ่ม "ปิด CropWat ฉุกเฉิน") คืนสถานะ IDLE ได้
+    โดยไม่ต้องรอ thread เก่าตายจริงๆ"""
+    return run_state.snapshot().overall_state != OverallRunState.IDLE
 
 
 def start_run(years: list[int], settings: Settings) -> bool:
     """เริ่ม background thread รันปีที่ระบุ คืน False ถ้ามี run ทำงานอยู่แล้ว"""
     global _active_thread
     with _run_lock:
-        if _active_thread is not None and _active_thread.is_alive():
+        if is_run_active():
             return False
         _active_thread = threading.Thread(
             target=_run_years, args=(years, settings), daemon=True
         )
         _active_thread.start()
         return True
+
+
+def force_reset() -> int:
+    """ทางออกฉุกเฉิน (v1.0): บังคับปิด CropWat + คืนสถานะฝั่งเราเป็น IDLE ทันที
+    ไม่ต้องรอ thread เก่า (ที่อาจค้างอยู่ในนั้นตลอดไปเพราะรอ dialog ที่กด/ปิดเองไม่
+    ได้) จบตามธรรมชาติ — thread เก่าถ้ายังค้างอยู่จริงจะกลายเป็น zombie เฉยๆ (ไม่มี
+    ผลอะไรต่อ ไม่แตะ state ที่แชร์กันอันตราย เพราะ engine ของมันคุย CropWat ตัวเก่า
+    ที่ตายไปแล้วเท่านั้น) คืนจำนวน process CropWat ที่ปิดสำเร็จ"""
+    killed = force_close_cropwat()
+    run_state.request_stop()  # เผื่อ thread เก่ายังไม่ตาย ให้รู้ว่าควรหยุดถ้าตื่นมาเช็ค
+    run_state.end_run()
+    return killed
 
 
 def start_default_run() -> bool:

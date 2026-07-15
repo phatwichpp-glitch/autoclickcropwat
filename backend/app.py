@@ -22,7 +22,9 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
+import os_dialogs
 import runner
 from config import Settings, excel_path, load_settings, save_settings, word_path
 from file_engine import paths as file_paths
@@ -98,6 +100,34 @@ async def get_config() -> Settings:
 async def update_config(settings: Settings) -> Settings:
     save_settings(settings)
     return settings
+
+
+# ---------------------------------------------------------------------------
+# Folder picker + เปิดโฟลเดอร์ใน Explorer (v1.0 UX pass — ลดการพิมพ์ path เอง
+# ซึ่งเป็นจุดพังบ่อยสำหรับผู้ใช้ที่ไม่ถนัดคอมพิวเตอร์)
+# ---------------------------------------------------------------------------
+
+class BrowseFolderRequest(BaseModel):
+    initial_dir: str = ""
+
+
+@app.post("/api/browse-folder")
+async def browse_folder(req: BrowseFolderRequest) -> dict:
+    path = await asyncio.to_thread(os_dialogs.pick_folder, req.initial_dir)
+    return {"path": path}
+
+
+class OpenFolderRequest(BaseModel):
+    path: str
+
+
+@app.post("/api/open-folder")
+async def open_folder(req: OpenFolderRequest) -> dict:
+    try:
+        await asyncio.to_thread(os_dialogs.open_in_explorer, req.path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +257,16 @@ async def run_one_year(year: int) -> StateSnapshot:
 async def stop_run() -> StateSnapshot:
     run_state.request_stop()
     return run_state.snapshot()
+
+
+@app.post("/api/run/force-close-cropwat")
+async def force_close_cropwat() -> dict:
+    """ทางออกฉุกเฉิน (v1.0): "หยุด" ปกติเป็นการขอความร่วมมือ (thread เช็ค flag
+    ระหว่าง candidate/ปี) ใช้ไม่ได้ตอน CropWat ค้างสนิทจริงๆ (กด X เองก็ไม่ติด) —
+    endpoint นี้บังคับปิด process CropWat โดยตรง + คืนสถานะฝั่งเราเป็น IDLE ทันที
+    ไม่ต้องปิด-เปิดโปรแกรม CropWatAutoRunner ทั้งตัวเพื่อรีเซ็ต (ดู runner.force_reset)"""
+    killed = await asyncio.to_thread(runner.force_reset)
+    return {"ok": True, "killed": killed}
 
 
 # ---------------------------------------------------------------------------

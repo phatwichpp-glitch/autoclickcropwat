@@ -343,6 +343,43 @@ document.getElementById("btn-scan").addEventListener("click", async () => {
   renderScanResults(lastScan);
 });
 
+async function browseFolder(inputEl) {
+  const res = await fetch("/api/browse-folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ initial_dir: inputEl.value }),
+  });
+  const data = await res.json();
+  if (data.path) {
+    inputEl.value = data.path;
+  }
+}
+
+document.getElementById("btn-browse-input").addEventListener("click", () => {
+  browseFolder(document.getElementById("input-dir"));
+});
+
+document.getElementById("btn-browse-output").addEventListener("click", () => {
+  browseFolder(document.getElementById("output-dir"));
+});
+
+document.getElementById("btn-open-output").addEventListener("click", async () => {
+  const path = document.getElementById("output-dir").value || settings.output_dir;
+  if (!path) {
+    alert("ยังไม่ได้ตั้งค่าโฟลเดอร์ผลลัพธ์");
+    return;
+  }
+  const res = await fetch("/api/open-folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || "เปิดโฟลเดอร์ไม่สำเร็จ");
+  }
+});
+
 function renderScanResults(scan) {
   const badge = document.getElementById("scan-badge");
   const container = document.getElementById("scan-results");
@@ -580,6 +617,22 @@ document.getElementById("btn-start").addEventListener("click", async () => {
 document.getElementById("btn-stop").addEventListener("click", async () => {
   const res = await fetch("/api/run/stop", { method: "POST" });
   renderStatus(await res.json());
+});
+
+document.getElementById("btn-force-close").addEventListener("click", async () => {
+  const proceed = confirm(
+    "จะบังคับปิดโปรแกรม CropWat ทันที (เหมือนสั่งปิดผ่าน Task Manager) แล้วรีเซ็ต " +
+    "สถานะของโปรแกรมนี้กลับมาพร้อมเริ่มรันใหม่ได้เลย\n\n" +
+    "ใช้เมื่อ CropWat ค้างสนิทเท่านั้น (กด X เองก็ไม่ติด) — ไฟล์ .txt ของวันปลูกที่ " +
+    "ทำเสร็จไปแล้วจะไม่หายไปไหน กดเริ่มรันใหม่ได้ทันทีหลังเปิด CropWat ขึ้นมาใหม่\n\n" +
+    "ดำเนินการต่อหรือไม่?"
+  );
+  if (!proceed) return;
+  const res = await fetch("/api/run/force-close-cropwat", { method: "POST" });
+  const data = await res.json().catch(() => ({}));
+  showToast(data.killed ? `ปิด CropWat แล้ว (${data.killed} process) — เปิด CropWat ใหม่แล้วกดเริ่มรันได้เลย` : "ไม่พบ CropWat เปิดอยู่ — รีเซ็ตสถานะโปรแกรมนี้แล้ว");
+  const status = await fetch("/api/status");
+  renderStatus(await status.json());
 });
 
 document.getElementById("btn-retry").addEventListener("click", async () => {

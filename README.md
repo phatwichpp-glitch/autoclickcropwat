@@ -6,6 +6,8 @@ dates, and merges the results into a single Excel workbook — replacing what
 would otherwise be thousands of manual clicks.
 
 See `cropwat_autorunner_spec.md` for the full design spec and background.
+For non-developer end users, see [`docs/user-guide.md`](docs/user-guide.md)
+(Thai) for a download-to-first-run walkthrough — this README is dev-focused.
 
 ## Why this has to run locally
 
@@ -53,6 +55,7 @@ backend/
     paths.py                Folder scanning + shift-year file resolution
     txt_parser.py           Parses CropWat's printed .txt output
     excel_writer.py         Builds the Result sheet from parsed .txt files
+  tests/                     Unit tests for the pure-logic pieces (no CropWat needed)
 frontend/
   index.html / app.js / style.css   Dashboard + Setup UI
 inspect_cropwat.py / inspect_menu.py   Scripts used to reverse-engineer CropWat's UI structure
@@ -90,6 +93,21 @@ Open `http://127.0.0.1:8000`. Before starting a run:
 **Don't use `--reload`** — the automation runs in a background thread tied to
 the process; a reload orphans it.
 
+## Running tests
+
+```bash
+cd backend
+.venv\Scripts\pip install -r requirements-dev.txt
+.venv\Scripts\python -m pytest tests/ -v
+```
+
+These cover the pure-logic pieces that don't need a live CropWat instance:
+shift-year file resolution (`file_engine/paths.py`), `.txt` output parsing
+(`file_engine/txt_parser.py`), and the ETA estimation math (`state.py`). They
+do **not** cover the pywinauto automation steps themselves (`automation/`) —
+those can only be verified against a real running CropWat 8.0 installation,
+by hand.
+
 ## Known unverified pieces
 
 - `cropwat_controls.py` was built by inspecting one real CropWat 8.0
@@ -98,3 +116,12 @@ the process; a reload orphans it.
 - The `ERROR_DIALOG` message text can't be read from a dedicated control
   (CropWat draws it directly on the dialog) — errors are detected and
   dismissed, but the specific message text isn't always captured.
+- `_reveal_stuck_windows()` (v0.5.25, in `start_background_watcher()`) is a
+  safety net for background-mode's window-hiding watcher: if a dialog that
+  automation doesn't recognize gets hidden off-screen and never dismissed
+  within 8s, it's brought back on-screen so the user can handle it manually.
+  Reasoned from the reported symptom (CropWat becoming completely unresponsive
+  during a background run, requiring Task Manager to close) but not yet
+  reproduced/confirmed live — the `POST /api/run/force-close-cropwat`
+  endpoint (the "CropWat ค้าง? ปิดฉุกเฉิน" button) is the reliable fallback
+  regardless of whether this specific mechanism catches the case.

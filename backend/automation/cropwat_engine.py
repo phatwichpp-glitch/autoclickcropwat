@@ -37,6 +37,7 @@ from __future__ import annotations
 import ctypes
 import logging
 import re
+import subprocess
 import threading
 import time
 from dataclasses import dataclass, field
@@ -369,6 +370,23 @@ class CropWatEngine:
         # Print/Open ที่ยังต้องส่ง message ไปกรอก จึงห้าม SW_HIDE (เก็บแค่ alpha+ย้าย)
         _HIDE_CLASSES = {"TQRProgressForm"}
         SW_HIDE = 0
+        SW_SHOW = 5
+
+        # v1.0 — ทางออกฉุกเฉินอัตโนมัติ: ยืนยันจากผู้ใช้จริงว่า CropWat เคยค้าง
+        # สนิทกดปิดเองไม่ได้เลย (ต้องเข้า Task Manager) ต้นเหตุที่เป็นไปได้มากสุด
+        # คือมี dialog ที่ automation "จำไม่ได้" (title ไม่ตรง pattern ใดๆ ที่เช็ค
+        # ไว้) โผล่ขึ้นมาแล้วโดนเหวี่ยง+โปร่งใสสนิทไปด้วยเหมือนหน้าต่างที่รู้จัก —
+        # กลายเป็น modal ที่มองไม่เห็นแต่ยังบล็อกอินพุตทั้งหมดไปที่หน้าต่างหลัก
+        # ผู้ใช้เลยกดอะไรก็ไม่ติด แก้ด้วยการจับเวลาไว้ ถ้าหน้าต่างไหนถูกเหวี่ยงค้าง
+        # ไว้นานเกิน REVEAL_TIMEOUT_SECONDS (นานกว่า wait ที่มีตัวคุมทุกจุดในระบบ
+        # มาก — ของปกติควรถูกจัดการเสร็จภายในเสี้ยววินาทีถึงไม่กี่วินาที) ให้ "คืน"
+        # หน้าต่างนั้นกลับมาเห็นได้/คลิกได้ตามปกติ พร้อมปลด shield กันคลิก
+        # (_exit_protected_mode) ชั่วคราว เพื่อให้ผู้ใช้กดเองได้ทันที แทนที่จะปล่อย
+        # ให้ค้างมองไม่เห็นตลอดไป — เป็นตาข่ายชั้นสุดท้าย ไม่ได้แก้ที่ต้นเหตุว่าทำไม
+        # dialog นั้นถึงโผล่มา (ยังไม่เคยเจอ/reproduce ได้ตอนพัฒนา) ต้องอาศัย
+        # ผู้ใช้จริงยืนยันว่าใช้ได้ผลรอบต่อไปที่เจอ
+        REVEAL_TIMEOUT_SECONDS = 8.0
+        _flung_at: dict[int, float] = {}
 
         def _fling_offscreen(hwnd: int) -> None:
             """v0.5.6: "ย้ายออกนอกจอ" อย่างเดียวเอาไม่อยู่ — ฟอร์ม progress ของ
@@ -379,6 +397,7 @@ class CropWatEngine:
             try:
                 if hwnd == main_hwnd or not win32gui.IsWindow(hwnd):
                     return
+                _flung_at.setdefault(hwnd, time.monotonic())
                 GWL_EXSTYLE = -20
                 WS_EX_LAYERED = 0x00080000
                 LWA_ALPHA = 0x2
@@ -392,6 +411,51 @@ class CropWatEngine:
                     win32gui.ShowWindow(hwnd, SW_HIDE)
             except Exception:  # noqa: BLE001 -- หน้าต่างตายไประหว่างจัดการ = ปกติ
                 pass
+
+        def _reveal_stuck_windows() -> None:
+            """เรียกทุกรอบ poll (~200ms) — เช็คว่ามีหน้าต่างที่เหวี่ยงค้างไว้นานเกิน
+            REVEAL_TIMEOUT_SECONDS โดยยังไม่ตายไปเองไหม (ถ้าตายแล้ว = จัดการเสร็จ
+            ปกติ ไม่ใช่ค้าง) ถ้าเจอ คืนให้มองเห็น/คลิกได้ + ปลด shield ให้ผู้ใช้
+            กู้สถานการณ์เองได้ทันที"""
+            if not _flung_at:
+                return
+            stuck: list[int] = []
+            for hwnd, flung_at in list(_flung_at.items()):
+                if not win32gui.IsWindow(hwnd):
+                    del _flung_at[hwnd]  # หายไปเองแล้ว (ปิดสำเร็จ/จัดการเสร็จปกติ)
+                    continue
+                if time.monotonic() - flung_at > REVEAL_TIMEOUT_SECONDS:
+                    stuck.append(hwnd)
+                    del _flung_at[hwnd]
+            if not stuck:
+                return
+            logger.warning(
+                "เจอหน้าต่าง %s บาน ที่ automation จำไม่ได้และถูกเหวี่ยงออกนอกจอค้าง "
+                "ไว้นานเกิน %.0f วินาที (อาจทำให้ CropWat ค้างสนิท) — คืนให้มองเห็น/"
+                "คลิกได้ตามปกติ ปลด shield ชั่วคราว ให้ผู้ใช้กดเองได้",
+                len(stuck), REVEAL_TIMEOUT_SECONDS,
+            )
+            try:
+                self._exit_protected_mode()
+            except Exception:  # noqa: BLE001 -- ปลด shield ไม่ได้ก็ยังพยายาม reveal ต่อ
+                pass
+            for hwnd in stuck:
+                try:
+                    GWL_EXSTYLE = -20
+                    WS_EX_LAYERED = 0x00080000
+                    ex_style = win32gui.GetWindowLong(hwnd, GWL_EXSTYLE)
+                    win32gui.SetWindowLong(hwnd, GWL_EXSTYLE, ex_style & ~WS_EX_LAYERED)
+                    win32gui.ShowWindow(hwnd, SW_SHOW)
+                    left, top, right, bottom = win32gui.GetWindowRect(main_hwnd)
+                    cx, cy = (left + right) // 2, (top + bottom) // 2
+                    w, h = 400, 200
+                    win32gui.SetWindowPos(
+                        hwnd, 0, cx - w // 2, cy - h // 2, 0, 0,
+                        win32con.SWP_NOSIZE | win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE,
+                    )
+                    win32gui.SetForegroundWindow(hwnd)
+                except Exception:  # noqa: BLE001 -- หน้าต่างตายไประหว่างจัดการ/OS บล็อก foreground steal = ปกติ
+                    pass
 
         def _watch() -> None:
             """v0.5.5: เปลี่ยนจาก polling ทุก 40ms (ช้าไป — ตายังจับแวบ 40-100ms
@@ -464,6 +528,7 @@ class CropWatEngine:
                             _fling_offscreen(hwnd)
                     except Exception:  # noqa: BLE001
                         pass
+                    _reveal_stuck_windows()
                 # v0.5.11: เดิม sleep(0.01) แบบตายตัว = หน่วงถึง 10ms ก่อนประมวลผล
                 # WinEvent ที่เข้าคิว — นั่นคือช่วงที่ "Printing progress" ทันวาด 1-2
                 # เฟรมแล้วกระพริบ เปลี่ยนเป็น MsgWaitForMultipleObjectsEx ที่ "ตื่น
@@ -1336,3 +1401,53 @@ class CropWatEngine:
         return YearRunResult(
             year=year, ok=ok, candidates=candidates, error_message=error_message, stopped=stopped
         )
+
+
+# ------------------------------------------------------------------
+# ทางออกฉุกเฉิน: บังคับปิด CropWat จากนอก engine instance ใดๆ (v1.0)
+# ------------------------------------------------------------------
+#
+# ยืนยันจากรายงานผู้ใช้จริง: บางครั้ง CropWat ค้างแบบกดปิดเองไม่ได้เลย (แม้แต่
+# กด X) ต้องเข้า Task Manager เท่านั้น — ต้นเหตุที่เป็นไปได้มากที่สุดคือมี dialog
+# ที่ automation "จำไม่ได้" (title ไม่ตรงกับ pattern ใดๆ ที่เช็คไว้ เช่น
+# _answer_no_to_save_prompt/_poll_error_dialog) โผล่ขึ้นมาระหว่างรันในโหมด
+# เบื้องหลัง แล้วโดน start_background_watcher เหวี่ยงออกนอกจอ + โปร่งใสสนิท
+# (alpha=0) ไปด้วย — เพราะ watcher เดิมเหวี่ยง "ทุก" หน้าต่างลูกของ process แบบ
+# ไม่เลือก ไม่ใช่แค่ตัวที่เรารู้จัก (ดู start_background_watcher/_fling_offscreen)
+# หน้าต่างนั้นยังเป็น modal ของ CropWat อยู่ (มองไม่เห็นแต่ยังบล็อกอินพุตทั้งหมด
+# ไปที่หน้าต่างหลัก) ผู้ใช้เลยกดอะไรก็ไม่ติดเลยแม้แต่ปิดโปรแกรม
+#
+# ฟังก์ชันนี้ไม่ต้องมี engine instance ที่ connect() สำเร็จอยู่ก่อน (เผื่อ state
+# ฝั่งเราเองก็อาจพังไปแล้วจากการค้างเดียวกัน) — หา CropWat จาก title/class เดียว
+# กับที่ connect() ใช้โดยตรง แล้วสั่ง taskkill /F ที่ระดับ process เลย
+def force_close_cropwat() -> int:
+    """หา CropWat ที่เปิดอยู่ทั้งหมดแล้วสั่งปิดแบบบังคับ คืนจำนวน process ที่ปิด
+    สำเร็จ (0 = ไม่เจอ CropWat เปิดอยู่เลย)"""
+    handles = find_windows(
+        title_re=controls.MAIN_WINDOW_TITLE_RE,
+        class_name=controls.MAIN_WINDOW_CLASS_NAME,
+        top_level_only=True,
+    )
+    pids: set[int] = set()
+    for hwnd in handles:
+        try:
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        except Exception:  # noqa: BLE001 -- หน้าต่างตายไปพอดีระหว่างเช็ค = ข้าม
+            continue
+        if pid:
+            pids.add(pid)
+
+    killed = 0
+    for pid in pids:
+        try:
+            result = subprocess.run(
+                ["taskkill", "/F", "/PID", str(pid)],
+                capture_output=True,
+                timeout=10,
+                check=False,
+            )
+        except Exception:  # noqa: BLE001 -- taskkill เรียกไม่สำเร็จ (สิทธิ์/os) = นับว่าไม่สำเร็จ
+            continue
+        if result.returncode == 0:
+            killed += 1
+    return killed
