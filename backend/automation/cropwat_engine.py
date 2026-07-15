@@ -37,7 +37,6 @@ from __future__ import annotations
 import ctypes
 import logging
 import re
-import subprocess
 import threading
 import time
 from dataclasses import dataclass, field
@@ -1422,7 +1421,16 @@ class CropWatEngine:
 # กับที่ connect() ใช้โดยตรง แล้วสั่ง taskkill /F ที่ระดับ process เลย
 def force_close_cropwat() -> int:
     """หา CropWat ที่เปิดอยู่ทั้งหมดแล้วสั่งปิดแบบบังคับ คืนจำนวน process ที่ปิด
-    สำเร็จ (0 = ไม่เจอ CropWat เปิดอยู่เลย)"""
+    สำเร็จ (0 = ไม่เจอ CropWat เปิดอยู่เลย)
+
+    v0.5.29 — ยืนยันจากผู้ใช้จริง: เวอร์ชันแรก (v0.5.25) ใช้ subprocess เรียก
+    `taskkill` แต่ผู้ใช้กดปุ่มแล้ว CropWat ไม่ปิดจริง — สาเหตุที่เป็นไปได้มากสุด
+    คือ .exe ที่ build ด้วย PyInstaller `--noconsole` (ไม่มี console/stdio ของ
+    ตัวเอง) ทำให้ subprocess.run() spawn โปรเซสลูกแบบมี stdio ไม่ครบ ล้มเหลว
+    เงียบๆ ด้วย OSError (WinError 6: The handle is invalid) ซึ่งโดน `except
+    Exception: continue` ดักไว้แบบไม่มีร่องรอยให้เห็นเลย — เปลี่ยนมาใช้
+    win32api.TerminateProcess() ตรงๆ แทน (ผ่าน pywin32 ที่มีอยู่แล้ว) ไม่ต้อง
+    พึ่ง subprocess/console เลย เชื่อถือได้กว่าในแอปแบบ windowed"""
     handles = find_windows(
         title_re=controls.MAIN_WINDOW_TITLE_RE,
         class_name=controls.MAIN_WINDOW_CLASS_NAME,
@@ -1437,17 +1445,17 @@ def force_close_cropwat() -> int:
         if pid:
             pids.add(pid)
 
+    PROCESS_TERMINATE = 0x0001
     killed = 0
     for pid in pids:
+        handle = None
         try:
-            result = subprocess.run(
-                ["taskkill", "/F", "/PID", str(pid)],
-                capture_output=True,
-                timeout=10,
-                check=False,
-            )
-        except Exception:  # noqa: BLE001 -- taskkill เรียกไม่สำเร็จ (สิทธิ์/os) = นับว่าไม่สำเร็จ
-            continue
-        if result.returncode == 0:
+            handle = win32api.OpenProcess(PROCESS_TERMINATE, False, pid)
+            win32api.TerminateProcess(handle, 1)
             killed += 1
+        except Exception:  # noqa: BLE001 -- สิทธิ์ไม่พอ/process ตายไปพอดี = ไม่นับว่าสำเร็จ
+            logger.exception("บังคับปิด CropWat (PID %s) ไม่สำเร็จ", pid)
+        finally:
+            if handle:
+                win32api.CloseHandle(handle)
     return killed
