@@ -162,7 +162,7 @@ class CropWatEngine:
                 title_re=controls.MAIN_WINDOW_TITLE_RE,
                 class_name=controls.MAIN_WINDOW_CLASS_NAME,
             )
-            self.main_window.wait("exists enabled visible ready", timeout=10)
+            self._wait_ready_checking_errors(self.main_window, timeout=10, context="connect()")
         except (ElementNotFoundError, PywinautoTimeoutError) as exc:
             raise CropWatNotRunningError(
                 f"หา CropWat ไม่เจอ (title_re={controls.MAIN_WINDOW_TITLE_RE!r}) "
@@ -271,7 +271,7 @@ class CropWatEngine:
 
         try:
             window = self.app.window(class_name=class_name, top_level_only=False)
-            window.wait("exists enabled visible ready", timeout=10)
+            self._wait_ready_checking_errors(window, timeout=10, context=f"_focus_mdi_child({class_name})")
         except ElementAmbiguousError:
             # v0.5.32 — ยืนยันจากผู้ใช้จริง: เช็คจำนวนหน้าต่างข้างบนแล้วผ่าน (เจอ
             # แค่ 1 ตอนนั้น) แต่ระหว่างที่ยังไม่ทันเรียกบรรทัดนี้ มีหน้าต่างที่ 2 โผล่
@@ -282,7 +282,7 @@ class CropWatEngine:
             )
             self._resolve_duplicate_module_windows(class_name, handles)
             window = self.app.window(class_name=class_name, top_level_only=False)
-            window.wait("exists enabled visible ready", timeout=10)
+            self._wait_ready_checking_errors(window, timeout=10, context=f"_focus_mdi_child({class_name}) retry")
         if self.background_mode:
             # สั่ง MDI activate ผ่าน message ตรงไปที่ MDIClient — ไม่แตะ foreground
             # ของระบบเลย (สถานะ "MDI child ไหน active" เป็นเรื่องภายในโปรแกรม)
@@ -513,7 +513,7 @@ class CropWatEngine:
 
         dialog = self.app.window(handle=dialog_hwnd)
         self._hide_dialog_offscreen(dialog)
-        dialog.wait("exists enabled visible ready", timeout=10)
+        self._wait_ready_checking_errors(dialog, timeout=10, context="open-file dialog")
         self._sleep(0.3)  # เผื่อเวลาให้ dialog พร้อมรับ input จริงๆ ก่อนพิมพ์
 
         target = str(file_path)
@@ -797,7 +797,7 @@ class CropWatEngine:
         self._invoke_menu(cfg.print_menu_path)
 
         options = self.app.window(title_re=cfg.print_options_dialog_title_re)
-        options.wait("exists enabled visible ready", timeout=10)
+        self._wait_ready_checking_errors(options, timeout=10, context="print options dialog")
         self._hide_dialog_offscreen(options)
         options[cfg.print_options_ascii_file_radio].click()
         commas_checkbox = options[cfg.print_options_use_commas_checkbox].wrapper_object()
@@ -809,7 +809,7 @@ class CropWatEngine:
         options[cfg.print_options_ok_button].click()
 
         save_dialog = self.app.window(title_re=cfg.print_save_dialog_title_re)
-        save_dialog.wait("exists enabled visible ready", timeout=10)
+        self._wait_ready_checking_errors(save_dialog, timeout=10, context="save-as dialog")
         self._hide_dialog_offscreen(save_dialog)
         save_dialog[cfg.print_save_dialog_filename_field].set_edit_text(str(target_file))
         save_dialog[cfg.print_save_dialog_save_button].click()
@@ -1120,6 +1120,36 @@ class CropWatEngine:
             win32gui.SetWindowPos(hwnd, 0, -32000, -32000, 0, 0, flags)
         except Exception:  # noqa: BLE001
             pass
+
+    def _wait_ready_checking_errors(self, window, timeout: float = 10.0, context: str = "") -> None:
+        """v0.7.5 — ยืนยันจาก screenshot ผู้ใช้จริง: หน้าต่าง "Crop irrigation
+        schedule" ค้างเปล่า (ไม่มีข้อมูล) พร้อม dialog "Cannot make a visible
+        window modal" ค้างอยู่ — วิเคราะห์แล้วพบว่า _raise_if_error_dialog มี
+        poll_timeout_seconds สั้นมาก (0.3 วิ — ปรับไว้เพื่อความเร็ว) ถ้า dialog นี้
+        โผล่ "ช้ากว่า" 0.3 วิหลังสั่งคำนวณ (Delphi ประมวลผลลึกกว่าปกติ) จุดเช็คนั้น
+        จะพลาดไปเงียบๆ แล้วโค้ดไปเรียก window.wait("...enabled...") ต่อทันที — แต่
+        ถ้ามี modal error ค้างอยู่จริง ทั้งแอปจะถูก disable หมด หน้าต่างเป้าหมายจะ
+        ไม่มีวัน "enabled" จนกว่า dialog จะถูกปิด ซึ่ง .wait() เดิมไม่เคยเช็ค error
+        dialog ระหว่างรอเลย ต้องรอครบ timeout เต็มๆ (10 วิ) แล้ว fail แบบกู้ไม่ได้
+
+        แก้ด้วยการ poll เป็นช่วงสั้นๆ (0.5 วิ) สลับกับเช็ค+ปิด error dialog ทุกรอบ
+        แทนที่จะรอยาวทีเดียว — ถ้ามี modal error โผล่มาบัง จะจับได้และปิดให้ภายใน
+        เสี้ยววินาที ไม่ต้องรอจนหมดเวลา"""
+        deadline = time.monotonic() + timeout
+        last_exc: Optional[Exception] = None
+        while time.monotonic() < deadline:
+            try:
+                window.wait("exists enabled visible ready", timeout=0.5)
+                return
+            except PywinautoTimeoutError as exc:
+                last_exc = exc
+            except ElementNotFoundError as exc:
+                last_exc = exc
+            self._poll_error_dialog()
+            self._answer_no_to_save_prompt()
+        if context:
+            logger.warning("%s: รอหน้าต่างพร้อมไม่ทันภายใน %.0f วิ", context, timeout)
+        raise last_exc or StepTimeoutError(f"รอหน้าต่างพร้อมไม่สำเร็จภายใน {timeout} วิ")
 
     def _raise_if_error_dialog(self, context: str) -> None:
         """v0.5.7 — เร่งความเร็ว: เดิม sleep(poll_timeout) แบบตายตัวแล้วเช็ครอบเดียว
