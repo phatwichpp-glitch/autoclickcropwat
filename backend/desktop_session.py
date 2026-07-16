@@ -117,11 +117,20 @@ def is_viewing_hidden_desktop() -> bool:
 
 
 def _park_for_switch() -> None:
-    """ขอให้ engine park ที่จุดปลอดภัยก่อนสลับจอ แล้วรอจน park จริง (เพดาน 40 วิ
-    เผื่อวันปลูกที่กำลังทำใช้เวลานาน/ไม่มี run active) — ครบเพดานก็สลับ best-effort"""
+    """ขอให้ automation park ที่จุดปลอดภัยก่อนสลับจอ แล้วรอจน park จริง — v0.7.4
+    ลดเพดานจาก 40 วิ เหลือ 15 วิ เพราะตอนนี้เช็คก่อน "ทุกคำสั่งเมนู" ใน _invoke_menu
+    แล้ว (v0.7.3 เช็คแค่ก่อนวันปลูกใหม่เท่านั้น ทำให้ park ช้า/ไม่ทันได้ถ้าเข้าดูตอน
+    CropWat กำลังเปิด crop/soil หรือกลางวันปลูกที่ยังไม่ถึงจุดตรวจ) กระตุ้นให้ปุ่ม
+    กลับ repaint ทันทีเป็น "กำลังรอ..." (ดู _paint_return_window) ให้ผู้ใช้เห็นว่า
+    กำลังทำงานอยู่ ไม่ใช่ค้าง"""
     _pause_requested.set()
-    if not _parked.wait(timeout=40.0):
-        logger.warning("รอ automation park ไม่ทันใน 40 วิ — สลับจอแบบ best-effort")
+    if _return_hwnd:
+        try:
+            win32gui.InvalidateRect(_return_hwnd, None, True)
+        except Exception:  # noqa: BLE001
+            pass
+    if not _parked.wait(timeout=15.0):
+        logger.warning("รอ automation park ไม่ทันใน 15 วิ — สลับจอแบบ best-effort")
 
 
 def enter_hidden_desktop() -> bool:
@@ -148,17 +157,32 @@ def enter_hidden_desktop() -> bool:
 
 def leave_hidden_desktop() -> None:
     """สลับจอกลับเดสก์ท็อปหลัก (Default) + ซ่อนปุ่มกลับ + ปลด park ให้ทำงานต่อ —
-    เรียกได้จากทั้งการคลิกปุ่มกลับ (บนเดสก์ท็อปซ่อน) และจากภายนอก"""
-    if _return_hwnd:
-        _user32.ShowWindow(_return_hwnd, 0)  # SW_HIDE
+    เรียกได้จากทั้งการคลิกปุ่มกลับ (บนเดสก์ท็อปซ่อน) และจากภายนอก
+
+    v0.7.4 — เดิมซ่อนปุ่ม "ก่อน" park+สลับจอ ทำให้ผู้ใช้เห็นปุ่มหายไปทันทีแต่จอยัง
+    ไม่สลับ (ระหว่างรอ park นานสุด 40 วิ) ดูเหมือนค้าง — ตอนนี้ซ่อนปุ่ม "หลัง" สลับจอ
+    สำเร็จแล้วเท่านั้น ระหว่างรอ park ปุ่มยังโชว์อยู่แต่เปลี่ยนข้อความเป็น "กำลังรอ"
+    (ดู _paint_return_window) ให้เห็นว่ากำลังทำงาน ไม่ใช่ค้าง"""
     _park_for_switch()
     h = _user32.OpenDesktopW("Default", 0, False, _DESKTOP_SWITCHDESKTOP)
     if h:
         _user32.SwitchDesktop(h)
         _user32.CloseDesktop(h)
+    if _return_hwnd:
+        _user32.ShowWindow(_return_hwnd, 0)  # SW_HIDE — หลังสลับจอสำเร็จแล้วเท่านั้น
     _viewing.clear()
     _pause_requested.clear()
     logger.info("กลับเดสก์ท็อปหลักแล้ว")
+
+
+def _handle_return_click() -> None:
+    """เรียกจาก thread แยก (ไม่ใช่ thread ของ message pump) — leave_hidden_desktop
+    รอ park ได้นานหลายวินาที ถ้าเรียกตรงใน wndproc จะบล็อก PumpMessages ทำให้
+    หน้าต่างปุ่มกลับดู "ค้าง" (repaint ไม่ได้ กดซ้ำไม่ได้) ระหว่างรอ"""
+    try:
+        leave_hidden_desktop()
+    except Exception:  # noqa: BLE001
+        logger.exception("กลับจอหลักจากปุ่มกลับไม่สำเร็จ")
 
 
 class HiddenDesktopSession:
@@ -243,10 +267,14 @@ class HiddenDesktopSession:
 
                 def _wndproc(hwnd, msg, wparam, lparam):
                     if msg in (win32con.WM_LBUTTONDOWN, win32con.WM_CLOSE):
-                        try:
-                            leave_hidden_desktop()
-                        except Exception:  # noqa: BLE001
-                            logger.exception("กลับจอหลักจากปุ่มกลับไม่สำเร็จ")
+                        # v0.7.4 — ห้ามเรียก leave_hidden_desktop() ตรงนี้ (บล็อก
+                        # PumpMessages ระหว่างรอ park ทำให้หน้าต่างนี้ดูค้าง) ทำใน
+                        # thread แยกแทน ให้ message pump ยังวิ่งได้ปกติ (repaint
+                        # ข้อความ "กำลังรอ" ได้, ผู้ใช้กดซ้ำได้ไม่ค้าง)
+                        threading.Thread(
+                            target=_handle_return_click, daemon=True,
+                            name="hidden-desktop-return-click",
+                        ).start()
                         return 0
                     if msg == win32con.WM_PAINT:
                         self._paint_return_window(hwnd)
@@ -283,14 +311,19 @@ class HiddenDesktopSession:
 
     @staticmethod
     def _paint_return_window(hwnd: int) -> None:
+        """v0.7.4 — แสดงข้อความต่างกันตามสถานะ (เช็คจาก _pause_requested โมดูล
+        ระดับบน) ให้ผู้ใช้เห็นชัดว่ากำลังรอ ไม่ใช่ค้าง ระหว่างที่กด "กลับ" แล้ว
+        automation ยังไม่ทันถึงจุดปลอดภัย"""
         hdc, ps = win32gui.BeginPaint(hwnd)
         try:
             rect = win32gui.GetClientRect(hwnd)
             win32gui.SetBkMode(hdc, win32con.TRANSPARENT)
+            if _pause_requested.is_set():
+                text = "⏳ กำลังกลับหน้าจอหลัก... กรุณารอสักครู่ (ไม่เกิน 15 วินาที)"
+            else:
+                text = "◀  คลิกที่นี่ เพื่อกลับหน้าจอหลัก  ◀\n(หรือปิดหน้าต่างนี้ / กด Ctrl+Alt+Del แล้ว Cancel)"
             win32gui.DrawText(
-                hdc,
-                "◀  คลิกที่นี่ เพื่อกลับหน้าจอหลัก  ◀\n(หรือปิดหน้าต่างนี้ / กด Ctrl+Alt+Del แล้ว Cancel)",
-                -1, rect,
+                hdc, text, -1, rect,
                 win32con.DT_CENTER | win32con.DT_VCENTER | win32con.DT_WORDBREAK,
             )
         finally:

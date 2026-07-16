@@ -42,7 +42,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import win32api
 import win32con
@@ -129,6 +129,13 @@ class CropWatEngine:
         # มาจาก config.SPEED_MULTIPLIERS ตาม settings.speed_preset ของผู้ใช้ กัน
         # คอมรุ่นเก่าแฮงค์เพราะรอไม่พอ (ค่าเริ่มต้น 1.0 = พฤติกรรมเดิมทุกประการ)
         self.speed_multiplier = speed_multiplier
+        # v0.7.4 — เรียกก่อน "ทุกคำสั่งเมนู" ใน _invoke_menu (ไม่ใช่แค่ก่อนวันปลูก
+        # แต่ละอันเหมือน v0.7.3) เพราะจุดที่ CropWat โผล่ modal ได้คือทุกครั้งที่
+        # สั่งเมนู (เปิด crop/soil, เปิด climate/rain, calculate, print) ไม่ใช่แค่
+        # ตอนขึ้นวันปลูกใหม่ — ต้อง comprehensive ครอบคลุมทุกจุดที่เสี่ยง ไม่งั้น
+        # การเข้าดูเดสก์ท็อปซ่อนตอน CropWat กำลังเปิด crop/soil (ก่อนถึงวันปลูก
+        # แรกด้วยซ้ำ) จะยังชนกับ modal อยู่ดี — ตั้งจาก runner หลังสร้าง engine
+        self.pause_check: Optional[Callable[[], None]] = None
 
     def _sleep(self, base_seconds: float) -> None:
         """time.sleep คูณด้วย speed_multiplier — ใช้แทน time.sleep() ตรงๆ ทุกจุด
@@ -306,6 +313,8 @@ class CropWatEngine:
         File->Open ถูก disable" ปี 1996-2025 ทั้งที่ปีอื่นรันได้) — เลิกเช็ค
         is_enabled() ปล่อยให้สัญญาณ downstream (หน้าต่างผลลัพธ์โผล่/ไฟล์ถูกเขียน)
         เป็นตัวจับกรณีคำสั่งไม่มีผลจริงแทน + settle หลังยิงคำสั่งกัน race กับคำสั่งถัดไป"""
+        if self.pause_check is not None:
+            self.pause_check()
         if not self.background_mode:
             self.main_window.menu_select(menu_path)
             return
@@ -1250,7 +1259,6 @@ class CropWatEngine:
         screenshot_dir: Optional[Path] = None,
         on_candidate_done=None,
         should_stop=None,
-        pause_check=None,
     ) -> YearRunResult:
         """v0.5.21 — เปลี่ยนจากรับ climate_file/rain_file ตายตัว (เปิดครั้งเดียว
         ใช้ทั้งปี) เป็นรับ "ตัว resolve" (Callable[[เดือนปลูก], Path]) เรียกใหม่
@@ -1268,12 +1276,6 @@ class CropWatEngine:
         candidates = []
         stopped = False
         for task in tasks:
-            # v0.7.2 — "จุดปลอดภัย" ระหว่างวันปลูก (ไม่มี dialog เปิดค้าง) ให้ระบบ
-            # แอบดูเดสก์ท็อปซ่อน park การทำงานไว้ก่อน SwitchDesktop ได้ — กันไม่ให้
-            # การสลับจอไปชนจังหวะที่ CropWat กำลังจะโชว์ modal dialog (File->Open)
-            # ซึ่งเป็นต้นเหตุ error "Cannot make a visible window modal" ตอน peek
-            if pause_check is not None:
-                pause_check()
             # เช็คคำสั่งหยุด "ก่อนเริ่มทุกวันปลูก" ไม่ใช่แค่ตอนขึ้นปีใหม่ (v0.2.3 —
             # เดิมกดหยุดแล้วต้องรอจนครบทั้งปีถึงหยุดจริง) — หยุดกลางวันปลูกที่
             # กำลังทำอยู่ไม่ได้ เพราะจะทิ้ง CropWat ค้างครึ่งทาง (dialog เปิดค้าง

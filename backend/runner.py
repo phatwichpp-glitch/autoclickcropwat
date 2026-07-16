@@ -377,6 +377,10 @@ def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
     # background_mode=True = สั่งเมนูแบบ message ล้วน (เหมาะกับเดสก์ท็อปที่ไม่มี
     # input จริง) — ไม่มี watcher/shield ในระบบอีกต่อไป (ถอดออกทั้งหมดใน v0.7.0)
     engine = CropWatEngine(background_mode=True, speed_multiplier=speed_multiplier)
+    # v0.7.4 — ผูก pause_check เข้ากับ engine ตรงๆ (เช็คก่อน "ทุกคำสั่งเมนู" ใน
+    # _invoke_menu ไม่ใช่แค่ก่อนวันปลูกใหม่แบบ v0.7.3) ครอบคลุมทุกจุดที่ CropWat
+    # อาจโผล่ modal ได้จริง รวมถึงตอนเปิด crop/soil ก่อนวันปลูกแรกด้วย
+    engine.pause_check = _peek_pause_check
     try:
         try:
             engine.connect()
@@ -510,7 +514,6 @@ def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine
             screenshot_dir=screenshot_dir(settings),
             on_candidate_done=_on_candidate_done,
             should_stop=run_state.is_stop_requested,
-            pause_check=_peek_pause_check,
         )
 
         if result.stopped:
