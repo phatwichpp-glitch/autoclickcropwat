@@ -61,8 +61,8 @@ async function loadConfig() {
   // ปุ่ม "เปิด CropWat" มีประโยชน์เฉพาะโหมดคลาสสิก (ผู้ใช้ต้องเปิด CropWat เอง) —
   // โหมดเดสก์ท็อปซ่อนโปรแกรมเปิดให้เองอยู่แล้ว โชว์ไว้มีแต่ทำให้งง
   document.getElementById("btn-launch-cropwat").hidden = settings.hidden_desktop_mode !== false;
-  // ปุ่มดูเดสก์ท็อปซ่อนกลับกัน: มีประโยชน์เฉพาะโหมดเดสก์ท็อปซ่อน
-  document.getElementById("btn-peek-desktop").hidden = settings.hidden_desktop_mode === false;
+  // ปุ่มถ่ายภาพหน้าจอกลับกัน: มีประโยชน์เฉพาะโหมดเดสก์ท็อปซ่อน
+  document.getElementById("btn-take-screenshot").hidden = settings.hidden_desktop_mode === false;
   document.getElementById("speed-preset").value = settings.speed_preset || "normal";
   document.getElementById("shift-year-per-candidate").checked = settings.shift_year_per_candidate !== false;
   document.getElementById("brand-sub").textContent = settings.input_dir
@@ -722,13 +722,26 @@ document.getElementById("btn-force-close").addEventListener("click", async () =>
   renderStatus(await status.json());
 });
 
-document.getElementById("btn-peek-desktop").addEventListener("click", async () => {
-  showToast("กำลังสลับไปดูเดสก์ท็อปซ่อน... คลิกปุ่ม 'กลับหน้าจอหลัก' บนเดสก์ท็อปนั้นเพื่อออก");
-  const res = await fetch("/api/desktop/enter", { method: "POST" });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    alert(err.detail || "สลับไปดูเดสก์ท็อปซ่อนไม่สำเร็จ");
+document.getElementById("btn-take-screenshot").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/desktop/screenshot", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.detail || "ถ่ายภาพหน้าจอไม่สำเร็จ");
+      return;
+    }
+    document.getElementById("screenshot-img").src = data.url;
+    document.getElementById("screenshot-modal").hidden = false;
+  } finally {
+    btn.disabled = false;
   }
+});
+
+document.getElementById("btn-minimize").addEventListener("click", async () => {
+  showToast("ย่อไปที่ Tray แล้ว — โปรแกรมยังรันต่อเบื้องหลัง เปิดกลับได้จากไอคอนถาดระบบ");
+  await fetch("/api/window/minimize", { method: "POST" });
 });
 
 document.getElementById("btn-retry").addEventListener("click", async () => {
@@ -918,6 +931,22 @@ guideModal.addEventListener("click", (e) => {
 });
 
 if (localStorage.getItem("cw-hide-guide") !== "1") showGuide();
+
+// ---------------------------------------------------------------------------
+// Peek screenshot modal (v0.8.0) — เช็คสถานะเฉยๆ แยกจาก screenshot ที่ต้องส่งงาน
+// ---------------------------------------------------------------------------
+const screenshotModal = document.getElementById("screenshot-modal");
+
+function closeScreenshotModal() {
+  screenshotModal.hidden = true;
+  document.getElementById("screenshot-img").src = "";
+}
+
+document.getElementById("screenshot-close").addEventListener("click", closeScreenshotModal);
+document.getElementById("screenshot-close-x").addEventListener("click", closeScreenshotModal);
+screenshotModal.addEventListener("click", (e) => {
+  if (e.target === screenshotModal) closeScreenshotModal();
+});
 
 // ---------------------------------------------------------------------------
 // Init

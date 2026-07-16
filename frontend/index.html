@@ -24,6 +24,7 @@
       <button id="btn-update" class="btn btn-primary sm" hidden type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>อัปเดต</button>
       <button id="btn-help" class="btn btn-ghost sm" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>วิธีใช้</button>
       <button id="btn-check-update" class="btn btn-ghost sm" type="button" title="ตรวจว่ามีเวอร์ชันใหม่ไหมตอนนี้เลย"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>ตรวจอัปเดต</button>
+      <button id="btn-minimize" class="btn btn-ghost sm" type="button" title="ย่อหน้าต่างนี้ลง Tray — โปรแกรมยังทำงานต่อเบื้องหลัง เปิดกลับได้จากไอคอนถาดระบบ (System Tray)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>ย่อไปที่ Tray</button>
       <span class="ver" id="app-version"></span>
       <span class="dot" id="conn-dot"></span>
       <span id="conn-label">กำลังเชื่อมต่อ...</span>
@@ -77,7 +78,7 @@
               <button id="btn-launch-cropwat" class="btn btn-ghost" type="button" title="เปิดโปรแกรม CropWat 8.0 (ต้องตั้งค่า path ในแท็บตั้งค่าก่อน)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>เปิด CropWat</button>
               <button id="btn-start" class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>เริ่มรันทั้งหมด</button>
               <button id="btn-stop" class="btn btn-danger-ghost"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>หยุด</button>
-              <button id="btn-peek-desktop" class="btn btn-ghost" type="button" title="สลับจอเข้าไปดู CropWat ที่กำลังรันในเดสก์ท็อปซ่อน — ดูได้นานเท่าที่ต้องการ (CropWat ทำงานสดให้เห็น) แล้วคลิกปุ่ม 'กลับหน้าจอหลัก' ที่โผล่บนเดสก์ท็อปนั้นเพื่อออก (หรือกด Ctrl+Alt+Del แล้ว Cancel)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>เข้าดูเดสก์ท็อปซ่อน</button>
+              <button id="btn-take-screenshot" class="btn btn-ghost" type="button" title="ถ่ายภาพหน้าจอ CropWat ในเดสก์ท็อปซ่อนตอนนี้ทันที ไว้เช็คสถานะเฉยๆ (แยกจาก screenshot ที่ต้องส่งงาน)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>ถ่ายภาพหน้าจอตอนนี้</button>
               <button id="btn-force-close" class="btn btn-danger-ghost sm" type="button" title="ใช้เมื่อ CropWat ค้างสนิท กดปิดเองไม่ได้เลย — ปุ่มนี้บังคับปิด CropWat + รีเซ็ตสถานะโปรแกรมนี้ ไม่ต้องปิด-เปิดโปรแกรมนี้ใหม่"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>CropWat ค้าง? ปิดฉุกเฉิน</button>
             </div>
           </div>
@@ -205,7 +206,7 @@
               <input type="checkbox" id="hidden-desktop-mode" />
               รันบนเดสก์ท็อปซ่อน — แยกขาดจากจอ/เมาส์/คีย์บอร์ดของคุณ 100%
             </label>
-            <span class="note">โปรแกรมจะ<b>เปิด CropWat ให้เอง</b>ในเดสก์ท็อปที่มองไม่เห็นแยกต่างหาก — คุณใช้คอมทำงานอื่นได้เต็มที่ เผลอคลิกยังไงก็ไม่กระทบ และเสถียรกว่ามากตอนสลับไฟล์ข้ามเดือน/ปี (ระบบเก่าที่เหวี่ยงหน้าต่างหนีจอซึ่งเคยทำให้ CropWat ค้าง/crash ถูกถอดออกทั้งหมดแล้ว) <b>ไม่ต้องเปิด CropWat ค้างไว้เอง</b> แค่ตั้ง path ไฟล์ .exe ที่การ์ด "โปรแกรม CropWat 8.0" ด้านบน (ถ้าติดตั้งไว้ที่มาตรฐานระบบจะหาให้เอง) — ระหว่างรันกดปุ่ม "ดูเดสก์ท็อปซ่อน" ที่ Dashboard เพื่อแอบดูได้ <b>ปิดสวิตช์นี้</b> = โหมดคลาสสิก: เห็น CropWat ทำงานบนจอจริง (ต้องเปิด CropWat ค้างไว้เอง และไม่ควรใช้เครื่องระหว่างรัน)</span>
+            <span class="note">โปรแกรมจะ<b>เปิด CropWat ให้เอง</b>ในเดสก์ท็อปที่มองไม่เห็นแยกต่างหาก — คุณใช้คอมทำงานอื่นได้เต็มที่ เผลอคลิกยังไงก็ไม่กระทบ และเสถียรกว่ามากตอนสลับไฟล์ข้ามเดือน/ปี (ระบบเก่าที่เหวี่ยงหน้าต่างหนีจอซึ่งเคยทำให้ CropWat ค้าง/crash ถูกถอดออกทั้งหมดแล้ว) <b>ไม่ต้องเปิด CropWat ค้างไว้เอง</b> แค่ตั้ง path ไฟล์ .exe ที่การ์ด "โปรแกรม CropWat 8.0" ด้านบน (ถ้าติดตั้งไว้ที่มาตรฐานระบบจะหาให้เอง) — ระหว่างรันกดปุ่ม "ถ่ายภาพหน้าจอตอนนี้" ที่ Dashboard เพื่อเช็คสถานะได้ตลอด <b>ปิดสวิตช์นี้</b> = โหมดคลาสสิก: เห็น CropWat ทำงานบนจอจริง (ต้องเปิด CropWat ค้างไว้เอง และไม่ควรใช้เครื่องระหว่างรัน)</span>
           </div>
         </div>
 
@@ -298,11 +299,11 @@
         </li>
         <li>
           <b>ไม่ต้องเปิด CropWat เอง (โหมดเดสก์ท็อปซ่อน — ค่าเริ่มต้น)</b>
-          <div>โปรแกรมจะเปิด CropWat ให้เองใน<b>เดสก์ท็อปซ่อน</b>ที่แยกจากจอของคุณ 100% — ใช้คอมทำงานอื่นได้เต็มที่ระหว่างรัน เผลอคลิกยังไงก็ไม่กระทบ (แค่ตั้ง path ไฟล์ CROPWAT.exe ในแท็บตั้งค่าครั้งแรก ถ้าติดตั้งไว้ที่มาตรฐานระบบหาให้เอง) — อยากเห็นว่า CropWat กำลังทำอะไร กดปุ่ม <b>"ดูเดสก์ท็อปซ่อน"</b> ที่ Dashboard ได้ จอจะสลับไปดู 10 วินาทีแล้วกลับมาเอง</div>
+          <div>โปรแกรมจะเปิด CropWat ให้เองใน<b>เดสก์ท็อปซ่อน</b>ที่แยกจากจอของคุณ 100% — ใช้คอมทำงานอื่นได้เต็มที่ระหว่างรัน เผลอคลิกยังไงก็ไม่กระทบ (แค่ตั้ง path ไฟล์ CROPWAT.exe ในแท็บตั้งค่าครั้งแรก ถ้าติดตั้งไว้ที่มาตรฐานระบบหาให้เอง) — อยากเช็คว่า CropWat กำลังทำอะไรอยู่ กดปุ่ม <b>"ถ่ายภาพหน้าจอตอนนี้"</b> ที่ Dashboard ได้เลย ได้ภาพนิ่งมาดูทันที (ไม่ต้องสลับจอ)</div>
         </li>
         <li>
           <b>เริ่มรัน (แท็บ "Dashboard")</b>
-          <div>เลือกช่วงปี + วันปลูกในปฏิทิน &rarr; กด <b>เริ่มรันทั้งหมด</b> (หรือกด <kbd>Ctrl+Alt+F9</kbd> จากที่ไหนก็ได้) ดูความคืบหน้าจากแถบลอยมุมขวาล่างจอ (<kbd>Ctrl+Alt+F10</kbd> = หยุด)</div>
+          <div>เลือกช่วงปี + วันปลูกในปฏิทิน &rarr; กด <b>เริ่มรันทั้งหมด</b> (หรือกด <kbd>Ctrl+Alt+F9</kbd> จากที่ไหนก็ได้) ดูความคืบหน้าได้ 2 ทาง: แถบลอยมุมขวาล่างจอ หรือ<b>ไอคอนถาดระบบ (System Tray)</b> — กดปุ่ม <b>"ย่อไปที่ Tray"</b> มุมขวาบนเพื่อเก็บหน้าต่างนี้ไปก่อนได้เลย โปรแกรมยังรันต่อเบื้องหลัง เอาเมาส์ชี้ไอคอน Tray ดูเปอร์เซ็นต์/ปีที่กำลังทำได้ตลอด (<kbd>Ctrl+Alt+F10</kbd> = หยุด)</div>
         </li>
         <li>
           <b>เสร็จแล้วสร้างไฟล์ผลลัพธ์</b>
@@ -341,6 +342,24 @@
       <div class="os-note" id="updating-hint" style="text-align:center">
         อย่าปิดโปรแกรมระหว่างนี้ — เมื่อดาวน์โหลดเสร็จ โปรแกรมจะปิดและเปิดใหม่เอง
         หน้านี้จะกลับมาโดยอัตโนมัติ
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= PEEK SCREENSHOT MODAL (เช็คสถานะเฉยๆ ไม่ใช่ screenshot ที่ต้องส่งงาน) ================= -->
+  <div class="modal-backdrop" id="screenshot-modal" hidden>
+    <div class="modal" style="max-width:min(94vw, 900px)">
+      <div class="modal-head">
+        <h2>ภาพหน้าจอตอนนี้</h2>
+        <button class="modal-close" id="screenshot-close-x" type="button">&times;</button>
+      </div>
+      <div class="os-note">ภาพนี้เก็บไว้เช็คสถานะเฉยๆ ไม่เกี่ยวกับ screenshot ที่ต้องส่งงาน (อยู่คนละไฟล์กัน)</div>
+      <div style="margin-top:10px; text-align:center">
+        <img id="screenshot-img" src="" alt="ภาพหน้าจอ CropWat" style="max-width:100%; max-height:70vh; border-radius:8px; border:1px solid var(--border)" />
+      </div>
+      <div class="modal-foot">
+        <span></span>
+        <button class="btn btn-primary" id="screenshot-close" type="button">ปิด</button>
       </div>
     </div>
   </div>

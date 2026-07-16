@@ -153,6 +153,16 @@ def _bring_to_front(hwnd: int) -> None:
             user32.AttachThreadInput(cur_tid, target_tid, False)
 
 
+def _minimize_app_window() -> None:
+    """ย่อหน้าต่างโปรแกรมลง Tray (v0.8.0) — เรียกจาก /api/window/minimize ตอนกด
+    ปุ่ม "ย่อไปที่ Tray" บนหน้าเว็บ เรียกคืนได้จากเมนู tray icon ("เปิดหน้าต่าง
+    โปรแกรม") ซึ่งใช้ _bring_to_front (มี SW_RESTORE ในตัวอยู่แล้วถ้า minimize ไว้)"""
+    hwnd = _find_app_window_hwnd()
+    if hwnd:
+        SW_MINIMIZE = 6
+        ctypes.windll.user32.ShowWindow(hwnd, SW_MINIMIZE)
+
+
 def _launch_app_window() -> None:
     """เปิด "หน้าต่างโปรแกรม" (เบราว์เซอร์แบบ app mode ไม่มี address bar/แท็บ) —
     ใช้ทั้งตอนเริ่มโปรแกรม, ตอนดับเบิลคลิก .exe ซ้ำ, และตอนกดจาก tray icon/overlay

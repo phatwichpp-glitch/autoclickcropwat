@@ -16,6 +16,10 @@ overlay.py
    ว่าอันไหนคือสัญญาณ "ทำงานอยู่" ตัวจริง — เปลี่ยนให้ overlay โผล่เฉพาะตอนกำลังรัน/
    กำลังหยุด/เพิ่งจบ (ค้างไว้ 15 วิให้เห็นผลสรุป) แล้วซ่อนตัวเอง ส่วน tray icon
    เป็นสัญญาณ "ทำงานอยู่เบื้องหลัง" เพียงหนึ่งเดียวที่ค้างตลอดเวลา
+   v0.8.0: ผู้ใช้ feedback ว่า overlay ดูเกะกะกว่า tray — เพิ่มปุ่มซ่อน overlay
+   เอง (🗕) เรียกคืนได้จากเมนู tray ("แสดงแถบ Progress ลอย") และเพิ่ม tooltip
+   ของ tray icon ให้บอกปี/%/ETA ระหว่างรัน ให้ tray เป็นช่องทางดู progress ที่
+   ครบเทียบเท่า overlay ได้โดยไม่ต้องเปิดหน้าต่างไหนเลย
 
 3. **Global hotkeys** — Ctrl+Alt+F9 เริ่มรัน / Ctrl+Alt+F10 หยุด กดได้จากทุกที่
    แม้ CropWat หรือโปรแกรมอื่นกำลัง focus อยู่ (RegisterHotKey ระดับ OS)
@@ -46,6 +50,13 @@ _DONE_GRACE_SECONDS = 15
 # ตั้งโดย engine ตอนกำลัง capture screenshot — overlay ต้องซ่อนตัวชั่วคราว ไม่งั้น
 # ตัวเองจะติดไปในภาพ (capture ถ่ายจากพิกเซลจริงบนจอ) — ดู capture_screenshots
 capture_pause = threading.Event()
+
+# v0.8.0 — ผู้ใช้ให้ feedback ว่า overlay ลอยดูเกะกะกว่า tray icon ("ดู Progress
+# ผ่าน System Tray จะดูไม่เกะกะเท่า Overlay") — เพิ่มปุ่มซ่อน overlay เอง (บนแถบ)
+# + toggle จากเมนู tray (ดู _toggle_overlay) ตั้ง set() แล้ว overlay ซ่อนตัวเองใน
+# รอบ refresh ถัดไปแม้กำลังรันอยู่ ตั้งใจไม่ persist ข้ามการเปิดโปรแกรมใหม่ (ค่า
+# เริ่มต้นทุกครั้งคือ "แสดง")
+overlay_hidden = threading.Event()
 
 
 def _assets_dir() -> Path:
@@ -199,19 +210,36 @@ def _open_output_folder(_icon=None, _item=None) -> None:
         logger.exception("เปิดโฟลเดอร์ผลลัพธ์จาก tray ไม่สำเร็จ")
 
 
-def _peek_desktop(_icon=None, _item=None) -> None:
-    """เข้าดูเดสก์ท็อปซ่อนจากเมนู tray — ค้างอยู่จนกว่าจะกดปุ่มกลับบนเดสก์ท็อปนั้น"""
+def _take_screenshot(_icon=None, _item=None) -> None:
+    """ถ่ายภาพหน้าจอ CropWat ตอนนี้จากเมนู tray (v0.8.0 — แทนที่ "เข้าดูเดสก์ท็อป
+    ซ่อน" เดิมที่ถอดออกแล้วเพราะชน "Cannot make a visible window modal" ซ้ำๆ) —
+    ใช้เช็คสถานะเฉยๆ แยกจาก screenshot ที่ต้องส่งงาน เปิดดูด้วยตัวดูภาพเริ่มต้น
+    ของเครื่องทันทีที่ถ่ายเสร็จ"""
+    import desktop_session
+
     try:
         import runner
-        import desktop_session
+        from config import load_settings
 
         if not runner.is_run_active():
-            notify("CropWat Auto-runner", "ยังไม่ได้กำลังรันอยู่ — ดูเดสก์ท็อปซ่อนได้เฉพาะระหว่างรัน")
+            notify("CropWat Auto-runner", "ยังไม่ได้กำลังรันอยู่ — ถ่ายภาพได้เฉพาะระหว่างรันในโหมดเดสก์ท็อปซ่อนเท่านั้น")
             return
-        if not desktop_session.enter_hidden_desktop():
-            notify("CropWat Auto-runner", "การรันปัจจุบันไม่ได้ใช้โหมดเดสก์ท็อปซ่อน")
+        path = desktop_session.request_peek_screenshot(load_settings().output_dir)
+        os.startfile(str(path))  # type: ignore[attr-defined]
+    except desktop_session.DesktopSessionError as exc:
+        notify("CropWat Auto-runner", str(exc))
     except Exception:  # noqa: BLE001
-        logger.exception("ดูเดสก์ท็อปซ่อนจาก tray ไม่สำเร็จ")
+        logger.exception("ถ่ายภาพหน้าจอจาก tray ไม่สำเร็จ")
+        notify("CropWat Auto-runner", "ถ่ายภาพหน้าจอไม่สำเร็จ")
+
+
+def _toggle_overlay(_icon=None, _item=None) -> None:
+    """สลับซ่อน/แสดงแถบ progress ลอย — จากเมนู tray เท่านั้น (ตั้งใจ: พอ overlay
+    ถูกซ่อนแล้วจะไม่มีปุ่มบนตัว overlay เองให้กดเรียกคืนอีก ต้องมาที่ tray)"""
+    if overlay_hidden.is_set():
+        overlay_hidden.clear()
+    else:
+        overlay_hidden.set()
 
 
 def _tray_loop() -> None:
@@ -226,7 +254,12 @@ def _tray_loop() -> None:
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("▶ เริ่มรันทั้งหมด", lambda _i, _m: _start_run()),
         pystray.MenuItem("⏹ หยุด", lambda _i, _m: _stop_run()),
-        pystray.MenuItem("👁 เข้าดูเดสก์ท็อปซ่อน", _peek_desktop),
+        pystray.MenuItem("📸 ถ่ายภาพหน้าจอตอนนี้ (เช็คสถานะ)", _take_screenshot),
+        pystray.MenuItem(
+            "แสดงแถบ Progress ลอย",
+            _toggle_overlay,
+            checked=lambda _item: not overlay_hidden.is_set(),
+        ),
         pystray.MenuItem("📂 เปิดโฟลเดอร์ผลลัพธ์", _open_output_folder),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("✕ ปิดโปรแกรม", lambda _i, _m: _quit_app()),
@@ -257,11 +290,20 @@ def _tray_loop() -> None:
                 if running != last_running:
                     icon.icon = _tray_icon_image(running=running)
                     last_running = running
-                icon.title = (
-                    f"CropWat Auto-runner — กำลังรัน {snap.candidate_done}/{snap.candidate_total}"
-                    if running
-                    else "CropWat Auto-runner — พร้อมใช้งาน"
-                )
+                if running:
+                    # v0.8.0 — ผู้ใช้ชอบดู progress ผ่าน tray มากกว่า overlay
+                    # ("ไม่เกะกะเท่า") เพิ่มปี + % ให้เห็นรายละเอียดในคำเดียวโดย
+                    # ไม่ต้องเปิดหน้าต่างโปรแกรม (hover เมาส์บนไอคอนก็เห็นแล้ว)
+                    total = snap.candidate_total
+                    done = snap.candidate_done
+                    pct_txt = f" ({done / total:.0%})" if total else ""
+                    year_txt = f" ปี {snap.current_year}" if snap.current_year else ""
+                    eta_txt = f" · {eta}" if (eta := _format_eta(snap.eta_seconds)) else ""
+                    icon.title = (
+                        f"CropWat Auto-runner —{year_txt} {done}/{total}{pct_txt}{eta_txt}"
+                    )
+                else:
+                    icon.title = "CropWat Auto-runner — พร้อมใช้งาน"
             except Exception:  # noqa: BLE001 -- poll พังรอบไหนข้ามรอบนั้น อย่าให้ tray ตาย
                 logger.exception("tray icon watcher ล้มเหลว")
             time.sleep(0.5)
@@ -364,11 +406,17 @@ def _overlay_loop() -> None:
 
     # v0.5.13: ใช้ _quit_app() ตัวเดียวกับ tray icon (MessageBoxW ดิบ ไม่ใช่
     # tkinter.messagebox) กันโค้ดถามยืนยัน "ปิดโปรแกรม" ซ้ำซ้อน 2 ที่
+    def _hide_overlay_button() -> None:
+        overlay_hidden.set()
+
     _mk_button(top_row, "✕", _quit_app, fg=DIM).pack(side="right")
     _mk_button(top_row, "⚙", _open_app_window, fg=DIM).pack(side="right")
-    # v0.7.1 (user-journey audit): ปุ่มแอบดูเดสก์ท็อปซ่อนจาก overlay ตรงๆ —
-    # จุดที่ผู้ใช้มองระหว่างรันคือ overlay อยู่แล้ว ไม่ต้องอ้อมไปเปิดหน้าเว็บ
-    _mk_button(top_row, "👁", _peek_desktop, fg=DIM).pack(side="right")
+    # v0.8.0: ซ่อน overlay เองจากปุ่มบนแถบ — เรียกคืนได้จากเมนู tray เท่านั้น
+    # (ตั้งใจไม่มีปุ่ม "แสดง" บน overlay เพราะซ่อนไปแล้วก็ไม่มีอะไรให้กด)
+    _mk_button(top_row, "🗕", _hide_overlay_button, fg=DIM).pack(side="right")
+    # v0.7.1 (user-journey audit): ปุ่มถ่ายภาพเช็คสถานะจาก overlay ตรงๆ — จุดที่
+    # ผู้ใช้มองระหว่างรันคือ overlay อยู่แล้ว ไม่ต้องอ้อมไปเปิดหน้าเว็บ
+    _mk_button(top_row, "📸", _take_screenshot, fg=DIM).pack(side="right")
     _mk_button(top_row, "⏹", _stop_run, fg="#ff7b7b").pack(side="right")
     _mk_button(top_row, "▶", _start_run, fg=BAR_DONE).pack(side="right")
 
@@ -400,8 +448,10 @@ def _overlay_loop() -> None:
             # เรื่อยๆ พอเลิก active ปุ๊บ deadline จะเหลืออีก ~15 วิพอดีจากติ๊กล่าสุด
             if active:
                 hide_deadline["v"] = time.monotonic() + _DONE_GRACE_SECONDS
-            should_show = (not capture_pause.is_set()) and (
-                active or time.monotonic() < hide_deadline["v"]
+            should_show = (
+                (not capture_pause.is_set())
+                and (not overlay_hidden.is_set())
+                and (active or time.monotonic() < hide_deadline["v"])
             )
 
             if not should_show:

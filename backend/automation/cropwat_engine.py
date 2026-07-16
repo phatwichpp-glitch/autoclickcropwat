@@ -129,12 +129,13 @@ class CropWatEngine:
         # มาจาก config.SPEED_MULTIPLIERS ตาม settings.speed_preset ของผู้ใช้ กัน
         # คอมรุ่นเก่าแฮงค์เพราะรอไม่พอ (ค่าเริ่มต้น 1.0 = พฤติกรรมเดิมทุกประการ)
         self.speed_multiplier = speed_multiplier
-        # v0.7.4 — เรียกก่อน "ทุกคำสั่งเมนู" ใน _invoke_menu (ไม่ใช่แค่ก่อนวันปลูก
-        # แต่ละอันเหมือน v0.7.3) เพราะจุดที่ CropWat โผล่ modal ได้คือทุกครั้งที่
-        # สั่งเมนู (เปิด crop/soil, เปิด climate/rain, calculate, print) ไม่ใช่แค่
-        # ตอนขึ้นวันปลูกใหม่ — ต้อง comprehensive ครอบคลุมทุกจุดที่เสี่ยง ไม่งั้น
-        # การเข้าดูเดสก์ท็อปซ่อนตอน CropWat กำลังเปิด crop/soil (ก่อนถึงวันปลูก
-        # แรกด้วยซ้ำ) จะยังชนกับ modal อยู่ดี — ตั้งจาก runner หลังสร้าง engine
+        # v0.7.4 — เรียกก่อน "ทุกคำสั่งเมนู" ใน _invoke_menu เพื่อให้มี safe point
+        # ถี่ๆ ทั่วทุกขั้นตอน (เปิด crop/soil, เปิด climate/rain, calculate, print)
+        # ไม่ใช่แค่ตอนขึ้นวันปลูกใหม่ — เดิม (v0.7.x) ใช้ safe point นี้ park
+        # automation ตอนผู้ใช้สลับจอไปดูเดสก์ท็อปซ่อนสด แต่ฟีเจอร์นั้นถูกถอดออก
+        # แล้ว (v0.8.0 — ยังชนกับ "Cannot make a visible window modal" ซ้ำๆ) ตอนนี้
+        # runner ผูก hook เดียวกันไว้บริการคำขอ "ถ่ายภาพหน้าจอตอนนี้" แทน (ดู
+        # desktop_session.service_peek_request) — ตั้งจาก runner หลังสร้าง engine
         self.pause_check: Optional[Callable[[], None]] = None
 
     def _sleep(self, base_seconds: float) -> None:

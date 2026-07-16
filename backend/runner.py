@@ -40,12 +40,6 @@ _TXT_RE = re.compile(r"^(?P<year>\d{4})_(?P<mmdd>\d{4})\.txt$")
 _SHOT_RE = re.compile(r"^(?P<year>\d{4})_(?P<mmdd>\d{4})_schedule\.png$")
 
 
-def _peek_pause_check() -> None:
-    """ส่งให้ engine เรียกที่จุดปลอดภัยระหว่างวันปลูก — park การทำงานชั่วคราวถ้า
-    ผู้ใช้กำลังแอบดูเดสก์ท็อปซ่อนอยู่ (ดู desktop_session.wait_if_peek_paused)"""
-    import desktop_session
-
-    desktop_session.wait_if_peek_paused()
 
 
 def _scan_valid_outputs(settings: Settings) -> tuple[set, set, list[str]]:
@@ -377,10 +371,17 @@ def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
     # background_mode=True = สั่งเมนูแบบ message ล้วน (เหมาะกับเดสก์ท็อปที่ไม่มี
     # input จริง) — ไม่มี watcher/shield ในระบบอีกต่อไป (ถอดออกทั้งหมดใน v0.7.0)
     engine = CropWatEngine(background_mode=True, speed_multiplier=speed_multiplier)
-    # v0.7.4 — ผูก pause_check เข้ากับ engine ตรงๆ (เช็คก่อน "ทุกคำสั่งเมนู" ใน
-    # _invoke_menu ไม่ใช่แค่ก่อนวันปลูกใหม่แบบ v0.7.3) ครอบคลุมทุกจุดที่ CropWat
-    # อาจโผล่ modal ได้จริง รวมถึงตอนเปิด crop/soil ก่อนวันปลูกแรกด้วย
-    engine.pause_check = _peek_pause_check
+    # v0.8.0 — pause_check เดิมใช้ park automation ตอนสลับจอไปดูสด (v0.7.x) แต่
+    # ฟีเจอร์นั้นถูกถอดออกทั้งหมดแล้ว (ยังชนกับ "Cannot make a visible window
+    # modal" ซ้ำๆ ไม่มีทางป้องกันได้ 100%) — ตอนนี้ผูก hook เดียวกัน (เช็คก่อน
+    # "ทุกคำสั่งเมนู" ใน _invoke_menu) ให้บริการคำขอ "ถ่ายภาพหน้าจอตอนนี้" แทน
+    # (PrintWindow ล้วนๆ ไม่สลับจอเลย ปลอดภัยกว่ามาก)
+    import desktop_session
+
+    def _service_peek() -> None:
+        desktop_session.service_peek_request(engine, settings.output_dir)
+
+    engine.pause_check = _service_peek
     try:
         try:
             engine.connect()

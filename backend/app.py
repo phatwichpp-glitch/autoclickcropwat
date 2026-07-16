@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -290,35 +291,48 @@ async def force_close_cropwat() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# เดสก์ท็อปซ่อน (v0.7.0): แอบดู/กลับ — สลับจอไปดู CropWat ที่กำลังรันในเดสก์ท็อป
-# ซ่อนชั่วคราว แล้วกลับมาเองอัตโนมัติ (จำเป็นต้องกลับเอง เพราะระหว่างดูอยู่
-# ผู้ใช้กดปุ่มบนหน้าเว็บนี้ไม่ได้ — หน้าเว็บอยู่เดสก์ท็อปหลัก)
+# เดสก์ท็อปซ่อน (v0.8.0): ถ่ายภาพหน้าจอตอนนี้ — แทนที่การสลับจอเข้าไปดูสด (v0.7.x)
+# ซึ่งชน "Cannot make a visible window modal" ซ้ำๆ จนต้องถอดออกทั้งหมด ใช้
+# PrintWindow ถ่ายภาพนิ่งแทน ปลอดภัยกว่ามาก (ไม่แตะ SwitchDesktop เลย) เก็บภาพ
+# แยกโฟลเดอร์จาก screenshot ที่ต้องส่งงานเสมอ (ดู desktop_session.PEEK_SCREENSHOT_DIR_NAME)
 # ---------------------------------------------------------------------------
 
-@app.post("/api/desktop/enter")
-async def desktop_enter() -> dict:
-    """สลับจอเข้าไปดูเดสก์ท็อปซ่อน (ค้างอยู่จนกว่าจะกดปุ่มกลับบนเดสก์ท็อปนั้น) —
+@app.post("/api/desktop/screenshot")
+async def desktop_screenshot() -> dict:
+    """ขอถ่ายภาพหน้าจอ CropWat ปัจจุบัน (สำหรับเช็คเฉยๆ ไม่เกี่ยวกับงานที่ต้องส่ง) —
     ใช้ได้เฉพาะระหว่างรันในโหมดเดสก์ท็อปซ่อน"""
     import desktop_session
 
     if not runner.is_run_active():
         raise HTTPException(
-            409, "ยังไม่ได้กำลังรันอยู่ — ปุ่มนี้ใช้ดู CropWat ระหว่างรันในโหมดเดสก์ท็อปซ่อนเท่านั้น"
+            409, "ยังไม่ได้กำลังรันอยู่ — ถ่ายภาพได้เฉพาะระหว่างรันในโหมดเดสก์ท็อปซ่อนเท่านั้น"
         )
-    switched = await asyncio.to_thread(desktop_session.enter_hidden_desktop)
-    if not switched:
-        raise HTTPException(
-            404,
-            "ยังไม่มีเดสก์ท็อปซ่อนทำงานอยู่ — การรันปัจจุบันอาจใช้โหมดคลาสสิก (ปิดสวิตช์เดสก์ท็อปซ่อนไว้)",
-        )
-    return {"ok": True}
+    settings = load_settings()
+    try:
+        await asyncio.to_thread(desktop_session.request_peek_screenshot, settings.output_dir)
+    except desktop_session.DesktopSessionError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"ok": True, "url": f"/api/desktop/screenshot-image?t={int(time.time())}"}
 
 
-@app.post("/api/desktop/return")
-async def desktop_return() -> dict:
+@app.get("/api/desktop/screenshot-image")
+async def desktop_screenshot_image() -> FileResponse:
     import desktop_session
 
-    await asyncio.to_thread(desktop_session.leave_hidden_desktop)
+    settings = load_settings()
+    path = Path(settings.output_dir) / desktop_session.PEEK_SCREENSHOT_DIR_NAME / "latest.png"
+    if not path.exists():
+        raise HTTPException(404, "ยังไม่มีภาพหน้าจอที่ถ่ายไว้")
+    return FileResponse(path, media_type="image/png")
+
+
+@app.post("/api/window/minimize")
+async def window_minimize() -> dict:
+    """ย่อหน้าต่างโปรแกรมลง Tray (v0.8.0) — เปิดกลับได้จากเมนู tray icon
+    ("เปิดหน้าต่างโปรแกรม")"""
+    import launcher
+
+    await asyncio.to_thread(launcher._minimize_app_window)
     return {"ok": True}
 
 
