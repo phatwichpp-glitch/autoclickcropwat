@@ -992,30 +992,20 @@ class CropWatEngine:
             mfc_dc.DeleteDC()
             win32gui.ReleaseDC(hwnd, hwnd_dc)
 
-    def _printwindow_capture(self, hwnd: int, save_path: Path) -> bool:
-        """ถ่ายภาพหน้าต่างใดๆ ด้วย PrintWindow (ใช้กับ error dialog v0.11.0) —
-        แยกจาก _capture_main_window เพื่อไม่แตะ path ถ่ายภาพงานส่งที่พิสูจน์แล้ว
-        คืน True ถ้าสำเร็จ (ใช้ DPI correction + timeout เหมือนกัน เพราะ dialog
-        ก็เป็นหน้าต่าง CropWat ที่ไม่รู้จัก DPI เช่นกัน)"""
+    def _printwindow_image(self, hwnd: int):
+        """ถ่ายภาพหน้าต่างใดๆ ด้วย PrintWindow แล้วคืนเป็น PIL Image (v0.11.0/0.11.2)
+        — แยกจาก _capture_main_window เพื่อไม่แตะ path ถ่ายภาพงานส่งที่พิสูจน์แล้ว
+        คืน None ถ้าล้มเหลว (ใช้ DPI correction + timeout เหมือนกัน เพราะหน้าต่าง
+        CropWat ไม่รู้จัก DPI)"""
         import win32ui
         from PIL import Image
 
         left, top, right, bottom = win32gui.GetWindowRect(hwnd)
         width, height = right - left, bottom - top
         if width <= 0 or height <= 0:
-            return False
-        try:
-            import ctypes as _ct
-
-            win_dpi = _ct.windll.user32.GetDpiForWindow(hwnd) or 96
-            hmon = _ct.windll.user32.MonitorFromWindow(hwnd, 2)
-            mon_x, mon_y = _ct.c_uint(96), _ct.c_uint(96)
-            _ct.windll.shcore.GetDpiForMonitor(hmon, 0, _ct.byref(mon_x), _ct.byref(mon_y))
-            mon_dpi = mon_x.value or 96
-            width = round(width * win_dpi / mon_dpi)
-            height = round(height * win_dpi / mon_dpi)
-        except Exception:  # noqa: BLE001
-            pass
+            return None
+        scale = self._window_dpi_scale(hwnd)
+        width, height = round(width * scale), round(height * scale)
 
         hwnd_dc = win32gui.GetWindowDC(hwnd)
         mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
@@ -1026,19 +1016,34 @@ class CropWatEngine:
             save_dc.SelectObject(bmp)
             PW_RENDERFULLCONTENT = 2
             if not self._print_window_with_timeout(hwnd, save_dc.GetSafeHdc(), PW_RENDERFULLCONTENT):
-                return False
+                return None
             info = bmp.GetInfo()
             pixels = bmp.GetBitmapBits(True)
-            img = Image.frombuffer(
+            return Image.frombuffer(
                 "RGB", (info["bmWidth"], info["bmHeight"]), pixels, "raw", "BGRX", 0, 1
             )
-            img.save(save_path)
-            return True
         finally:
             win32gui.DeleteObject(bmp.GetHandle())
             save_dc.DeleteDC()
             mfc_dc.DeleteDC()
             win32gui.ReleaseDC(hwnd, hwnd_dc)
+
+    @staticmethod
+    def _window_dpi_scale(hwnd: int) -> float:
+        """อัตราส่วน DPI ของหน้าต่าง (logical/physical) — CropWat เป็นโปรแกรมเก่า
+        ไม่รู้จัก DPI มันวาดตัวเองที่ขนาด logical แต่ GetWindowRect (จาก process
+        เราที่ DPI-aware) คืนขนาด physical ที่ใหญ่กว่าบนจอ scaling 125%/150% —
+        คูณด้วยค่านี้เพื่อได้ขนาดที่มันวาดจริง (กันขอบดำ) คืน 1.0 บน Windows เก่า"""
+        try:
+            import ctypes as _ct
+
+            win_dpi = _ct.windll.user32.GetDpiForWindow(hwnd) or 96
+            hmon = _ct.windll.user32.MonitorFromWindow(hwnd, 2)
+            mon_x, mon_y = _ct.c_uint(96), _ct.c_uint(96)
+            _ct.windll.shcore.GetDpiForMonitor(hmon, 0, _ct.byref(mon_x), _ct.byref(mon_y))
+            return (win_dpi or 96) / (mon_x.value or 96)
+        except Exception:  # noqa: BLE001
+            return 1.0
 
     # ------------------------------------------------------------------
     # จัดการ prompt คำถาม Yes/No ของ CropWat (เช่น "Save changes to current
@@ -1150,8 +1155,14 @@ class CropWatEngine:
         return " ".join(texts)
 
     def _capture_error_dialog(self, dialog_hwnd: int, title: str) -> Optional[str]:
-        """ถ่ายภาพ error dialog ของ CropWat เก็บไว้ให้ผู้ใช้เปิดดูเอง (v0.11.0) —
-        คืน path ไฟล์ที่บันทึก หรือ None ถ้าถ่ายไม่ได้/ไม่ได้ตั้ง error_shots_dir"""
+        """ถ่ายภาพ "CropWat ทั้งบานตอน error" เก็บไว้ให้ผู้ใช้เปิดดูเอง (v0.11.2 —
+        ตามคำขอผู้ใช้: เดิม v0.11.0 ถ่ายแค่กล่อง error เล็กๆ ขยายเป็นถ่ายหน้าต่าง
+        หลัก CropWat ทั้งบาน (เห็นข้อมูลที่โหลดอยู่ หน้าต่างโมดูล ค่าต่างๆ) แล้ววาง
+        กล่อง error ทับตรงกลาง — เห็นทั้งข้อความ error และบริบทข้อมูลในภาพเดียว)
+
+        วางกล่องไว้ "ตรงกลาง" หน้าต่างหลักเสมอ (VCL MessageDlg จัดตัวเองกลางฟอร์ม
+        อยู่แล้ว) จึงไม่ต้องพึ่งตำแหน่งจริงของกล่อง — ทนต่อการที่กล่องถูกเหวี่ยง
+        ออกนอกจอในโหมดเบื้องหลังด้วย คืน path ไฟล์ หรือ None ถ้าถ่ายไม่ได้"""
         if self.error_shots_dir is None:
             return None
         try:
@@ -1159,8 +1170,24 @@ class CropWatEngine:
             stamp = time.strftime("%H%M%S")
             label = self.current_candidate_label or "error"
             path = self.error_shots_dir / f"{label}_{stamp}.png"
-            if self._printwindow_capture(dialog_hwnd, path):
+
+            dlg_img = self._printwindow_image(dialog_hwnd)
+            main_hwnd = self.main_window.handle if self.main_window is not None else None
+            main_img = self._printwindow_image(main_hwnd) if main_hwnd else None
+
+            if main_img is None:
+                # ไม่มีบริบทหน้าต่างหลัก — เซฟแค่กล่อง error (ยังดีกว่าไม่มีอะไร)
+                if dlg_img is None:
+                    return None
+                dlg_img.save(path)
                 return str(path)
+
+            if dlg_img is not None:
+                ox = max(0, (main_img.width - dlg_img.width) // 2)
+                oy = max(0, (main_img.height - dlg_img.height) // 2)
+                main_img.paste(dlg_img, (ox, oy))
+            main_img.save(path)
+            return str(path)
         except Exception:  # noqa: BLE001 -- ถ่ายภาพ error ล้มเหลวห้ามกลบ error จริง
             logger.debug("ถ่ายภาพ error dialog ไม่สำเร็จ", exc_info=True)
         return None
