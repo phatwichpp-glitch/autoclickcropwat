@@ -27,7 +27,14 @@ from pydantic import BaseModel
 
 import os_dialogs
 import runner
-from config import Settings, excel_path, load_settings, save_settings, word_path
+from config import (
+    Settings,
+    excel_path,
+    load_settings,
+    save_settings,
+    screenshot_dir,
+    word_path,
+)
 from file_engine import paths as file_paths
 from models import RunRequest, ScanResult, StateSnapshot, StationScan, YearRunStatus
 from state import run_state
@@ -323,6 +330,62 @@ async def desktop_screenshot_image() -> FileResponse:
     path = Path(settings.output_dir) / desktop_session.PEEK_SCREENSHOT_DIR_NAME / "latest.png"
     if not path.exists():
         raise HTTPException(404, "ยังไม่มีภาพหน้าจอที่ถ่ายไว้")
+    return FileResponse(path, media_type="image/png")
+
+
+def _find_latest_screenshot(settings: Settings):
+    """หาไฟล์ภาพหน้าจอ "ล่าสุด" ข้ามทั้งสองแหล่ง: ภาพงานส่ง (screenshots/) และ
+    ภาพตรวจสอบสด (_peek_screenshots/latest.png) — คืน (path, kind) หรือ (None, None)
+    ใช้ mtime ตัดสิน เพราะ engine เขียนไฟล์เสร็จแล้วเท่านั้นถึงจะโผล่ในโฟลเดอร์
+    (v0.9.0 — หน้าจอแสดงภาพอัตโนมัติ: โชว์ภาพใหม่ทุกครั้งที่ระบบ capture ตามปฏิทิน
+    หรือผู้ใช้กดถ่ายสด โดย frontend คอยเทียบ mtime ผ่าน /api/screenshots/latest)"""
+    import desktop_session
+
+    candidates: list[tuple[float, Path, str]] = []
+    if settings.output_dir:
+        work_dir = screenshot_dir(settings)
+        if work_dir.is_dir():
+            for p in work_dir.glob("*.png"):
+                try:
+                    candidates.append((p.stat().st_mtime, p, "work"))
+                except OSError:
+                    continue
+        peek = Path(settings.output_dir) / desktop_session.PEEK_SCREENSHOT_DIR_NAME / "latest.png"
+        if peek.is_file():
+            try:
+                candidates.append((peek.stat().st_mtime, peek, "live"))
+            except OSError:
+                pass
+    if not candidates:
+        return None, None
+    _mtime, path, kind = max(candidates, key=lambda c: c[0])
+    return path, kind
+
+
+@app.get("/api/screenshots/latest")
+async def screenshots_latest() -> dict:
+    """metadata ของภาพหน้าจอล่าสุด (งานส่งหรือตรวจสอบสด อันที่ใหม่กว่า) — frontend
+    เรียกซ้ำระหว่างรันเพื่อรีเฟรชหน้าจอแสดงภาพอัตโนมัติ เทียบ mtime ก่อนโหลดภาพจริง"""
+    settings = load_settings()
+    path, kind = await asyncio.to_thread(_find_latest_screenshot, settings)
+    if path is None:
+        return {"exists": False}
+    mtime = path.stat().st_mtime
+    return {
+        "exists": True,
+        "name": path.name,
+        "kind": kind,
+        "mtime": mtime,
+        "url": f"/api/screenshots/latest-image?t={int(mtime * 1000)}",
+    }
+
+
+@app.get("/api/screenshots/latest-image")
+async def screenshots_latest_image() -> FileResponse:
+    settings = load_settings()
+    path, _kind = await asyncio.to_thread(_find_latest_screenshot, settings)
+    if path is None:
+        raise HTTPException(404, "ยังไม่มีภาพหน้าจอ")
     return FileResponse(path, media_type="image/png")
 
 

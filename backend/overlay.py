@@ -252,11 +252,11 @@ def _tray_loop() -> None:
     menu = pystray.Menu(
         pystray.MenuItem("เปิดหน้าต่างโปรแกรม", _open_window, default=True),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("▶ เริ่มรันทั้งหมด", lambda _i, _m: _start_run()),
+        pystray.MenuItem("▶ เริ่มประมวลผล", lambda _i, _m: _start_run()),
         pystray.MenuItem("⏹ หยุด", lambda _i, _m: _stop_run()),
-        pystray.MenuItem("📸 ถ่ายภาพหน้าจอตอนนี้ (เช็คสถานะ)", _take_screenshot),
+        pystray.MenuItem("📸 ถ่ายภาพสด", _take_screenshot),
         pystray.MenuItem(
-            "แสดงแถบ Progress ลอย",
+            "แสดงแถบความคืบหน้า",
             _toggle_overlay,
             checked=lambda _item: not overlay_hidden.is_set(),
         ),
@@ -387,7 +387,7 @@ def _overlay_loop() -> None:
     top_row.pack(fill="x", padx=px(10), pady=(px(7), px(2)))
 
     status_label = tk.Label(
-        top_row, text="พร้อมเริ่ม", bg=BG, fg=FG, font=("Segoe UI", 9, "bold"), anchor="w"
+        top_row, text="พร้อมใช้งาน", bg=BG, fg=FG, font=("Segoe UI", 9, "bold"), anchor="w"
     )
     status_label.pack(side="left", fill="x", expand=True)
 
@@ -474,18 +474,18 @@ def _overlay_loop() -> None:
                 if running:
                     eta_txt = f" · {eta}" if (eta := _format_eta(snap.eta_seconds)) else ""
                     status_label.configure(
-                        text=f"กำลังรัน {done}/{total} วันปลูก ({pct:.0%}){year_txt}{eta_txt}"
+                        text=f"กำลังดำเนินการ {done}/{total} วันปลูก ({pct:.0%}){year_txt}{eta_txt}"
                     )
                     fill.configure(bg=BAR_FG)
                 elif stopping:
                     status_label.configure(text=f"กำลังหยุด... {done}/{total}")
                     fill.configure(bg="#ffb020")
                 else:
-                    status_label.configure(text=f"จบแล้ว {done}/{total} วันปลูก")
+                    status_label.configure(text=f"เสร็จสมบูรณ์ {done}/{total} วันปลูก")
                     fill.configure(bg=BAR_DONE)
             else:
                 fill.configure(width=0)
-                status_label.configure(text="กำลังรัน...")
+                status_label.configure(text="กำลังดำเนินการ...")
         except Exception:  # noqa: BLE001 -- refresh พังรอบไหนข้ามรอบนั้น อย่าให้ overlay ตาย
             logger.exception("overlay refresh ล้มเหลว")
         root.after(400, _refresh)

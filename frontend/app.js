@@ -507,7 +507,7 @@ function renderScanResults(scan) {
 // ---------------------------------------------------------------------------
 // Dashboard: run status (REST + WebSocket)
 // ---------------------------------------------------------------------------
-const STATUS_LABEL = { done: "เสร็จ", running: "กำลังรัน", queued: "รอคิว", error: "มีปัญหา" };
+const STATUS_LABEL = { done: "เสร็จสมบูรณ์", running: "กำลังดำเนินการ", queued: "รอดำเนินการ", error: "มีปัญหา" };
 let wasRunning = false;
 
 // จัดรูปวินาที -> ข้อความไทยอ่านง่าย ("เหลืออีกประมาณ ...") — ปัดเป็นหน่วยที่ใหญ่
@@ -530,7 +530,7 @@ function renderStatus(snapshot) {
   const doneCount = years.filter((y) => y.status === "done").length;
   const total = years.length;
 
-  const currentTxt = snapshot.current_year ? ` · กำลังรันปี ${snapshot.current_year}` : "";
+  const currentTxt = snapshot.current_year ? ` · กำลังดำเนินการปี ${snapshot.current_year}` : "";
   const etaTxt = formatEta(snapshot.eta_seconds);
   const etaSuffix = etaTxt ? ` · ${etaTxt}` : "";
   // ใช้ progress ระดับ "วันปลูก" ถ้ามี (ละเอียดกว่าระดับปีมาก — 1 ปีมีหลายวันปลูก
@@ -563,8 +563,16 @@ function renderStatus(snapshot) {
   document.getElementById("btn-copy-all-errors").hidden = errorCount === 0;
 
   // พอรันจบ (idle) รีเฟรชความคืบหน้าไฟล์ output อัตโนมัติ ให้เห็นว่าทำต่อได้ถึงไหน
-  if (!isRunning && wasRunning) fetchOutputProgress();
+  // + ดึงภาพหน้าจอสุดท้ายมาแสดง (เผื่อภาพบันทึกใบสุดท้ายมาหลังรอบ poll ล่าสุด)
+  if (!isRunning && wasRunning) {
+    fetchOutputProgress();
+    refreshLatestShot();
+  }
   wasRunning = isRunning;
+
+  // จอแสดงภาพ: ระหว่างรันคอยเช็คภาพใหม่ทุก ~3 วิ (throttle ในตัว — renderStatus
+  // ถูกยิงจาก WebSocket ถี่กว่านั้นมาก)
+  maybePollShot(isRunning);
 
   const list = document.getElementById("year-list");
   list.innerHTML = "";
@@ -681,7 +689,7 @@ document.getElementById("btn-start").addEventListener("click", async () => {
     const proceed = confirm(
       `⚠ พบ ${check.problems.length} จุดที่ไม่มีไฟล์ climate/rain "ก่อนหน้า" ให้ใช้ตามกติกา shift-year ` +
       `(วันปลูกเหล่านี้จะรันไม่สำเร็จ):\n\n${lines.join("\n")}${more}\n\n` +
-      `ต้องการเริ่มรันต่อหรือไม่? (วันปลูกที่มีปัญหาจะขึ้นสถานะ "มีปัญหา" ส่วนวันปลูกอื่นรันตามปกติ)`
+      `ต้องการเริ่มประมวลผลต่อหรือไม่? (วันปลูกที่มีปัญหาจะแสดงสถานะ "มีปัญหา" ส่วนรายการอื่นดำเนินการตามปกติ)`
     );
     if (!proceed) return;
   }
@@ -695,7 +703,7 @@ document.getElementById("btn-start").addEventListener("click", async () => {
   });
   if (!res.ok) {
     const err = await res.json();
-    alert(err.detail || "เริ่มรันไม่สำเร็จ");
+    alert(err.detail || "ไม่สามารถเริ่มประมวลผลได้");
     return;
   }
   renderStatus(await res.json());
@@ -708,19 +716,67 @@ document.getElementById("btn-stop").addEventListener("click", async () => {
 
 document.getElementById("btn-force-close").addEventListener("click", async () => {
   const proceed = confirm(
-    "จะบังคับปิดโปรแกรม CropWat ทันที (เหมือนสั่งปิดผ่าน Task Manager) แล้วรีเซ็ต " +
-    "สถานะของโปรแกรมนี้กลับมาพร้อมเริ่มรันใหม่ได้เลย\n\n" +
-    "ใช้เมื่อ CropWat ค้างสนิทเท่านั้น (กด X เองก็ไม่ติด) — ไฟล์ .txt ของวันปลูกที่ " +
-    "ทำเสร็จไปแล้วจะไม่หายไปไหน กดเริ่มรันใหม่ได้ทันทีหลังเปิด CropWat ขึ้นมาใหม่\n\n" +
-    "ดำเนินการต่อหรือไม่?"
+    "ระบบจะบังคับปิดโปรแกรม CropWat ทันที และคืนสถานะระบบให้พร้อมเริ่มประมวลผลใหม่\n\n" +
+    "ใช้เฉพาะกรณี CropWat ไม่ตอบสนองเท่านั้น — ข้อมูลของรายการที่เสร็จสมบูรณ์แล้ว " +
+    "จะไม่สูญหาย สามารถเริ่มประมวลผลต่อจากเดิมได้ทันที\n\n" +
+    "ยืนยันการดำเนินการหรือไม่?"
   );
   if (!proceed) return;
   const res = await fetch("/api/run/force-close-cropwat", { method: "POST" });
   const data = await res.json().catch(() => ({}));
-  showToast(data.killed ? `ปิด CropWat แล้ว (${data.killed} process) — เปิด CropWat ใหม่แล้วกดเริ่มรันได้เลย` : "ไม่พบ CropWat เปิดอยู่ — รีเซ็ตสถานะโปรแกรมนี้แล้ว");
+  showToast(data.killed ? `ปิด CropWat เรียบร้อย (${data.killed} รายการ) — พร้อมเริ่มประมวลผลใหม่` : "ไม่พบ CropWat ที่เปิดอยู่ — คืนสถานะระบบเรียบร้อย");
   const status = await fetch("/api/status");
   renderStatus(await status.json());
 });
+
+// ---------------------------------------------------------------------------
+// จอแสดงภาพหน้าจอ CropWat (v0.9.0) — แสดงภาพล่าสุดโดยอัตโนมัติ (ภาพบันทึกงาน
+// ตามปฏิทิน หรือภาพตรวจสอบสด อันที่ใหม่กว่า) เทียบ mtime ก่อนโหลดภาพจริงเสมอ
+// จะได้ไม่โหลดภาพซ้ำโดยไม่จำเป็น — trigger จาก: เปิดหน้า, ทุก ~3 วิระหว่างรัน
+// (เกาะ renderStatus ที่ WebSocket ยิงเข้ามาอยู่แล้ว), รันจบ, และกด "ถ่ายภาพสด"
+// ---------------------------------------------------------------------------
+const SHOT_KIND_LABEL = { work: "ภาพบันทึกงาน", live: "ภาพตรวจสอบสด" };
+let shotMtime = 0;
+let shotFetchBusy = false;
+let shotLastPollAt = 0;
+
+function displayShot(data) {
+  if (!data || !data.exists || data.mtime === shotMtime) return;
+  shotMtime = data.mtime;
+  const img = document.getElementById("shot-img");
+  img.src = data.url;
+  img.hidden = false;
+  document.getElementById("shot-empty").hidden = true;
+  const badge = document.getElementById("shot-kind-badge");
+  badge.hidden = false;
+  badge.textContent = SHOT_KIND_LABEL[data.kind] || data.kind;
+  badge.className = "badge " + (data.kind === "live" ? "gold" : "accent");
+  const time = new Date(data.mtime * 1000).toLocaleTimeString("th-TH", {
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  document.getElementById("shot-meta").textContent = `${data.name} · ${time}`;
+}
+
+async function refreshLatestShot() {
+  if (shotFetchBusy) return;
+  shotFetchBusy = true;
+  try {
+    const res = await fetch("/api/screenshots/latest");
+    if (res.ok) displayShot(await res.json());
+  } catch {
+    /* เครือข่ายสะดุดชั่วคราว — รอบ poll ถัดไปลองใหม่เอง */
+  } finally {
+    shotFetchBusy = false;
+  }
+}
+
+function maybePollShot(isRunning) {
+  if (!isRunning) return;
+  const now = Date.now();
+  if (now - shotLastPollAt < 3000) return;
+  shotLastPollAt = now;
+  refreshLatestShot();
+}
 
 document.getElementById("btn-take-screenshot").addEventListener("click", async (e) => {
   const btn = e.currentTarget;
@@ -729,18 +785,28 @@ document.getElementById("btn-take-screenshot").addEventListener("click", async (
     const res = await fetch("/api/desktop/screenshot", { method: "POST" });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.detail || "ถ่ายภาพหน้าจอไม่สำเร็จ");
+      alert(data.detail || "ไม่สามารถบันทึกภาพหน้าจอได้");
       return;
     }
-    document.getElementById("screenshot-img").src = data.url;
-    document.getElementById("screenshot-modal").hidden = false;
+    await refreshLatestShot();
+    showToast("บันทึกภาพสดเรียบร้อย");
   } finally {
     btn.disabled = false;
   }
 });
 
+// คลิกที่ภาพ → เปิดดูขนาดเต็มใน modal (พร้อมชื่อไฟล์/เวลากำกับ)
+document.getElementById("shot-img").addEventListener("click", () => {
+  const img = document.getElementById("shot-img");
+  if (!img.src) return;
+  document.getElementById("screenshot-img").src = img.src;
+  document.getElementById("screenshot-caption").textContent =
+    document.getElementById("shot-meta").textContent;
+  document.getElementById("screenshot-modal").hidden = false;
+});
+
 document.getElementById("btn-minimize").addEventListener("click", async () => {
-  showToast("ย่อไปที่ Tray แล้ว — โปรแกรมยังรันต่อเบื้องหลัง เปิดกลับได้จากไอคอนถาดระบบ");
+  showToast("ย่อหน้าต่างลงถาดระบบแล้ว — โปรแกรมยังทำงานต่อเบื้องหลัง");
   await fetch("/api/window/minimize", { method: "POST" });
 });
 
@@ -954,5 +1020,6 @@ screenshotModal.addEventListener("click", (e) => {
 loadConfig();
 fetchStatus();
 fetchOutputProgress();
+refreshLatestShot(); // แสดงภาพหน้าจอล่าสุดทันทีที่เปิดหน้า (ถ้ามีจากรอบก่อน)
 connectWebSocket();
 checkUpdate();
