@@ -125,6 +125,16 @@ class CropWatEngine:
         self.app: Optional[Application] = None
         self.main_window = None
         self.background_mode = background_mode
+        # โฟลเดอร์เก็บภาพ error dialog อัตโนมัติ (v0.11.0) — ตั้งจาก runner ให้ชี้
+        # ไปที่ output_dir/_error_dialogs — เวลา CropWat เด้ง error ที่เป็นปัญหา
+        # ของตัวข้อมูลเอง (เช่น "Rain data are not OK") ระบบรันเบื้องหลังจะถ่ายภาพ
+        # dialog นั้นเก็บให้ ผู้ใช้เปิดดูได้ว่า CropWat บ่นอะไรกันแน่ โดยไม่ต้อง
+        # สลับไปรันแบบเห็นหน้าจอ (ข้อความบน dialog ของ Delphi เป็น TLabel ที่ไม่มี
+        # window handle จึงอ่านเป็นข้อความตรงๆ ไม่ได้ทุกครั้ง — ภาพจึงชัวร์กว่า)
+        self.error_shots_dir: Optional[Path] = None
+        # label วันปลูกที่กำลังทำอยู่ (เช่น "1990_0910") — ใส่ในชื่อไฟล์ภาพ error
+        # ให้โยงกลับไปหาวันปลูกที่พังได้ ตั้งจาก run_candidate_planting_date
+        self.current_candidate_label: str = ""
         # v0.5.14: ตัวคูณเวลาหน่วงทุกจุดที่รอ CropWat ประมวลผลคำสั่ง (ดู _sleep) —
         # มาจาก config.SPEED_MULTIPLIERS ตาม settings.speed_preset ของผู้ใช้ กัน
         # คอมรุ่นเก่าแฮงค์เพราะรอไม่พอ (ค่าเริ่มต้น 1.0 = พฤติกรรมเดิมทุกประการ)
@@ -982,6 +992,54 @@ class CropWatEngine:
             mfc_dc.DeleteDC()
             win32gui.ReleaseDC(hwnd, hwnd_dc)
 
+    def _printwindow_capture(self, hwnd: int, save_path: Path) -> bool:
+        """ถ่ายภาพหน้าต่างใดๆ ด้วย PrintWindow (ใช้กับ error dialog v0.11.0) —
+        แยกจาก _capture_main_window เพื่อไม่แตะ path ถ่ายภาพงานส่งที่พิสูจน์แล้ว
+        คืน True ถ้าสำเร็จ (ใช้ DPI correction + timeout เหมือนกัน เพราะ dialog
+        ก็เป็นหน้าต่าง CropWat ที่ไม่รู้จัก DPI เช่นกัน)"""
+        import win32ui
+        from PIL import Image
+
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+        width, height = right - left, bottom - top
+        if width <= 0 or height <= 0:
+            return False
+        try:
+            import ctypes as _ct
+
+            win_dpi = _ct.windll.user32.GetDpiForWindow(hwnd) or 96
+            hmon = _ct.windll.user32.MonitorFromWindow(hwnd, 2)
+            mon_x, mon_y = _ct.c_uint(96), _ct.c_uint(96)
+            _ct.windll.shcore.GetDpiForMonitor(hmon, 0, _ct.byref(mon_x), _ct.byref(mon_y))
+            mon_dpi = mon_x.value or 96
+            width = round(width * win_dpi / mon_dpi)
+            height = round(height * win_dpi / mon_dpi)
+        except Exception:  # noqa: BLE001
+            pass
+
+        hwnd_dc = win32gui.GetWindowDC(hwnd)
+        mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
+        save_dc = mfc_dc.CreateCompatibleDC()
+        bmp = win32ui.CreateBitmap()
+        try:
+            bmp.CreateCompatibleBitmap(mfc_dc, width, height)
+            save_dc.SelectObject(bmp)
+            PW_RENDERFULLCONTENT = 2
+            if not self._print_window_with_timeout(hwnd, save_dc.GetSafeHdc(), PW_RENDERFULLCONTENT):
+                return False
+            info = bmp.GetInfo()
+            pixels = bmp.GetBitmapBits(True)
+            img = Image.frombuffer(
+                "RGB", (info["bmWidth"], info["bmHeight"]), pixels, "raw", "BGRX", 0, 1
+            )
+            img.save(save_path)
+            return True
+        finally:
+            win32gui.DeleteObject(bmp.GetHandle())
+            save_dc.DeleteDC()
+            mfc_dc.DeleteDC()
+            win32gui.ReleaseDC(hwnd, hwnd_dc)
+
     # ------------------------------------------------------------------
     # จัดการ prompt คำถาม Yes/No ของ CropWat (เช่น "Save changes to current
     # rain data ?" ตอนเปิดไฟล์ใหม่ทับหน้าต่างที่ข้อมูลถูกนับว่าแก้ค้างอยู่)
@@ -1061,18 +1119,28 @@ class CropWatEngine:
             pass
         return result[0] if result else None
 
-    @staticmethod
-    def _read_dialog_statics(dialog_hwnd: int) -> str:
-        """อ่านข้อความจริงบน dialog จาก Static child controls — native MessageBox
-        (#32770) เก็บข้อความ error ("Access violation at ...") ไว้ใน Static เสมอ
-        อ่านได้ตรงๆ (ต่างจาก TMessageForm ของ Delphi ที่วาดข้อความเอง อ่านไม่ได้)"""
+    # class ของ child control ที่เป็น "ปุ่ม" — ข้ามตอนอ่านข้อความ dialog ไม่งั้น
+    # caption ปุ่ม (OK/Cancel) จะปนเข้ามาในข้อความ error
+    _BUTTON_CLASSES = ("Button", "TButton", "TBitBtn")
+
+    @classmethod
+    def _read_dialog_statics(cls, dialog_hwnd: int) -> str:
+        """อ่านข้อความบน dialog จาก child control ทุกตัวที่มี window handle (v0.11.0
+        ขยายจากเดิมที่อ่านเฉพาะ class 'Static'): native MessageBox (#32770) เก็บ
+        ข้อความไว้ใน Static, ส่วน Delphi บางฟอร์มใช้ TStaticText/TLabel(บางรุ่น)/
+        TMessage ที่มี handle ก็อ่านได้ — ข้ามปุ่ม (OK/Cancel) เสมอ
+
+        หมายเหตุ: Delphi TLabel รุ่นเก่า (TGraphicControl) ไม่มี window handle เลย
+        EnumChildWindows มองไม่เห็น อ่านไม่ได้จริงๆ — เคสนั้นถอยไปใช้ภาพ error
+        dialog แทน (ดู _capture_error_dialog)"""
         texts: list[str] = []
 
         def _cb(child: int, _param) -> bool:
-            if win32gui.GetClassName(child) == "Static":
-                text = (win32gui.GetWindowText(child) or "").strip()
-                if text:
-                    texts.append(text)
+            if win32gui.GetClassName(child) in cls._BUTTON_CLASSES:
+                return True
+            text = (win32gui.GetWindowText(child) or "").strip()
+            if text:
+                texts.append(text)
             return True
 
         try:
@@ -1080,6 +1148,22 @@ class CropWatEngine:
         except Exception:  # noqa: BLE001
             pass
         return " ".join(texts)
+
+    def _capture_error_dialog(self, dialog_hwnd: int, title: str) -> Optional[str]:
+        """ถ่ายภาพ error dialog ของ CropWat เก็บไว้ให้ผู้ใช้เปิดดูเอง (v0.11.0) —
+        คืน path ไฟล์ที่บันทึก หรือ None ถ้าถ่ายไม่ได้/ไม่ได้ตั้ง error_shots_dir"""
+        if self.error_shots_dir is None:
+            return None
+        try:
+            self.error_shots_dir.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%H%M%S")
+            label = self.current_candidate_label or "error"
+            path = self.error_shots_dir / f"{label}_{stamp}.png"
+            if self._printwindow_capture(dialog_hwnd, path):
+                return str(path)
+        except Exception:  # noqa: BLE001 -- ถ่ายภาพ error ล้มเหลวห้ามกลบ error จริง
+            logger.debug("ถ่ายภาพ error dialog ไม่สำเร็จ", exc_info=True)
+        return None
 
     def _poll_error_dialog(self) -> Optional[str]:
         """เช็คครั้งเดียว (ไม่รอ) ว่ามี error dialog เด้งอยู่ไหม ถ้ามีให้จัดการ
@@ -1105,10 +1189,16 @@ class CropWatEngine:
                     continue
 
                 detail = self._read_dialog_statics(hwnd)
+                # ถ่ายภาพ dialog เก็บก่อนกดปิด (v0.11.0) — โดยเฉพาะเคสที่อ่าน
+                # ข้อความไม่ได้ ผู้ใช้จะได้เปิดภาพดูเองว่า CropWat บ่นอะไร
+                shot_path = self._capture_error_dialog(hwnd, title)
                 if detail:
-                    messages.append(f"CropWat แจ้ง: {detail} (dialog '{title}')")
+                    msg = f"CropWat แจ้ง: {detail} (dialog '{title}')"
                 else:
-                    messages.append(f"CropWat แสดง dialog '{title}' (อ่านข้อความละเอียดไม่ได้)")
+                    msg = f"CropWat แสดง dialog '{title}' (อ่านข้อความบน dialog เป็นตัวอักษรไม่ได้)"
+                if shot_path:
+                    msg += f" 📷 ดูภาพ error ที่เก็บไว้: {Path(shot_path).name} (ในโฟลเดอร์ผลลัพธ์ → _error_dialogs)"
+                messages.append(msg)
 
                 ok_button = self._find_child_button(hwnd, r"&?OK$")
                 if ok_button is not None:
@@ -1214,6 +1304,9 @@ class CropWatEngine:
         แทนที่จะยอมแพ้ทันทีเมื่อไฟล์ที่ออกมาวันปลูกไม่ตรง (ตาข่ายจาก v0.5.9) ให้ลอง
         ทั้ง candidate ใหม่สูงสุด 3 รอบก่อนถือว่า fail จริง"""
         planting_date = task.planting_date
+        # โยงภาพ error dialog (ถ้ามี) กลับไปหาวันปลูกที่พัง — ชื่อไฟล์เป็น
+        # "{ปี}_{เดือนวัน}" เดียวกับไฟล์ .txt เพื่อให้จับคู่ได้ง่าย
+        self.current_candidate_label = f"{year}_{planting_date:%m%d}"
         from file_engine.txt_parser import TxtParseError, parse_txt
 
         last_exc: Optional[Exception] = None

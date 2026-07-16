@@ -629,6 +629,22 @@ function renderStatus(snapshot) {
       copyBtn.addEventListener("click", () => copyText(`ปี ${y.year}: ${y.error_message}`));
       wrap.appendChild(text);
       wrap.appendChild(copyBtn);
+      // ถ้า error_message อ้างถึงภาพ error ที่ระบบถ่ายเก็บไว้ (v0.11.0) เพิ่มปุ่ม
+      // เปิดดูภาพนั้นในหน้าต่างขยาย — ผู้ใช้เห็นได้เลยว่า CropWat แจ้ง error อะไร
+      const shotMatch = /([\w-]+\.png)/.exec(y.error_message);
+      if (shotMatch) {
+        const viewBtn = document.createElement("button");
+        viewBtn.type = "button";
+        viewBtn.className = "btn-copy-err";
+        viewBtn.title = "เปิดดูภาพหน้าจอ error ที่ระบบถ่ายเก็บไว้";
+        viewBtn.textContent = "📷 ดูภาพ Error";
+        viewBtn.addEventListener("click", () => {
+          document.getElementById("screenshot-img").src = `/api/error-shots/${shotMatch[1]}`;
+          document.getElementById("screenshot-caption").textContent = `ปี ${y.year} · ${shotMatch[1]}`;
+          document.getElementById("screenshot-modal").hidden = false;
+        });
+        wrap.appendChild(viewBtn);
+      }
       detail.appendChild(wrap);
       list.appendChild(detail);
     }

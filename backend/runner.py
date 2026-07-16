@@ -333,6 +333,7 @@ def _run_years(years: list[int], settings: Settings) -> None:
     # โหมดคลาสสิก: ผู้ใช้เปิด CropWat ค้างไว้เอง หน้าต่างถูกดึงขึ้นมาระหว่างรัน
     speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)
     engine = CropWatEngine(background_mode=False, speed_multiplier=speed_multiplier)
+    engine.error_shots_dir = Path(settings.output_dir) / "_error_dialogs"
     try:
         engine.connect()
     except CropWatAutomationError as exc:
@@ -382,6 +383,7 @@ def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
         desktop_session.service_peek_request(engine, settings.output_dir)
 
     engine.pause_check = _service_peek
+    engine.error_shots_dir = Path(settings.output_dir) / "_error_dialogs"
     try:
         try:
             # ล็อกเป้าที่ pid ที่เราเพิ่งเปิดเองตรงๆ (v0.10.1) — กัน

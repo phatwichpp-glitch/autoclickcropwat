@@ -389,6 +389,19 @@ async def screenshots_latest_image() -> FileResponse:
     return FileResponse(path, media_type="image/png")
 
 
+@app.get("/api/error-shots/{name}")
+async def error_shot(name: str) -> FileResponse:
+    """เสิร์ฟภาพ error dialog ที่ระบบถ่ายเก็บไว้อัตโนมัติ (v0.11.0) — ให้หน้าเว็บ
+    เปิดดูว่า CropWat แจ้ง error อะไรตอนวันปลูกนั้นพัง (กัน path traversal ด้วย)"""
+    if "/" in name or "\\" in name or ".." in name:
+        raise HTTPException(400, "ชื่อไฟล์ไม่ถูกต้อง")
+    settings = load_settings()
+    path = Path(settings.output_dir) / "_error_dialogs" / name
+    if not path.is_file():
+        raise HTTPException(404, "ไม่พบภาพ error")
+    return FileResponse(path, media_type="image/png")
+
+
 @app.get("/api/cropwat-exe")
 async def cropwat_exe_status() -> dict:
     """สถานะการค้นหาโปรแกรม CropWat 8.0 (v0.10.2) — ให้หน้าตั้งค่าแสดงว่า "ระบบ
