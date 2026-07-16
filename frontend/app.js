@@ -163,9 +163,34 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
   updateSummary();
   if (ok) {
     document.getElementById("brand-sub").textContent = settings.input_dir || "ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง";
+    refreshCropwatExeStatus(); // path CropWat อาจเพิ่งเปลี่ยน — อัปเดตสถานะทันที
     alert("บันทึกการตั้งค่าแล้ว");
   }
 });
+
+// ---------------------------------------------------------------------------
+// สถานะการค้นหาโปรแกรม CropWat 8.0 (v0.10.2) — ตอบคำถาม "ต้องตั้ง path เองไหม"
+// ตรงๆ ในหน้าตั้งค่า: ติดตั้งที่ตำแหน่งมาตรฐาน ระบบหาเจอเอง ไม่ต้องตั้งอะไรเลย
+// ---------------------------------------------------------------------------
+async function refreshCropwatExeStatus() {
+  const el = document.getElementById("cropwat-exe-status");
+  try {
+    const res = await fetch("/api/cropwat-exe");
+    const data = await res.json();
+    if (data.found && data.source === "auto") {
+      el.textContent = `✓ พบโปรแกรมอัตโนมัติที่ ${data.path} — ไม่ต้องตั้งค่าใดๆ เพิ่ม`;
+      el.style.color = "var(--done)";
+    } else if (data.found) {
+      el.textContent = `✓ ใช้ไฟล์ที่ระบุไว้: ${data.path}`;
+      el.style.color = "var(--done)";
+    } else {
+      el.textContent = "✗ ยังไม่พบโปรแกรม CropWat 8.0 ในเครื่อง — หากติดตั้งไว้แล้ว กด \"เลือกไฟล์\" เพื่อระบุตำแหน่ง CROPWAT.exe ด้านบน";
+      el.style.color = "var(--error)";
+    }
+  } catch {
+    el.textContent = "";
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Month calendar instrument
@@ -1083,5 +1108,6 @@ loadConfig();
 fetchStatus();
 fetchOutputProgress();
 refreshLatestShot(); // แสดงภาพหน้าจอล่าสุดทันทีที่เปิดหน้า (ถ้ามีจากรอบก่อน)
+refreshCropwatExeStatus(); // สถานะ "หา CropWat เจอไหม" ในหน้าตั้งค่า
 connectWebSocket();
 checkUpdate();

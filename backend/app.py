@@ -389,6 +389,27 @@ async def screenshots_latest_image() -> FileResponse:
     return FileResponse(path, media_type="image/png")
 
 
+@app.get("/api/cropwat-exe")
+async def cropwat_exe_status() -> dict:
+    """สถานะการค้นหาโปรแกรม CropWat 8.0 (v0.10.2) — ให้หน้าตั้งค่าแสดงว่า "ระบบ
+    หาเจอเองแล้วที่ไหน" ตอบข้อสงสัยยอดฮิต "ต้องตั้ง path เองไหม" ได้ทันทีโดยไม่
+    ต้องเปิดคู่มือ: ติดตั้งที่ตำแหน่งมาตรฐาน = ไม่ต้องตั้งอะไรเลย"""
+    import desktop_session
+
+    settings = load_settings()
+    path = await asyncio.to_thread(
+        desktop_session.resolve_cropwat_exe, settings.cropwat_exe_path
+    )
+    if path is None:
+        return {"found": False, "path": None, "source": None}
+    configured_valid = bool(settings.cropwat_exe_path) and Path(settings.cropwat_exe_path).is_file()
+    return {
+        "found": True,
+        "path": str(path),
+        "source": "configured" if configured_valid else "auto",
+    }
+
+
 @app.post("/api/window/minimize")
 async def window_minimize() -> dict:
     """ย่อหน้าต่างโปรแกรมลงถาดระบบ (v0.8.0) — เปิดกลับได้จากเมนู tray icon
