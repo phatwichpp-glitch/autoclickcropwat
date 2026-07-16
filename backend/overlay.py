@@ -254,7 +254,7 @@ def _tray_loop() -> None:
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("▶ เริ่มประมวลผล", lambda _i, _m: _start_run()),
         pystray.MenuItem("⏹ หยุด", lambda _i, _m: _stop_run()),
-        pystray.MenuItem("📸 ถ่ายภาพสด", _take_screenshot),
+        pystray.MenuItem("📸 Snapshot", _take_screenshot),
         pystray.MenuItem(
             "แสดงแถบความคืบหน้า",
             _toggle_overlay,
@@ -363,7 +363,11 @@ def _overlay_loop() -> None:
     def px(n: float) -> int:
         return round(n * scale)
 
-    W, H = px(400), px(62)
+    # v0.10.1 — บั๊กจากผู้ใช้จริง: ข้อความสถานะยาวขึ้น ("กำลังดำเนินการ 746/5760
+    # วันปลูก (13%) · ปี 1986 · เหลือ 6ชม.3น.") + ปุ่มเพิ่มเป็น 6 ปุ่ม แต่ความ
+    # กว้างยังตายตัว 400px เท่าเดิม → ปุ่มโดนดันหลุดขอบ (กด 🗕 พับแถบไม่ได้เลย)
+    # — ขยายเป็น 560px + เปลี่ยนลำดับ pack ให้ปุ่มจองพื้นที่ก่อนข้อความ (ดูด้านล่าง)
+    W, H = px(560), px(62)
 
     root.overrideredirect(True)  # ไร้ขอบ/title bar
     root.attributes("-topmost", True)  # ลอยบนสุดเสมอ แม้ CropWat จะ active
@@ -389,13 +393,6 @@ def _overlay_loop() -> None:
     status_label = tk.Label(
         top_row, text="พร้อมใช้งาน", bg=BG, fg=FG, font=("Segoe UI", 9, "bold"), anchor="w"
     )
-    status_label.pack(side="left", fill="x", expand=True)
-
-    # tkinter ไม่มี event bubbling — bind ที่ root อย่างเดียวจะลากได้เฉพาะตอนจับ
-    # พื้นหลังเปล่าๆ ต้อง bind ที่ทุก widget ที่กินพื้นที่ด้วยถึงจะลากได้ทั้งแถบ
-    for w in (root, top_row, status_label):
-        w.bind("<Button-1>", _drag_start)
-        w.bind("<B1-Motion>", _drag_move)
 
     def _mk_button(parent, text, command, fg=FG):
         btn = tk.Label(
@@ -409,16 +406,27 @@ def _overlay_loop() -> None:
     def _hide_overlay_button() -> None:
         overlay_hidden.set()
 
+    # สำคัญ (v0.10.1): pack "ปุ่มก่อนข้อความ" เสมอ — tkinter จัดสรรพื้นที่ตาม
+    # ลำดับ pack ถ้าข้อความมาก่อนแล้วยาวเกิน ปุ่มทั้งแถวจะโดนดันหลุดขอบหน้าต่าง
+    # (บั๊กที่เจอจริง: กด 🗕 ไม่ได้เพราะปุ่มอยู่นอกจอ) กลับลำดับแล้วข้อความจะโดน
+    # ตัดท้ายแทน ปุ่มไม่มีวันหาย
     _mk_button(top_row, "✕", _quit_app, fg=DIM).pack(side="right")
     _mk_button(top_row, "⚙", _open_app_window, fg=DIM).pack(side="right")
     # v0.8.0: ซ่อน overlay เองจากปุ่มบนแถบ — เรียกคืนได้จากเมนู tray เท่านั้น
     # (ตั้งใจไม่มีปุ่ม "แสดง" บน overlay เพราะซ่อนไปแล้วก็ไม่มีอะไรให้กด)
     _mk_button(top_row, "🗕", _hide_overlay_button, fg=DIM).pack(side="right")
-    # v0.7.1 (user-journey audit): ปุ่มถ่ายภาพเช็คสถานะจาก overlay ตรงๆ — จุดที่
+    # v0.7.1 (user-journey audit): ปุ่ม Snapshot เช็คสถานะจาก overlay ตรงๆ — จุดที่
     # ผู้ใช้มองระหว่างรันคือ overlay อยู่แล้ว ไม่ต้องอ้อมไปเปิดหน้าเว็บ
     _mk_button(top_row, "📸", _take_screenshot, fg=DIM).pack(side="right")
     _mk_button(top_row, "⏹", _stop_run, fg="#ff7b7b").pack(side="right")
     _mk_button(top_row, "▶", _start_run, fg=BAR_DONE).pack(side="right")
+    status_label.pack(side="left", fill="x", expand=True)
+
+    # tkinter ไม่มี event bubbling — bind ที่ root อย่างเดียวจะลากได้เฉพาะตอนจับ
+    # พื้นหลังเปล่าๆ ต้อง bind ที่ทุก widget ที่กินพื้นที่ด้วยถึงจะลากได้ทั้งแถบ
+    for w in (root, top_row, status_label):
+        w.bind("<Button-1>", _drag_start)
+        w.bind("<B1-Motion>", _drag_move)
 
     track = tk.Frame(root, bg=BAR_BG, height=px(6))
     track.pack(fill="x", padx=px(10), pady=(px(2), px(2)))

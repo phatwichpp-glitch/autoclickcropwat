@@ -148,17 +148,25 @@ class CropWatEngine:
     # ------------------------------------------------------------------
     # Step 0: ต่อเข้ากับ CropWat ที่เปิดอยู่แล้ว (ผู้ใช้เปิดโปรแกรมเองก่อนหน้านี้)
     # ------------------------------------------------------------------
-    def connect(self) -> None:
+    def connect(self, process: Optional[int] = None) -> None:
+        """ต่อเข้ากับ CropWat — ระบุ process (pid) ได้ถ้ารู้ว่าเป็นตัวไหน (โหมด
+        เดสก์ท็อปซ่อนเปิด CropWat เองจึงรู้ pid เสมอ, v0.10.1) ล็อกเป้าที่ตัวนั้น
+        ตรงๆ เลย ไม่มีทางชน ElementAmbiguousError แม้มี CropWat ตัวอื่นค้างอยู่"""
         missing = controls.require_configured()
         if missing:
             raise ControlsNotConfiguredError(
                 "cropwat_controls.py ยังกรอกไม่ครบ: " + ", ".join(missing)
             )
         try:
-            self.app = Application(backend=controls.PYWINAUTO_BACKEND).connect(
-                title_re=controls.MAIN_WINDOW_TITLE_RE,
-                class_name=controls.MAIN_WINDOW_CLASS_NAME,
-            )
+            if process is not None:
+                self.app = Application(backend=controls.PYWINAUTO_BACKEND).connect(
+                    process=process
+                )
+            else:
+                self.app = Application(backend=controls.PYWINAUTO_BACKEND).connect(
+                    title_re=controls.MAIN_WINDOW_TITLE_RE,
+                    class_name=controls.MAIN_WINDOW_CLASS_NAME,
+                )
             self.main_window = self.app.window(
                 title_re=controls.MAIN_WINDOW_TITLE_RE,
                 class_name=controls.MAIN_WINDOW_CLASS_NAME,

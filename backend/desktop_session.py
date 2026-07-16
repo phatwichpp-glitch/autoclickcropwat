@@ -198,6 +198,16 @@ class HiddenDesktopSession:
                 f"ผูก thread เข้ากับเดสก์ท็อปซ่อนไม่สำเร็จ (SetThreadDesktop err={err})"
             )
 
+        # กวาด CropWat ที่ค้างจาก session ก่อนหน้า (ถ้ามี) ก่อนเปิดตัวใหม่ —
+        # เกิดได้เมื่อโปรแกรมถูกปิดกลางคันระหว่างรัน (ปิดจากเมนู tray, อัปเดต
+        # เวอร์ชัน, โดน kill) ซึ่งข้าม session.stop(): CropWat เป็นคนละ process
+        # จึงรอดชีวิตต่อบนเดสก์ท็อปซ่อน (เดสก์ท็อปชื่อเดิมอยู่ได้ตราบใดที่ยังมี
+        # หน้าต่างบนมัน) พอรันรอบใหม่จะมี TMainForm 2 บาน → ElementAmbiguousError
+        # ("เจอหน้าต่าง...มากกว่า 1 หน้าต่าง") ทุกปี — เดสก์ท็อปนี้เป็นของโปรแกรม
+        # เราแต่ผู้เดียว process บนนี้จึงเป็นของเหลือจาก session เก่าแน่นอน ปิดทิ้ง
+        # ได้ปลอดภัย (ไม่เกี่ยวกับ CropWat ที่ผู้ใช้เปิดเองบนจอหลัก)
+        self._sweep_leftover_cropwat()
+
         # เปิด CropWat บนเดสก์ท็อปซ่อน
         startup = win32process.STARTUPINFO()
         startup.lpDesktop = _DESKTOP_NAME
@@ -212,6 +222,40 @@ class HiddenDesktopSession:
         logger.info("เปิด CropWat (pid=%s) บนเดสก์ท็อปซ่อนแล้ว", self.pid)
         self._wait_ready_and_dismiss_welcome()
         return self.pid
+
+    def _sweep_leftover_cropwat(self) -> None:
+        """ปิด CropWat ทุกตัวที่ยังมีหน้าต่างหลัก (TMainForm) ค้างอยู่บนเดสก์ท็อป
+        ซ่อน — ต้องเรียกจาก thread ที่ SetThreadDesktop แล้วเท่านั้น (find_windows
+        enumerate เฉพาะเดสก์ท็อปของ thread ผู้เรียก จึงไม่มีทางไปโดน CropWat บน
+        จอหลักของผู้ใช้)"""
+        import win32con
+
+        try:
+            leftovers = find_windows(
+                class_name="TMainForm", top_level_only=True, visible_only=False
+            )
+        except Exception:  # noqa: BLE001 -- enumerate พังไม่ควรล้มการ launch
+            return
+        pids: set[int] = set()
+        for h in leftovers:
+            try:
+                _tid, pid = win32process.GetWindowThreadProcessId(h)
+                if pid:
+                    pids.add(pid)
+            except Exception:  # noqa: BLE001
+                continue
+        for pid in pids:
+            try:
+                handle = win32api.OpenProcess(win32con.PROCESS_TERMINATE, False, pid)
+                win32api.TerminateProcess(handle, 0)
+                win32api.CloseHandle(handle)
+                logger.warning(
+                    "พบ CropWat ค้างจาก session ก่อนบนเดสก์ท็อปซ่อน (pid=%s) — ปิดทิ้งแล้ว", pid
+                )
+            except Exception:  # noqa: BLE001 -- ปิดไม่ได้ก็ยังมีชั้น connect(process=pid) กันซ้ำ
+                logger.warning("ปิด CropWat ค้าง pid=%s ไม่สำเร็จ", pid, exc_info=True)
+        if pids:
+            time.sleep(1.0)  # รอหน้าต่างเก่าหายสนิทก่อนเปิด CropWat ตัวใหม่
 
     def _wait_ready_and_dismiss_welcome(self, timeout: float = 20.0) -> None:
         deadline = time.monotonic() + timeout

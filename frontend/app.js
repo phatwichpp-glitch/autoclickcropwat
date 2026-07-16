@@ -61,7 +61,7 @@ async function loadConfig() {
   // ปุ่ม "เปิด CropWat" มีประโยชน์เฉพาะโหมดคลาสสิก (ผู้ใช้ต้องเปิด CropWat เอง) —
   // โหมดเดสก์ท็อปซ่อนโปรแกรมเปิดให้เองอยู่แล้ว โชว์ไว้มีแต่ทำให้งง
   document.getElementById("btn-launch-cropwat").hidden = settings.hidden_desktop_mode !== false;
-  // ปุ่มถ่ายภาพสด/ดูสดกลับกัน: มีประโยชน์เฉพาะโหมดเดสก์ท็อปเบื้องหลัง
+  // ปุ่ม Snapshot/Live View กลับกัน: มีประโยชน์เฉพาะโหมดเดสก์ท็อปเบื้องหลัง
   document.getElementById("btn-take-screenshot").hidden = settings.hidden_desktop_mode === false;
   document.getElementById("btn-live-toggle").hidden = settings.hidden_desktop_mode === false;
   document.getElementById("speed-preset").value = settings.speed_preset || "normal";
@@ -568,7 +568,7 @@ function renderStatus(snapshot) {
   if (!isRunning && wasRunning) {
     fetchOutputProgress();
     refreshLatestShot();
-    stopLive("การประมวลผลสิ้นสุดแล้ว — หยุดดูสดอัตโนมัติ");
+    stopLive("การประมวลผลสิ้นสุดแล้ว — หยุด Live View อัตโนมัติ");
   }
   wasRunning = isRunning;
 
@@ -733,11 +733,11 @@ document.getElementById("btn-force-close").addEventListener("click", async () =>
 
 // ---------------------------------------------------------------------------
 // จอแสดงภาพหน้าจอ CropWat (v0.9.0) — แสดงภาพล่าสุดโดยอัตโนมัติ (ภาพบันทึกงาน
-// ตามปฏิทิน หรือภาพตรวจสอบสด อันที่ใหม่กว่า) เทียบ mtime ก่อนโหลดภาพจริงเสมอ
+// ตามปฏิทิน หรือSnapshot อันที่ใหม่กว่า) เทียบ mtime ก่อนโหลดภาพจริงเสมอ
 // จะได้ไม่โหลดภาพซ้ำโดยไม่จำเป็น — trigger จาก: เปิดหน้า, ทุก ~3 วิระหว่างรัน
-// (เกาะ renderStatus ที่ WebSocket ยิงเข้ามาอยู่แล้ว), รันจบ, และกด "ถ่ายภาพสด"
+// (เกาะ renderStatus ที่ WebSocket ยิงเข้ามาอยู่แล้ว), รันจบ, และกด "Snapshot"
 // ---------------------------------------------------------------------------
-const SHOT_KIND_LABEL = { work: "ภาพบันทึกงาน", live: "ภาพตรวจสอบสด" };
+const SHOT_KIND_LABEL = { work: "ภาพบันทึกงาน", live: "Snapshot" };
 let shotMtime = 0;
 let shotFetchBusy = false;
 let shotLastPollAt = 0;
@@ -791,16 +791,16 @@ document.getElementById("btn-take-screenshot").addEventListener("click", async (
       return;
     }
     await refreshLatestShot();
-    showToast("บันทึกภาพสดเรียบร้อย");
+    showToast("บันทึก Snapshot เรียบร้อย");
   } finally {
     btn.disabled = false;
   }
 });
 
 // ---------------------------------------------------------------------------
-// โหมดดูสด (v0.10.0) — สตรีมภาพนิ่งต่อเนื่อง: ขอภาพใหม่ทุก ~2 วิผ่านกลไก
-// ถ่ายภาพสดเดิม (PrintWindow ที่จุดปลอดภัย — ไม่แตะการสลับจอเลย จึงไม่มีความ
-// เสี่ยง "Cannot make a visible window modal" ที่เคยทำให้ต้องถอดฟีเจอร์ดูสด
+// โหมดLive View (v0.10.0) — สตรีมภาพนิ่งต่อเนื่อง: ขอภาพใหม่ทุก ~2 วิผ่านกลไก
+// Snapshotเดิม (PrintWindow ที่จุดปลอดภัย — ไม่แตะการสลับจอเลย จึงไม่มีความ
+// เสี่ยง "Cannot make a visible window modal" ที่เคยทำให้ต้องถอดฟีเจอร์Live View
 // แบบสลับจอออกไป) ได้ภาพเคลื่อนไหว ~0.5-1 fps พอเห็นว่า CropWat ทำอะไรอยู่
 // — หยุดเองอัตโนมัติเมื่อ: การประมวลผลจบ, ถ่ายภาพไม่ได้ (409), หรือซ่อนหน้าต่าง
 // ---------------------------------------------------------------------------
@@ -818,7 +818,7 @@ function stopLive(message) {
   document.getElementById("shot-live-badge").hidden = true;
   const btn = document.getElementById("btn-live-toggle");
   btn.classList.remove("live-on");
-  btn.innerHTML = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>ดูสด`;
+  btn.innerHTML = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>Live View`;
   if (message) showToast(message);
 }
 
@@ -828,7 +828,7 @@ async function liveTick() {
   try {
     const res = await fetch("/api/desktop/screenshot", { method: "POST" });
     if (!res.ok) {
-      stopLive(res.status === 409 ? "หยุดดูสด — ระบบไม่ได้กำลังประมวลผลอยู่" : "หยุดดูสด — ไม่สามารถถ่ายภาพได้");
+      stopLive(res.status === 409 ? "หยุด Live View — ระบบไม่ได้กำลังประมวลผลอยู่" : "หยุด Live View — ไม่สามารถถ่ายภาพได้");
       return;
     }
     await refreshLatestShot();
@@ -847,12 +847,12 @@ document.getElementById("btn-live-toggle").addEventListener("click", () => {
   document.getElementById("shot-live-badge").hidden = false;
   const btn = document.getElementById("btn-live-toggle");
   btn.classList.add("live-on");
-  btn.innerHTML = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>หยุดดูสด`;
+  btn.innerHTML = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>หยุด Live View`;
   liveTick();
   liveTimer = setInterval(liveTick, 2000);
 });
 
-// ซ่อนหน้าต่าง/สลับไปแท็บอื่น → หยุดดูสดอัตโนมัติ (ไม่เปลืองแรงเครื่องโดยไม่มีคนดู)
+// ซ่อนหน้าต่าง/สลับไปแท็บอื่น → หยุด Live View อัตโนมัติ (ไม่เปลืองแรงเครื่องโดยไม่มีคนดู)
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) stopLive();
 });

@@ -384,7 +384,9 @@ def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
     engine.pause_check = _service_peek
     try:
         try:
-            engine.connect()
+            # ล็อกเป้าที่ pid ที่เราเพิ่งเปิดเองตรงๆ (v0.10.1) — กัน
+            # ElementAmbiguousError กรณีมี CropWat ค้างจาก session เก่า
+            engine.connect(process=session.pid)
         except CropWatAutomationError as exc:
             logger.error("connect() เดสก์ท็อปซ่อนล้มเหลว หยุดการรัน: %s", exc)
             for year in years:

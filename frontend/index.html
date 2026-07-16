@@ -78,7 +78,7 @@
               <button id="btn-launch-cropwat" class="btn btn-ghost" type="button" title="เปิดโปรแกรม CropWat 8.0 (กำหนดตำแหน่งไฟล์ในแท็บตั้งค่า)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>เปิด CropWat</button>
               <button id="btn-start" class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>เริ่มประมวลผล</button>
               <button id="btn-stop" class="btn btn-danger-ghost"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>หยุด</button>
-              <button id="btn-force-close" class="btn btn-danger-ghost sm" type="button" title="ใช้เมื่อ CropWat ไม่ตอบสนอง — บังคับปิด CropWat และคืนสถานะระบบให้พร้อมเริ่มใหม่ทันที ข้อมูลที่เสร็จสมบูรณ์แล้วไม่สูญหาย"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>ปิดฉุกเฉิน</button>
+              <button id="btn-force-close" class="btn btn-danger-ghost sm" type="button" title="ใช้เมื่อ CropWat ไม่ตอบสนอง — บังคับปิด CropWat และคืนสถานะระบบให้พร้อมเริ่มใหม่ทันที ข้อมูลที่เสร็จสมบูรณ์แล้วไม่สูญหาย"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Force Close</button>
             </div>
           </div>
         </div>
@@ -86,7 +86,7 @@
 
       <!-- ================= LIVE SCREENSHOT MONITOR (v0.9.0) =================
            แสดงภาพหน้าจอ CropWat โดยอัตโนมัติ: ภาพแรกเมื่อเริ่มประมวลผล จากนั้น
-           อัปเดตทุกครั้งที่ระบบบันทึกภาพตามปฏิทิน และกด "ถ่ายภาพสด" ได้ตลอด -->
+           อัปเดตทุกครั้งที่ระบบบันทึกภาพตามปฏิทิน และกด "Snapshot" ได้ตลอด -->
       <div class="card">
         <div class="card-head">
           <div class="row" style="gap:10px">
@@ -96,8 +96,8 @@
           </div>
           <div class="row" style="gap:10px">
             <span class="shot-meta" id="shot-meta"></span>
-            <button id="btn-live-toggle" class="btn btn-ghost sm" type="button" title="ดูการทำงานของ CropWat แบบต่อเนื่อง — ระบบถ่ายภาพให้ใหม่ทุก ~2 วินาทีระหว่างประมวลผล (การประมวลผลอาจช้าลงเล็กน้อยขณะเปิดดูสด)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>ดูสด</button>
-            <button id="btn-take-screenshot" class="btn btn-ghost sm" type="button" title="บันทึกภาพหน้าจอ CropWat ณ ขณะนี้ทันที (ใช้ตรวจสอบการทำงาน — แยกจากภาพบันทึกที่ใช้ส่งงาน)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>ถ่ายภาพสด</button>
+            <button id="btn-live-toggle" class="btn btn-ghost sm" type="button" title="ดูการทำงานของ CropWat แบบต่อเนื่อง — ระบบถ่ายภาพให้ใหม่ทุก ~2 วินาทีระหว่างประมวลผล (การประมวลผลอาจช้าลงเล็กน้อยขณะเปิด Live View)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>Live View</button>
+            <button id="btn-take-screenshot" class="btn btn-ghost sm" type="button" title="บันทึกภาพหน้าจอ CropWat ณ ขณะนี้ทันที (ใช้ตรวจสอบการทำงาน — แยกจากภาพบันทึกที่ใช้ส่งงาน)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Snapshot</button>
           </div>
         </div>
         <div class="card-body">
@@ -106,7 +106,7 @@
             <div class="shot-empty" id="shot-empty">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
               <div class="se-title">ยังไม่มีภาพหน้าจอ</div>
-              <div class="se-sub">ภาพจะแสดงโดยอัตโนมัติเมื่อเริ่มประมวลผล หรือกด "ถ่ายภาพสด" ระหว่างการทำงาน</div>
+              <div class="se-sub">ภาพจะแสดงโดยอัตโนมัติเมื่อเริ่มประมวลผล หรือกด "Snapshot" ระหว่างการทำงาน</div>
             </div>
           </div>
         </div>
@@ -233,7 +233,7 @@
               <input type="checkbox" id="hidden-desktop-mode" />
               ประมวลผลบนเดสก์ท็อปแยกเบื้องหลัง — ไม่รบกวนหน้าจอและการใช้งานเครื่องของท่าน
             </label>
-            <span class="note">ระบบจะ<b>เปิด CropWat ให้เอง</b>ในเดสก์ท็อปแยกที่มองไม่เห็น — ท่านใช้งานเครื่องได้ตามปกติระหว่างประมวลผล การคลิกหรือพิมพ์ใดๆ ไม่ส่งผลต่อการทำงาน และมีเสถียรภาพสูงเมื่อสลับไฟล์ข้ามเดือน/ปี <b>ไม่ต้องเปิด CropWat ค้างไว้เอง</b> เพียงกำหนดตำแหน่งไฟล์ .exe ที่การ์ด "โปรแกรม CropWat 8.0" ด้านบน (ตำแหน่งมาตรฐานระบบค้นหาให้อัตโนมัติ) — ระหว่างประมวลผล ติดตามการทำงานได้จากการ์ด "ภาพหน้าจอ CropWat" ในหน้าภาพรวม ซึ่งแสดงภาพโดยอัตโนมัติ หรือกด "ถ่ายภาพสด" ได้ตลอดเวลา <b>ปิดตัวเลือกนี้</b> = โหมดคลาสสิก: CropWat ทำงานบนหน้าจอจริง (ต้องเปิด CropWat ค้างไว้เอง และไม่ควรใช้เครื่องระหว่างประมวลผล)</span>
+            <span class="note">ระบบจะ<b>เปิด CropWat ให้เอง</b>ในเดสก์ท็อปแยกที่มองไม่เห็น — ท่านใช้งานเครื่องได้ตามปกติระหว่างประมวลผล การคลิกหรือพิมพ์ใดๆ ไม่ส่งผลต่อการทำงาน และมีเสถียรภาพสูงเมื่อสลับไฟล์ข้ามเดือน/ปี <b>ไม่ต้องเปิด CropWat ค้างไว้เอง</b> เพียงกำหนดตำแหน่งไฟล์ .exe ที่การ์ด "โปรแกรม CropWat 8.0" ด้านบน (ตำแหน่งมาตรฐานระบบค้นหาให้อัตโนมัติ) — ระหว่างประมวลผล ติดตามการทำงานได้จากการ์ด "ภาพหน้าจอ CropWat" ในหน้าภาพรวม ซึ่งแสดงภาพโดยอัตโนมัติ หรือกด "Snapshot" ได้ตลอดเวลา <b>ปิดตัวเลือกนี้</b> = โหมดคลาสสิก: CropWat ทำงานบนหน้าจอจริง (ต้องเปิด CropWat ค้างไว้เอง และไม่ควรใช้เครื่องระหว่างประมวลผล)</span>
           </div>
         </div>
 
@@ -326,7 +326,7 @@
         </li>
         <li>
           <b>ไม่ต้องเปิด CropWat เอง (โหมดเดสก์ท็อปเบื้องหลัง — ค่าเริ่มต้น)</b>
-          <div>ระบบเปิด CropWat ให้เองใน<b>เดสก์ท็อปแยกเบื้องหลัง</b>ที่ไม่รบกวนหน้าจอของท่าน — ใช้งานเครื่องได้ตามปกติระหว่างประมวลผล — ติดตามการทำงานได้จากการ์ด <b>"ภาพหน้าจอ CropWat"</b> ในหน้าภาพรวม ซึ่งแสดงภาพโดยอัตโนมัติทุกครั้งที่ระบบบันทึกภาพ กด <b>"ถ่ายภาพสด"</b> เพื่อดูสถานะปัจจุบัน หรือ <b>"ดูสด"</b> เพื่อดูการทำงานแบบต่อเนื่อง</div>
+          <div>ระบบเปิด CropWat ให้เองใน<b>เดสก์ท็อปแยกเบื้องหลัง</b>ที่ไม่รบกวนหน้าจอของท่าน — ใช้งานเครื่องได้ตามปกติระหว่างประมวลผล — ติดตามการทำงานได้จากการ์ด <b>"ภาพหน้าจอ CropWat"</b> ในหน้าภาพรวม ซึ่งแสดงภาพโดยอัตโนมัติทุกครั้งที่ระบบบันทึกภาพ กด <b>"Snapshot"</b> เพื่อดูสถานะปัจจุบัน หรือ <b>"Live View"</b> เพื่อดูการทำงานแบบต่อเนื่อง</div>
         </li>
         <li>
           <b>เริ่มประมวลผล (แท็บ "ภาพรวม")</b>
