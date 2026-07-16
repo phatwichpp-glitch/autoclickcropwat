@@ -295,36 +295,30 @@ async def force_close_cropwat() -> dict:
 # ผู้ใช้กดปุ่มบนหน้าเว็บนี้ไม่ได้ — หน้าเว็บอยู่เดสก์ท็อปหลัก)
 # ---------------------------------------------------------------------------
 
-class DesktopPeekRequest(BaseModel):
-    seconds: float = 10.0
-
-
-@app.post("/api/desktop/peek")
-async def desktop_peek(req: DesktopPeekRequest) -> dict:
+@app.post("/api/desktop/enter")
+async def desktop_enter() -> dict:
+    """สลับจอเข้าไปดูเดสก์ท็อปซ่อน (ค้างอยู่จนกว่าจะกดปุ่มกลับบนเดสก์ท็อปนั้น) —
+    ใช้ได้เฉพาะระหว่างรันในโหมดเดสก์ท็อปซ่อน"""
     import desktop_session
 
-    # อนุญาตเฉพาะระหว่างรันจริง — desktop object อาจค้างอยู่หลังรันจบ (system
-    # process เช่น ctfmon ฝากหน้าต่างไว้หลังการสลับ ทำลายเองไม่ได้ ไม่มีผลเสีย
-    # นอกจาก object เปล่าค้าง) ถ้าไม่ guard ผู้ใช้จะสลับไปเจอเดสก์ท็อปว่างเปล่า งง
     if not runner.is_run_active():
         raise HTTPException(
             409, "ยังไม่ได้กำลังรันอยู่ — ปุ่มนี้ใช้ดู CropWat ระหว่างรันในโหมดเดสก์ท็อปซ่อนเท่านั้น"
         )
-    seconds = max(3.0, min(req.seconds, 60.0))
-    switched = await asyncio.to_thread(desktop_session.peek_hidden_desktop, seconds)
+    switched = await asyncio.to_thread(desktop_session.enter_hidden_desktop)
     if not switched:
         raise HTTPException(
             404,
             "ยังไม่มีเดสก์ท็อปซ่อนทำงานอยู่ — การรันปัจจุบันอาจใช้โหมดคลาสสิก (ปิดสวิตช์เดสก์ท็อปซ่อนไว้)",
         )
-    return {"ok": True, "seconds": seconds}
+    return {"ok": True}
 
 
 @app.post("/api/desktop/return")
 async def desktop_return() -> dict:
     import desktop_session
 
-    await asyncio.to_thread(desktop_session.return_to_default_desktop)
+    await asyncio.to_thread(desktop_session.leave_hidden_desktop)
     return {"ok": True}
 
 

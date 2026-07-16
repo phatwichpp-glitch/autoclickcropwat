@@ -66,39 +66,41 @@ def resolve_cropwat_exe(configured_path: str) -> Optional[Path]:
 
 
 # --------------------------------------------------------------------------
-# "แอบดู" เดสก์ท็อปซ่อน (v0.7.0) — สลับจอไปดูชั่วคราวแล้วกลับมาเอง
+# เข้า/ออก เดสก์ท็อปซ่อน (v0.7.3) — toggle เข้าดูตอนไหนก็ได้ ออกตอนไหนก็ได้
 #
-# ปัญหาคลาสสิกของ SwitchDesktop: พอสลับไปเดสก์ท็อปซ่อนแล้ว เมาส์/คีย์บอร์ดของ
-# ผู้ใช้จะอยู่บนเดสก์ท็อปนั้น — หน้าเว็บ/ปุ่มของโปรแกรมเรา (อยู่เดสก์ท็อปหลัก)
-# กดไม่ได้อีกต่อไป จึงต้องมี "ตั๋วกลับอัตโนมัติ": timer thread ที่สลับกลับให้เอง
-# เสมอหลังครบเวลา (SwitchDesktop เรียกจาก thread ไหนก็ได้ ไม่ต้อง bind กับ
-# เดสก์ท็อปเป้าหมาย) — ตาข่ายสุดท้ายถ้าทุกอย่างพัง: Ctrl+Alt+Del แล้ว Cancel
-# จะพากลับเดสก์ท็อปหลักได้เสมอ (พฤติกรรมมาตรฐานของ Windows)
+# ปัญหาที่ต้องแก้: พอ SwitchDesktop ไปเดสก์ท็อปซ่อน เมาส์/คีย์บอร์ดผู้ใช้จะอยู่
+# ในนั้น แต่เดสก์ท็อปซ่อนไม่มี taskbar/shell เลย (มีแต่ CropWat) — ปุ่ม "กลับ" บน
+# หน้าเว็บ (อยู่เดสก์ท็อปหลัก) กดไม่ได้ จึงต้องวาง "ปุ่มกลับ" ไว้บนเดสก์ท็อปซ่อน
+# เอง (หน้าต่าง win32 ล้วน — ห้ามใช้ tkinter เพราะจะชนกับ tray icon แล้ว crash)
+# ผู้ใช้คลิกปุ่มนั้นเมื่อไหร่ก็กลับจอหลักได้ — ไม่มี auto-timer 10 วิอีกต่อไป
+#
+# การสลับจอ 2 จังหวะ (เข้า/ออก) ยัง park automation ที่จุดปลอดภัยก่อนเสมอ กัน
+# error "Cannot make a visible window modal" — แต่ "ระหว่างดู" ปล่อยให้ทำงานสด
+# ผู้ใช้จะเห็น CropWat ทำงานจริงๆ (ไม่ได้หยุดนิ่ง) เพราะเดสก์ท็อปนิ่งแล้ว ไม่มี
+# การสลับจอมาชน modal อีก / ตาข่ายสุดท้าย: Ctrl+Alt+Del แล้ว Cancel = กลับจอหลัก
 # --------------------------------------------------------------------------
 
-_peek_lock = threading.Lock()
-_peek_until: float = 0.0
-
-# v0.7.2 — ประสานงาน "หยุด automation ชั่วคราวตอนแอบดู": _pause_requested ตั้งโดย
-# peek เพื่อขอให้ engine ไป park ที่จุดปลอดภัย (ระหว่างวันปลูก ไม่มี dialog เปิด)
-# _parked ตั้งโดย engine เมื่อ park แล้ว — peek รอ event นี้ก่อน SwitchDesktop เสมอ
-# เพื่อไม่ให้การสลับจอชนจังหวะ CropWat โชว์ modal (ต้นเหตุ "Cannot make a visible
-# window modal")
+# ประสานงาน "park automation ชั่วคราวตอนสลับจอ": _pause_requested ตั้งตอนจะสลับ
+# เพื่อขอให้ engine ไป park ที่จุดปลอดภัย (ระหว่างวันปลูก ไม่มี dialog เปิด) _parked
+# ตั้งโดย engine เมื่อ park แล้ว — สลับจอหลังจากนั้นเสมอ
 _pause_requested = threading.Event()
 _parked = threading.Event()
 
+# hwnd ของ "ปุ่มกลับ" บนเดสก์ท็อปซ่อน (สร้างโดย HiddenDesktopSession) — ให้
+# enter/leave สั่ง show/hide ได้ (ShowWindow เรียกข้าม thread ได้)
+_return_hwnd: Optional[int] = None
+_viewing = threading.Event()  # ตั้งเมื่อกำลังดูเดสก์ท็อปซ่อนอยู่
+
 
 def wait_if_peek_paused() -> None:
-    """engine เรียกที่ "จุดปลอดภัย" ระหว่างวันปลูก — ถ้ามีการขอ peek อยู่ ให้ park
-    (บอก peek ว่าพร้อมสลับจอได้แล้ว) แล้วค้างจนกว่า peek จะจบ"""
+    """engine เรียกที่ "จุดปลอดภัย" ระหว่างวันปลูก — ถ้ามีการขอสลับจออยู่ ให้ park
+    (บอกว่าพร้อมสลับได้แล้ว) แล้วค้างจนกว่าการสลับจอจะเสร็จ (ชั่วครู่)"""
     if not _pause_requested.is_set():
         return
-    logger.info("automation park ที่จุดปลอดภัยระหว่างแอบดูเดสก์ท็อปซ่อน")
     _parked.set()
     while _pause_requested.is_set():
-        time.sleep(0.2)
+        time.sleep(0.1)
     _parked.clear()
-    logger.info("แอบดูจบ — automation ทำงานต่อ")
 
 
 def hidden_desktop_exists() -> bool:
@@ -110,73 +112,53 @@ def hidden_desktop_exists() -> bool:
     return True
 
 
-def peek_hidden_desktop(seconds: float = 10.0) -> bool:
-    """สลับจอไปดูเดสก์ท็อปซ่อนชั่วคราว แล้ว "กลับมาเองอัตโนมัติ" หลังครบเวลา —
-    คืน False ถ้าเดสก์ท็อปซ่อนไม่มีอยู่ (ยังไม่มีการรันโหมดนี้อยู่)
+def is_viewing_hidden_desktop() -> bool:
+    return _viewing.is_set()
 
-    v0.7.2 — park automation ที่จุดปลอดภัยก่อนสลับจอเสมอ (รอ engine ทำวันปลูกที่
-    กำลังทำอยู่ให้จบ ไม่มี dialog เปิดค้าง) แล้วค่อย SwitchDesktop — กัน error
-    "Cannot make a visible window modal" ที่เกิดตอนสลับจอชนจังหวะ CropWat โชว์
-    modal (File->Open) ผู้ใช้จะเห็น CropWat หยุดนิ่งตอนแอบดู (สภาพ ณ ตอนนั้น) แล้ว
-    ทำงานต่อเองเมื่อจอกลับ
 
-    เรียกซ้ำระหว่างที่กำลังดูอยู่ = ต่อเวลา (ขยับ deadline ออกไป) ไม่เปิด timer
-    ซ้อนกันเพิ่ม"""
-    global _peek_until
+def _park_for_switch() -> None:
+    """ขอให้ engine park ที่จุดปลอดภัยก่อนสลับจอ แล้วรอจน park จริง (เพดาน 40 วิ
+    เผื่อวันปลูกที่กำลังทำใช้เวลานาน/ไม่มี run active) — ครบเพดานก็สลับ best-effort"""
+    _pause_requested.set()
+    if not _parked.wait(timeout=40.0):
+        logger.warning("รอ automation park ไม่ทันใน 40 วิ — สลับจอแบบ best-effort")
+
+
+def enter_hidden_desktop() -> bool:
+    """สลับจอเข้าไปดูเดสก์ท็อปซ่อน (ค้างอยู่จนกว่าจะกดปุ่มกลับ) — คืน False ถ้า
+    เดสก์ท็อปซ่อนไม่มีอยู่ (ยังไม่ได้กำลังรันโหมดนี้)"""
     hdesk = _user32.OpenDesktopW(_DESKTOP_NAME, 0, False, _DESKTOP_SWITCHDESKTOP)
     if not hdesk:
         return False
-
-    with _peek_lock:
-        already_peeking = _peek_until > time.monotonic()
-        _peek_until = time.monotonic() + seconds
-
-    if not already_peeking:
-        # ขอให้ engine park ที่จุดปลอดภัยก่อน แล้วรอจน park จริง (มีเพดานเวลา
-        # เผื่อวันปลูกที่กำลังทำใช้เวลานาน/ไม่มี run active) — ครบเพดานก็สลับไป
-        # best-effort ไม่บล็อกผู้ใช้ค้าง
-        _pause_requested.set()
-        parked = _parked.wait(timeout=40.0)
-        if not parked:
-            logger.warning("รอ automation park ไม่ทันใน 40 วิ — สลับจอแบบ best-effort")
-
-    if not _user32.SwitchDesktop(hdesk):
-        _user32.CloseDesktop(hdesk)
-        _pause_requested.clear()
+    _park_for_switch()
+    switched = bool(_user32.SwitchDesktop(hdesk))
+    _user32.CloseDesktop(hdesk)
+    _pause_requested.clear()  # ปล่อยให้ทำงานสดระหว่างดู (เดสก์ท็อปนิ่งแล้ว ปลอดภัย)
+    if not switched:
         raise DesktopSessionError(
             f"สลับไปเดสก์ท็อปซ่อนไม่สำเร็จ (SwitchDesktop err={ctypes.get_last_error()})"
         )
-    _user32.CloseDesktop(hdesk)
-    logger.info("สลับจอไปดูเดสก์ท็อปซ่อน %.0f วินาที", seconds)
-
-    if not already_peeking:
-        threading.Thread(target=_auto_return, daemon=True, name="desktop-peek-return").start()
+    _viewing.set()
+    if _return_hwnd:
+        _user32.ShowWindow(_return_hwnd, 5)  # SW_SHOW
+        _user32.SetWindowPos(_return_hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)  # TOPMOST,NOMOVE,NOSIZE,NOACTIVATE
+    logger.info("เข้าดูเดสก์ท็อปซ่อน (ค้างจนกว่าจะกดปุ่มกลับ)")
     return True
 
 
-def return_to_default_desktop() -> None:
-    """สลับจอกลับเดสก์ท็อปหลัก (Default) ทันที + ปลด pause ให้ automation ทำงานต่อ"""
-    global _peek_until
-    with _peek_lock:
-        _peek_until = 0.0
+def leave_hidden_desktop() -> None:
+    """สลับจอกลับเดสก์ท็อปหลัก (Default) + ซ่อนปุ่มกลับ + ปลด park ให้ทำงานต่อ —
+    เรียกได้จากทั้งการคลิกปุ่มกลับ (บนเดสก์ท็อปซ่อน) และจากภายนอก"""
+    if _return_hwnd:
+        _user32.ShowWindow(_return_hwnd, 0)  # SW_HIDE
+    _park_for_switch()
     h = _user32.OpenDesktopW("Default", 0, False, _DESKTOP_SWITCHDESKTOP)
     if h:
         _user32.SwitchDesktop(h)
         _user32.CloseDesktop(h)
-        logger.info("สลับจอกลับเดสก์ท็อปหลักแล้ว")
-    # ปลด park ให้ engine ทำงานต่อ (ทำหลังสลับจอกลับแล้ว — CropWat ไม่ได้เป็น
-    # input desktop อีกต่อไป จึงโชว์ modal ได้ปลอดภัย)
+    _viewing.clear()
     _pause_requested.clear()
-
-
-def _auto_return() -> None:
-    while True:
-        with _peek_lock:
-            remaining = _peek_until - time.monotonic()
-        if remaining <= 0:
-            break
-        time.sleep(min(remaining, 0.5))
-    return_to_default_desktop()
+    logger.info("กลับเดสก์ท็อปหลักแล้ว")
 
 
 class HiddenDesktopSession:
@@ -245,7 +227,74 @@ class HiddenDesktopSession:
 
         logger.info("เปิด CropWat (pid=%s) บนเดสก์ท็อปซ่อนแล้ว", self.pid)
         self._wait_ready_and_dismiss_welcome()
+        self._start_return_window()
         return self.pid
+
+    def _start_return_window(self) -> None:
+        """สร้าง "ปุ่มกลับ" (หน้าต่าง win32 ล้วน) บนเดสก์ท็อปซ่อน รันใน thread ของ
+        ตัวเอง (bind เข้าเดสก์ท็อปซ่อน) — เริ่มต้นซ่อนไว้ โผล่เมื่อ enter_hidden_
+        desktop() สั่ง show คลิกที่หน้าต่าง (หรือปิด) = กลับจอหลัก"""
+        hdesk = self._hdesk
+
+        def _loop() -> None:
+            global _return_hwnd
+            try:
+                _user32.SetThreadDesktop(hdesk)
+
+                def _wndproc(hwnd, msg, wparam, lparam):
+                    if msg in (win32con.WM_LBUTTONDOWN, win32con.WM_CLOSE):
+                        try:
+                            leave_hidden_desktop()
+                        except Exception:  # noqa: BLE001
+                            logger.exception("กลับจอหลักจากปุ่มกลับไม่สำเร็จ")
+                        return 0
+                    if msg == win32con.WM_PAINT:
+                        self._paint_return_window(hwnd)
+                        return 0
+                    if msg == win32con.WM_DESTROY:
+                        win32gui.PostQuitMessage(0)
+                        return 0
+                    return win32gui.DefWindowProc(hwnd, msg, wparam, lparam)
+
+                wc = win32gui.WNDCLASS()
+                wc.lpszClassName = "CropWatReturnWindow"
+                wc.lpfnWndProc = _wndproc
+                wc.hbrBackground = win32con.COLOR_INFOBK + 1
+                wc.hCursor = win32gui.LoadCursor(0, win32con.IDC_HAND)
+                cls = win32gui.RegisterClass(wc)
+                # กลางบนของจอ กว้างพออ่านง่าย
+                sw = _user32.GetSystemMetrics(0)
+                width, height = 620, 130
+                hwnd = win32gui.CreateWindowEx(
+                    win32con.WS_EX_TOPMOST,
+                    cls,
+                    "กลับหน้าจอหลัก",
+                    win32con.WS_POPUP | win32con.WS_CAPTION | win32con.WS_SYSMENU,
+                    (sw - width) // 2, 40, width, height,
+                    0, 0, 0, None,
+                )
+                _return_hwnd = hwnd
+                win32gui.ShowWindow(hwnd, 0)  # SW_HIDE — โผล่ตอน enter เท่านั้น
+                win32gui.PumpMessages()
+            except Exception:  # noqa: BLE001 -- ปุ่มกลับพังไม่ควรล้มการรัน (ยังมี Ctrl+Alt+Del)
+                logger.exception("สร้างปุ่มกลับบนเดสก์ท็อปซ่อนไม่สำเร็จ")
+
+        threading.Thread(target=_loop, daemon=True, name="hidden-desktop-return-btn").start()
+
+    @staticmethod
+    def _paint_return_window(hwnd: int) -> None:
+        hdc, ps = win32gui.BeginPaint(hwnd)
+        try:
+            rect = win32gui.GetClientRect(hwnd)
+            win32gui.SetBkMode(hdc, win32con.TRANSPARENT)
+            win32gui.DrawText(
+                hdc,
+                "◀  คลิกที่นี่ เพื่อกลับหน้าจอหลัก  ◀\n(หรือปิดหน้าต่างนี้ / กด Ctrl+Alt+Del แล้ว Cancel)",
+                -1, rect,
+                win32con.DT_CENTER | win32con.DT_VCENTER | win32con.DT_WORDBREAK,
+            )
+        finally:
+            win32gui.EndPaint(hwnd, ps)
 
     def _wait_ready_and_dismiss_welcome(self, timeout: float = 20.0) -> None:
         deadline = time.monotonic() + timeout
@@ -275,6 +324,20 @@ class HiddenDesktopSession:
     def stop(self) -> None:
         """ปิด CropWat ที่เราเปิดในเดสก์ท็อปซ่อน + ปล่อย handle เดสก์ท็อป — เป็น
         process ที่โปรแกรมนี้เปิดเอง (ไม่ใช่ของผู้ใช้) จึง terminate ได้ปลอดภัย"""
+        global _return_hwnd
+        # ถ้ากำลังดูเดสก์ท็อปซ่อนอยู่ตอน run จบ ต้องสลับจอกลับก่อนทำลาย desktop
+        # ไม่งั้นจอผู้ใช้ค้างอยู่บนเดสก์ท็อปที่กำลังจะหายไป
+        if _viewing.is_set():
+            try:
+                leave_hidden_desktop()
+            except Exception:  # noqa: BLE001
+                pass
+        if _return_hwnd:
+            try:
+                win32gui.PostMessage(_return_hwnd, win32con.WM_DESTROY, 0, 0)
+            except Exception:  # noqa: BLE001
+                pass
+            _return_hwnd = None
         if self._proc_handle is not None:
             try:
                 win32api.TerminateProcess(self._proc_handle, 0)

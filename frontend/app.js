@@ -723,12 +723,8 @@ document.getElementById("btn-force-close").addEventListener("click", async () =>
 });
 
 document.getElementById("btn-peek-desktop").addEventListener("click", async () => {
-  showToast("กำลังสลับไปดูเดสก์ท็อปซ่อน... จะกลับมาเองใน 10 วินาที");
-  const res = await fetch("/api/desktop/peek", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ seconds: 10 }),
-  });
+  showToast("กำลังสลับไปดูเดสก์ท็อปซ่อน... คลิกปุ่ม 'กลับหน้าจอหลัก' บนเดสก์ท็อปนั้นเพื่อออก");
+  const res = await fetch("/api/desktop/enter", { method: "POST" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     alert(err.detail || "สลับไปดูเดสก์ท็อปซ่อนไม่สำเร็จ");

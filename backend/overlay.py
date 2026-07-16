@@ -31,6 +31,7 @@ from __future__ import annotations
 import ctypes
 import ctypes.wintypes
 import logging
+import os
 import threading
 import time
 import webbrowser
@@ -199,7 +200,7 @@ def _open_output_folder(_icon=None, _item=None) -> None:
 
 
 def _peek_desktop(_icon=None, _item=None) -> None:
-    """สลับจอไปดูเดสก์ท็อปซ่อน 10 วิจากเมนู tray (กลับเองอัตโนมัติ)"""
+    """เข้าดูเดสก์ท็อปซ่อนจากเมนู tray — ค้างอยู่จนกว่าจะกดปุ่มกลับบนเดสก์ท็อปนั้น"""
     try:
         import runner
         import desktop_session
@@ -207,7 +208,7 @@ def _peek_desktop(_icon=None, _item=None) -> None:
         if not runner.is_run_active():
             notify("CropWat Auto-runner", "ยังไม่ได้กำลังรันอยู่ — ดูเดสก์ท็อปซ่อนได้เฉพาะระหว่างรัน")
             return
-        if not desktop_session.peek_hidden_desktop(10.0):
+        if not desktop_session.enter_hidden_desktop():
             notify("CropWat Auto-runner", "การรันปัจจุบันไม่ได้ใช้โหมดเดสก์ท็อปซ่อน")
     except Exception:  # noqa: BLE001
         logger.exception("ดูเดสก์ท็อปซ่อนจาก tray ไม่สำเร็จ")
@@ -225,7 +226,7 @@ def _tray_loop() -> None:
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("▶ เริ่มรันทั้งหมด", lambda _i, _m: _start_run()),
         pystray.MenuItem("⏹ หยุด", lambda _i, _m: _stop_run()),
-        pystray.MenuItem("👁 ดูเดสก์ท็อปซ่อน (10 วิ)", _peek_desktop),
+        pystray.MenuItem("👁 เข้าดูเดสก์ท็อปซ่อน", _peek_desktop),
         pystray.MenuItem("📂 เปิดโฟลเดอร์ผลลัพธ์", _open_output_folder),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("✕ ปิดโปรแกรม", lambda _i, _m: _quit_app()),
