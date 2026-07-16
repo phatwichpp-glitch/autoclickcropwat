@@ -61,8 +61,9 @@ async function loadConfig() {
   // ปุ่ม "เปิด CropWat" มีประโยชน์เฉพาะโหมดคลาสสิก (ผู้ใช้ต้องเปิด CropWat เอง) —
   // โหมดเดสก์ท็อปซ่อนโปรแกรมเปิดให้เองอยู่แล้ว โชว์ไว้มีแต่ทำให้งง
   document.getElementById("btn-launch-cropwat").hidden = settings.hidden_desktop_mode !== false;
-  // ปุ่มถ่ายภาพหน้าจอกลับกัน: มีประโยชน์เฉพาะโหมดเดสก์ท็อปซ่อน
+  // ปุ่มถ่ายภาพสด/ดูสดกลับกัน: มีประโยชน์เฉพาะโหมดเดสก์ท็อปเบื้องหลัง
   document.getElementById("btn-take-screenshot").hidden = settings.hidden_desktop_mode === false;
+  document.getElementById("btn-live-toggle").hidden = settings.hidden_desktop_mode === false;
   document.getElementById("speed-preset").value = settings.speed_preset || "normal";
   document.getElementById("shift-year-per-candidate").checked = settings.shift_year_per_candidate !== false;
   document.getElementById("brand-sub").textContent = settings.input_dir
@@ -567,6 +568,7 @@ function renderStatus(snapshot) {
   if (!isRunning && wasRunning) {
     fetchOutputProgress();
     refreshLatestShot();
+    stopLive("การประมวลผลสิ้นสุดแล้ว — หยุดดูสดอัตโนมัติ");
   }
   wasRunning = isRunning;
 
@@ -793,6 +795,66 @@ document.getElementById("btn-take-screenshot").addEventListener("click", async (
   } finally {
     btn.disabled = false;
   }
+});
+
+// ---------------------------------------------------------------------------
+// โหมดดูสด (v0.10.0) — สตรีมภาพนิ่งต่อเนื่อง: ขอภาพใหม่ทุก ~2 วิผ่านกลไก
+// ถ่ายภาพสดเดิม (PrintWindow ที่จุดปลอดภัย — ไม่แตะการสลับจอเลย จึงไม่มีความ
+// เสี่ยง "Cannot make a visible window modal" ที่เคยทำให้ต้องถอดฟีเจอร์ดูสด
+// แบบสลับจอออกไป) ได้ภาพเคลื่อนไหว ~0.5-1 fps พอเห็นว่า CropWat ทำอะไรอยู่
+// — หยุดเองอัตโนมัติเมื่อ: การประมวลผลจบ, ถ่ายภาพไม่ได้ (409), หรือซ่อนหน้าต่าง
+// ---------------------------------------------------------------------------
+let liveTimer = null;
+let liveBusy = false;
+
+function isLiveOn() {
+  return liveTimer !== null;
+}
+
+function stopLive(message) {
+  if (!isLiveOn()) return;
+  clearInterval(liveTimer);
+  liveTimer = null;
+  document.getElementById("shot-live-badge").hidden = true;
+  const btn = document.getElementById("btn-live-toggle");
+  btn.classList.remove("live-on");
+  btn.innerHTML = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>ดูสด`;
+  if (message) showToast(message);
+}
+
+async function liveTick() {
+  if (liveBusy) return; // เฟรมก่อนหน้ายังไม่เสร็จ — ข้ามรอบนี้ กันคำขอซ้อน
+  liveBusy = true;
+  try {
+    const res = await fetch("/api/desktop/screenshot", { method: "POST" });
+    if (!res.ok) {
+      stopLive(res.status === 409 ? "หยุดดูสด — ระบบไม่ได้กำลังประมวลผลอยู่" : "หยุดดูสด — ไม่สามารถถ่ายภาพได้");
+      return;
+    }
+    await refreshLatestShot();
+  } catch {
+    /* เครือข่ายสะดุด — ปล่อยรอบถัดไปลองใหม่ */
+  } finally {
+    liveBusy = false;
+  }
+}
+
+document.getElementById("btn-live-toggle").addEventListener("click", () => {
+  if (isLiveOn()) {
+    stopLive();
+    return;
+  }
+  document.getElementById("shot-live-badge").hidden = false;
+  const btn = document.getElementById("btn-live-toggle");
+  btn.classList.add("live-on");
+  btn.innerHTML = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>หยุดดูสด`;
+  liveTick();
+  liveTimer = setInterval(liveTick, 2000);
+});
+
+// ซ่อนหน้าต่าง/สลับไปแท็บอื่น → หยุดดูสดอัตโนมัติ (ไม่เปลืองแรงเครื่องโดยไม่มีคนดู)
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stopLive();
 });
 
 // คลิกที่ภาพ → เปิดดูขนาดเต็มใน modal (พร้อมชื่อไฟล์/เวลากำกับ)

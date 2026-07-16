@@ -16,6 +16,9 @@ REM run from inside backend/  ("cd backend" then "build.bat")
     --hidden-import docx ^
     --hidden-import pystray ^
     --hidden-import pystray._win32 ^
+    --collect-all webview ^
+    --collect-all pythonnet ^
+    --collect-all clr_loader ^
     --hidden-import uvicorn.lifespan.on ^
     --hidden-import uvicorn.protocols.http.auto ^
     --hidden-import uvicorn.protocols.websockets.auto ^

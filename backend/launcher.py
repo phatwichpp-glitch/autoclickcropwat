@@ -26,13 +26,22 @@ Build: ดู build.bat (รันจากในโฟลเดอร์ backen
 from __future__ import annotations
 
 import ctypes
+import os
 import socket
 import sys
 import traceback
 from pathlib import Path
 
 HOST = "127.0.0.1"
-PORT = 8000
+# override พอร์ตได้ผ่าน env var — ไว้ทดสอบ .exe ตัวใหม่เคียงข้างตัวจริงที่รันอยู่
+# (พอร์ตชนกันจะกลายเป็น "เรียกหน้าต่างตัวเดิม" แทนที่จะเปิดตัวใหม่)
+PORT = int(os.environ.get("CROPWAT_AUTORUNNER_PORT", "8000"))
+
+# หน้าต่างโปรแกรมแบบ standalone (pywebview/WebView2, v0.10.0) — เดิมเปิดผ่าน
+# Edge app-mode ซึ่งไอคอน taskbar เป็นโลโก้ Edge ดูไม่เป็นมืออาชีพ (feedback
+# ผู้ใช้จริง) โหมดนี้หน้าต่างเป็นของ process เราเอง ไอคอน = app.ico ที่ฝังใน
+# .exe — None = ยังไม่ได้เปิด/ใช้โหมดเบราว์เซอร์ fallback อยู่
+_webview_window = None
 
 # ตำแหน่งที่ Edge/Chrome มักติดตั้งอยู่ (เผื่อไม่ได้อยู่ใน PATH) — เช็คแบบนี้ก่อน
 # เพราะ Edge ติดตั้งมาให้ในตัวทุกเครื่อง Windows 10/11 อยู่แล้ว โอกาสเจอสูงมาก
@@ -121,7 +130,9 @@ def _find_app_window_hwnd() -> int | None:
             return True
         class_buf = ctypes.create_unicode_buffer(256)
         user32.GetClassNameW(hwnd, class_buf, 256)
-        if class_buf.value == "Chrome_WidgetWin_1":  # class ของหน้าต่าง Chromium (Edge/Chrome)
+        # Chrome_WidgetWin_1 = หน้าต่าง Chromium (โหมดเบราว์เซอร์ fallback),
+        # WindowsForms* = หน้าต่าง standalone webview (v0.10.0)
+        if class_buf.value == "Chrome_WidgetWin_1" or class_buf.value.startswith("WindowsForms"):
             found.append(hwnd)
         return True
 
@@ -154,9 +165,16 @@ def _bring_to_front(hwnd: int) -> None:
 
 
 def _minimize_app_window() -> None:
-    """ย่อหน้าต่างโปรแกรมลง Tray (v0.8.0) — เรียกจาก /api/window/minimize ตอนกด
-    ปุ่ม "ย่อไปที่ Tray" บนหน้าเว็บ เรียกคืนได้จากเมนู tray icon ("เปิดหน้าต่าง
-    โปรแกรม") ซึ่งใช้ _bring_to_front (มี SW_RESTORE ในตัวอยู่แล้วถ้า minimize ไว้)"""
+    """ย่อหน้าต่างโปรแกรมลงถาดระบบ — เรียกจาก /api/window/minimize ตอนกดปุ่ม
+    "ย่อหน้าต่าง" บนหน้าเว็บ เรียกคืนได้จากเมนู tray icon ("เปิดหน้าต่างโปรแกรม")
+    โหมด standalone ใช้ hide() = หายไปอยู่ tray จริงๆ (ไม่ค้างบน taskbar)"""
+    w = _webview_window
+    if w is not None:
+        try:
+            w.hide()
+            return
+        except Exception:  # noqa: BLE001 -- ตกไปทาง fallback ด้านล่าง
+            pass
     hwnd = _find_app_window_hwnd()
     if hwnd:
         SW_MINIMIZE = 6
@@ -164,13 +182,22 @@ def _minimize_app_window() -> None:
 
 
 def _launch_app_window() -> None:
-    """เปิด "หน้าต่างโปรแกรม" (เบราว์เซอร์แบบ app mode ไม่มี address bar/แท็บ) —
-    ใช้ทั้งตอนเริ่มโปรแกรม, ตอนดับเบิลคลิก .exe ซ้ำ, และตอนกดจาก tray icon/overlay
-    เพื่อเรียกหน้าต่างกลับมา — เช็คก่อนเสมอว่ามีหน้าต่างเปิดค้างอยู่แล้วไหม ถ้ามี
-    แค่ดึงมาข้างหน้า ไม่เปิดซ้อนใหม่"""
+    """เปิด/เรียกคืน "หน้าต่างโปรแกรม" — ใช้ทั้งตอนเริ่มโปรแกรม และตอนกดจาก tray
+    icon/overlay — โหมด standalone (v0.10.0): show หน้าต่าง webview ตัวเดิมของ
+    process นี้ ถ้าไม่ได้ใช้โหมดนั้น fallback เป็นเบราว์เซอร์ app-mode แบบเดิม
+    (เช็คก่อนเสมอว่ามีหน้าต่างเปิดค้างอยู่แล้วไหม ถ้ามีแค่ดึงมาข้างหน้า)"""
     import os
     import subprocess
     import webbrowser
+
+    w = _webview_window
+    if w is not None:
+        try:
+            w.show()
+            w.restore()
+            return
+        except Exception:  # noqa: BLE001 -- หน้าต่าง webview มีปัญหา → fallback เบราว์เซอร์
+            pass
 
     existing = _find_app_window_hwnd()
     if existing:
@@ -226,11 +253,122 @@ def _run_server(open_browser: bool = True) -> None:
 
     import app as app_module
 
+    if _try_webview_mode(app_module, uvicorn):
+        return
+
+    # ---- โหมดเบราว์เซอร์ (fallback เดิม — เครื่องที่ไม่มี WebView2 runtime) ----
     if open_browser:
         threading.Thread(target=_open_browser_when_ready, daemon=True).start()
     # ส่ง app object ตรงๆ (ไม่ใช่ string "app:app") เพราะใน .exe ที่ build แบบ
     # --onefile จะ resolve import string ไม่ได้เหมือนตอนรันด้วย python ปกติ
     uvicorn.run(app_module.app, host=HOST, port=PORT, log_level="info", log_config=None)
+
+
+def _assets_icon_path() -> Path:
+    """ตำแหน่ง assets/app.ico — ตอน build เป็น .exe ไฟล์ถูกแตกไปที่ sys._MEIPASS
+    (เหมือน _assets_dir ใน overlay.py)"""
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)) / "assets" / "app.ico"
+    return Path(__file__).parent / "assets" / "app.ico"
+
+
+def _apply_window_icon() -> None:
+    """ตั้งไอคอนหน้าต่าง standalone (title bar + taskbar) เป็นโลโก้โปรแกรม —
+    WinForms ของ pywebview ไม่ตั้งให้เอง (เห็นเป็นไอคอนดีฟอลต์) ต้องยิง
+    WM_SETICON เองหลังหน้าต่างโชว์แล้ว"""
+    try:
+        ico = _assets_icon_path()
+        if not ico.is_file():
+            return
+        hwnd = _find_app_window_hwnd()
+        if not hwnd:
+            return
+        user32 = ctypes.windll.user32
+        IMAGE_ICON, LR_LOADFROMFILE = 1, 0x10
+        WM_SETICON, ICON_SMALL, ICON_BIG = 0x80, 0, 1
+        for size, which in ((16, ICON_SMALL), (32, ICON_BIG)):
+            h = user32.LoadImageW(None, str(ico), IMAGE_ICON, size, size, LR_LOADFROMFILE)
+            if h:
+                user32.SendMessageW(hwnd, WM_SETICON, which, h)
+    except Exception:  # noqa: BLE001 -- ไอคอนเป็นของเสริม พังแล้วห้ามล้มหน้าต่าง
+        pass
+
+
+def _try_webview_mode(app_module, uvicorn) -> bool:
+    """โหมดหน้าต่าง standalone (v0.10.0): รัน uvicorn ใน daemon thread แล้วเปิด
+    หน้าต่าง WebView2 ของตัวเองบน main thread (pywebview ต้องการ GUI loop บน
+    main thread) — ไอคอน taskbar เป็นโลโก้โปรแกรม (จาก app.ico ที่ฝังใน .exe)
+    ไม่ใช่โลโก้ Edge อีกต่อไป
+
+    ปิดหน้าต่าง (X) = ซ่อนลงถาดระบบ โปรแกรมทำงานต่อ (pattern เดียวกับแอปที่มี
+    tray icon ทั่วไป) — ปิดจริงทำจากเมนู tray "ปิดโปรแกรม" — คืน False ถ้าเปิด
+    โหมดนี้ไม่ได้ (ไม่มี WebView2 runtime ฯลฯ) เพื่อ fallback เป็นเบราว์เซอร์"""
+    import logging
+    import threading
+    import time
+
+    logger = logging.getLogger("launcher")
+    try:
+        import webview
+    except Exception:  # noqa: BLE001 -- import พังในบางเครื่อง = ใช้เบราว์เซอร์แทน
+        logger.warning("โหลด pywebview ไม่ได้ — ใช้โหมดเบราว์เซอร์แทน", exc_info=True)
+        return False
+
+    threading.Thread(
+        target=lambda: uvicorn.run(
+            app_module.app, host=HOST, port=PORT, log_level="info", log_config=None
+        ),
+        daemon=True,
+        name="uvicorn-server",
+    ).start()
+
+    # รอ server พร้อมก่อนค่อยเปิดหน้าต่าง — กันหน้าขาว "connection refused"
+    deadline = time.monotonic() + 20
+    while not _port_in_use(HOST, PORT):
+        if time.monotonic() > deadline:
+            raise RuntimeError("เริ่ม web server ภายในโปรแกรมไม่สำเร็จ (timeout 20 วินาที)")
+        time.sleep(0.25)
+
+    global _webview_window
+    try:
+        win = webview.create_window(
+            APP_WINDOW_TITLE,
+            f"http://{HOST}:{PORT}",
+            width=1320,
+            height=880,
+            background_color="#0a101e",  # สีพื้นธีมหลัก — กันแฟลชขาวตอนเปิด
+        )
+
+        def _on_closing():
+            # ปิดหน้าต่าง = ซ่อนลงถาดระบบ (return False = ยกเลิกการปิดจริง)
+            try:
+                win.hide()
+            except Exception:  # noqa: BLE001
+                pass
+            return False
+
+        def _on_shown(*_args):
+            _apply_window_icon()
+
+        win.events.closing += _on_closing
+        win.events.shown += _on_shown
+        _webview_window = win
+        # private_mode=False สำคัญมาก: ค่า default (True) จะล้าง localStorage ทุก
+        # ครั้งที่ปิดโปรแกรม → ติ๊ก "ไม่ต้องแสดงคู่มืออีก" ไม่เคยจำ — เก็บ profile
+        # ไว้ที่โฟลเดอร์เดียวกับ browser-profile เดิมข้างๆ กัน
+        import os
+
+        storage = Path(os.environ.get("LOCALAPPDATA", str(_exe_dir()))) / "CropWatAutoRunner-webview"
+        webview.start(private_mode=False, storage_path=str(storage))  # block จนหน้าต่างถูก destroy จริง
+    except Exception:  # noqa: BLE001 -- WebView2 runtime ไม่มี/พัง = ใช้เบราว์เซอร์แทน
+        _webview_window = None
+        logger.warning("เปิดหน้าต่าง standalone ไม่สำเร็จ — ใช้โหมดเบราว์เซอร์แทน", exc_info=True)
+        threading.Thread(target=_open_browser_when_ready, daemon=True).start()
+
+    # GUI loop จบ (ปกติไม่เกิดเพราะ closing ถูกยกเลิกเสมอ) แต่ server ต้องอยู่ต่อ
+    # — ค้าง main thread ไว้ ให้ปิดโปรแกรมผ่านเมนู tray (os._exit) เท่านั้น
+    while True:
+        time.sleep(3600)
 
 
 def _set_dpi_aware() -> None:
@@ -253,12 +391,29 @@ def _set_dpi_aware() -> None:
         pass
 
 
+def _activate_existing_instance() -> None:
+    """มีตัวเดิมรันอยู่แล้ว (ดับเบิลคลิก .exe ซ้ำ) — ขอให้ process เดิมโชว์
+    หน้าต่างของมันเองผ่าน API (v0.10.0: หน้าต่าง standalone เป็นของ process เดิม
+    เราสร้าง/ดึงแทนไม่ได้ และถ้าถูกซ่อนลง tray อยู่ EnumWindows ก็มองไม่เห็น) —
+    ตัวเดิมเป็นเวอร์ชันเก่าที่ไม่มี endpoint นี้ก็ fallback วิธีหา hwnd แบบเดิม"""
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(f"http://{HOST}:{PORT}/api/window/show", method="POST")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            if resp.status == 200:
+                return
+    except Exception:  # noqa: BLE001
+        pass
+    _launch_app_window()
+
+
 def main() -> None:
     _set_dpi_aware()
     if _port_in_use(HOST, PORT):
         # มีตัวเดิมรันอยู่แล้ว (เช่น ผู้ใช้ปิดหน้าต่างไปเฉยๆ แล้วดับเบิลคลิก .exe
         # ใหม่) — แค่เรียกหน้าต่างโปรแกรมของตัวเดิมขึ้นมาก็พอ ไม่ใช่ error
-        _launch_app_window()
+        _activate_existing_instance()
         sys.exit(0)
 
     # "--updated" = เปิดหลังอัปเดตอัตโนมัติ (ดู updater.py) — หน้าต่างเดิมของ

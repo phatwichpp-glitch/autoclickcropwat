@@ -91,10 +91,12 @@
         <div class="card-head">
           <div class="row" style="gap:10px">
             <h2>ภาพหน้าจอ CropWat</h2>
+            <span class="badge live" id="shot-live-badge" hidden>LIVE</span>
             <span class="badge neutral" id="shot-kind-badge" hidden></span>
           </div>
           <div class="row" style="gap:10px">
             <span class="shot-meta" id="shot-meta"></span>
+            <button id="btn-live-toggle" class="btn btn-ghost sm" type="button" title="ดูการทำงานของ CropWat แบบต่อเนื่อง — ระบบถ่ายภาพให้ใหม่ทุก ~2 วินาทีระหว่างประมวลผล (การประมวลผลอาจช้าลงเล็กน้อยขณะเปิดดูสด)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>ดูสด</button>
             <button id="btn-take-screenshot" class="btn btn-ghost sm" type="button" title="บันทึกภาพหน้าจอ CropWat ณ ขณะนี้ทันที (ใช้ตรวจสอบการทำงาน — แยกจากภาพบันทึกที่ใช้ส่งงาน)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>ถ่ายภาพสด</button>
           </div>
         </div>
@@ -324,7 +326,7 @@
         </li>
         <li>
           <b>ไม่ต้องเปิด CropWat เอง (โหมดเดสก์ท็อปเบื้องหลัง — ค่าเริ่มต้น)</b>
-          <div>ระบบเปิด CropWat ให้เองใน<b>เดสก์ท็อปแยกเบื้องหลัง</b>ที่ไม่รบกวนหน้าจอของท่าน — ใช้งานเครื่องได้ตามปกติระหว่างประมวลผล — ติดตามการทำงานได้จากการ์ด <b>"ภาพหน้าจอ CropWat"</b> ในหน้าภาพรวม ซึ่งแสดงภาพโดยอัตโนมัติทุกครั้งที่ระบบบันทึกภาพ หรือกด <b>"ถ่ายภาพสด"</b> เพื่อดูสถานะปัจจุบันได้ทันที</div>
+          <div>ระบบเปิด CropWat ให้เองใน<b>เดสก์ท็อปแยกเบื้องหลัง</b>ที่ไม่รบกวนหน้าจอของท่าน — ใช้งานเครื่องได้ตามปกติระหว่างประมวลผล — ติดตามการทำงานได้จากการ์ด <b>"ภาพหน้าจอ CropWat"</b> ในหน้าภาพรวม ซึ่งแสดงภาพโดยอัตโนมัติทุกครั้งที่ระบบบันทึกภาพ กด <b>"ถ่ายภาพสด"</b> เพื่อดูสถานะปัจจุบัน หรือ <b>"ดูสด"</b> เพื่อดูการทำงานแบบต่อเนื่อง</div>
         </li>
         <li>
           <b>เริ่มประมวลผล (แท็บ "ภาพรวม")</b>

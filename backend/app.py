@@ -391,11 +391,22 @@ async def screenshots_latest_image() -> FileResponse:
 
 @app.post("/api/window/minimize")
 async def window_minimize() -> dict:
-    """ย่อหน้าต่างโปรแกรมลง Tray (v0.8.0) — เปิดกลับได้จากเมนู tray icon
+    """ย่อหน้าต่างโปรแกรมลงถาดระบบ (v0.8.0) — เปิดกลับได้จากเมนู tray icon
     ("เปิดหน้าต่างโปรแกรม")"""
     import launcher
 
     await asyncio.to_thread(launcher._minimize_app_window)
+    return {"ok": True}
+
+
+@app.post("/api/window/show")
+async def window_show() -> dict:
+    """โชว์หน้าต่างโปรแกรมของ process นี้ (v0.10.0) — เรียกจาก instance ที่สอง
+    ตอนผู้ใช้ดับเบิลคลิก .exe ซ้ำ (หน้าต่าง standalone เป็นของ process นี้
+    instance อื่นสร้าง/ดึงแทนไม่ได้ โดยเฉพาะตอนถูกซ่อนลงถาดระบบอยู่)"""
+    import launcher
+
+    await asyncio.to_thread(launcher._launch_app_window)
     return {"ok": True}
 
 
