@@ -173,7 +173,12 @@ def is_run_active() -> bool:
     ถึงจะรีเซ็ตได้ (บั๊กที่ผู้ใช้ยืนยันเจอจริง) — เปลี่ยนไปยึด run_state.overall_state
     (ที่ begin_run()/end_run() ควบคุมชัดเจน) เป็นความจริงแทน ตัดขาดจากสุขภาพของ
     thread เดิมไปเลย ให้ force_reset() (ปุ่ม "ปิด CropWat ฉุกเฉิน") คืนสถานะ IDLE ได้
-    โดยไม่ต้องรอ thread เก่าตายจริงๆ"""
+    โดยไม่ต้องรอ thread เก่าตายจริงๆ
+
+    v0.11.1 — บั๊ก "กดเริ่มใหม่ไม่ได้ ขึ้นว่ากำลังรันอยู่ทั้งที่ไม่มีอะไรรัน" ถูก
+    แก้ที่ต้นเหตุแล้ว (finally ใน _run_years การันตี end_run ทุกกรณี) จึงยังยึด
+    overall_state เป็นความจริงเดียวได้ตามดีไซน์ v1.0 (ตัดขาดจากสุขภาพ thread เพื่อ
+    ให้ force_reset คืน IDLE ได้ทันที)"""
     return run_state.snapshot().overall_state != OverallRunState.IDLE
 
 
@@ -325,24 +330,45 @@ def _run_years(years: list[int], settings: Settings) -> None:
        (background_mode=False ดั้งเดิมที่พิสูจน์มานานว่าเสถียร) — สำหรับเครื่องที่
        โหมดเดสก์ท็อปซ่อนใช้ไม่ได้"""
     run_state.begin_run()
-
-    if settings.hidden_desktop_mode:
-        _run_years_hidden_desktop(years, settings)
-        return
-
-    # โหมดคลาสสิก: ผู้ใช้เปิด CropWat ค้างไว้เอง หน้าต่างถูกดึงขึ้นมาระหว่างรัน
-    speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)
-    engine = CropWatEngine(background_mode=False, speed_multiplier=speed_multiplier)
-    engine.error_shots_dir = Path(settings.output_dir) / "_error_dialogs"
+    # v0.11.1 — บั๊กจากผู้ใช้จริง: หลังงานจบ (โดยเฉพาะจบแบบมีปัญหา) กดเริ่มใหม่ไม่
+    # ได้ ขึ้น "ระบบกำลังรันอยู่ ต้องหยุดก่อน" ทั้งที่ไม่มีอะไรรันแล้ว ต้องปิด
+    # โปรแกรมทั้งตัวถึงจะหาย — สาเหตุ: ถ้ามี exception หลุดออกมา (เช่น _finish_run
+    # ที่ auto-build Excel/Word พังหลังลูปปี แต่ก่อนถึง end_run) หรือ path ไหนที่
+    # ลืมเรียก end_run, สถานะ overall_state จะค้างที่ RUNNING ตลอดไป (path
+    # เดสก์ท็อปซ่อนยิ่งชัด — finally เดิมปิดแค่ session ไม่เคยแตะ end_run) — ครอบ
+    # try/finally รอบนอกสุด "การันตี" คืนสถานะ IDLE ทุกกรณี ไม่ว่าจะจบยังไง
     try:
-        engine.connect()
-    except CropWatAutomationError as exc:
-        logger.error("connect() ล้มเหลว หยุดการรันทั้งหมด: %s", exc)
-        for year in years:
-            run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
-        run_state.end_run()
-        return
-    _run_years_inner(years, settings, engine)
+        if settings.hidden_desktop_mode:
+            _run_years_hidden_desktop(years, settings)
+            return
+
+        # โหมดคลาสสิก: ผู้ใช้เปิด CropWat ค้างไว้เอง หน้าต่างถูกดึงขึ้นมาระหว่างรัน
+        speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)
+        engine = CropWatEngine(background_mode=False, speed_multiplier=speed_multiplier)
+        engine.error_shots_dir = Path(settings.output_dir) / "_error_dialogs"
+        try:
+            engine.connect()
+        except CropWatAutomationError as exc:
+            logger.error("connect() ล้มเหลว หยุดการรันทั้งหมด: %s", exc)
+            for year in years:
+                run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
+            return
+        _run_years_inner(years, settings, engine)
+    except Exception:  # noqa: BLE001 -- กันทุก exception ที่หลุดออกมาโดยไม่คาดคิด
+        logger.exception("การรันล้มเหลวโดยไม่คาดคิด — คืนสถานะให้พร้อมเริ่มใหม่")
+        try:
+            import overlay
+
+            overlay.notify(
+                "การรันหยุดผิดปกติ",
+                "เกิดข้อผิดพลาดที่ไม่คาดคิด — ระบบคืนสถานะให้พร้อมเริ่มใหม่แล้ว",
+            )
+        except Exception:  # noqa: BLE001
+            pass
+    finally:
+        # ถ้ายังไม่ IDLE (มี exception หลุด หรือ path ไหนลืมปิด) ปิดให้เสมอ
+        if run_state.snapshot().overall_state != OverallRunState.IDLE:
+            run_state.end_run()
 
 
 # session เดสก์ท็อปซ่อนที่กำลังรันอยู่ — เก็บไว้ให้ force_reset ปิดได้ (CropWat บน

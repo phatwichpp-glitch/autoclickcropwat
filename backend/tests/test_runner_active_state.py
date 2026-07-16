@@ -40,3 +40,25 @@ def test_force_reset_clears_active_state_without_needing_thread_to_die(monkeypat
 
     assert killed == 1
     assert runner.is_run_active() is False
+
+
+def test_run_years_always_resets_to_idle_on_unexpected_error(monkeypatch):
+    """v0.11.1 regression — บั๊กจริง: หลังงานจบแบบมี exception หลุด (เช่น
+    _finish_run/auto-build พังหลังลูปปี) สถานะค้างที่ RUNNING กดเริ่มใหม่ไม่ได้
+    ต้องปิดโปรแกรมทั้งตัว — finally รอบนอกใน _run_years ต้องคืน IDLE เสมอไม่ว่า
+    body จะพังยังไง"""
+    settings = object()  # ไม่ถูกแตะก่อนพัง
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("จำลอง exception หลุดกลางการรัน")
+
+    # ให้ path คลาสสิกถูกเลือก แล้วพังทันทีที่สร้าง engine
+    monkeypatch.setattr(runner, "CropWatEngine", _boom)
+
+    class _S:
+        hidden_desktop_mode = False
+        speed_preset = "normal"
+        output_dir = ""
+
+    runner._run_years([1981], _S())
+    assert runner.is_run_active() is False
