@@ -1469,6 +1469,10 @@ async function checkUpdate(manual = false) {
       document.getElementById("upd-ver").textContent = `v${info.latest}`;
       document.getElementById("upd-notes").textContent = (info.notes || "").trim();
       updateModal.hidden = false;
+    } else if (manual && info.error) {
+      // v1.1.1 — เดิมไม่ดู info.error เลย: เช็คไม่ได้ (เช่น GitHub จำกัดจำนวนครั้ง) แต่ขึ้นว่า
+      // "ใช้เวอร์ชันล่าสุดอยู่แล้ว" ทำให้ผู้ใช้ไม่รู้ว่ามีเวอร์ชันใหม่
+      showToast("ตรวจอัปเดตไม่ได้ตอนนี้ — ลองใหม่อีกครั้งภายหลัง หรือดาวน์โหลดเองจากหน้า Releases ของโปรแกรม", true);
     } else if (manual) {
       showToast(`ใช้เวอร์ชันล่าสุดอยู่แล้ว (v${info.current})`);
     }

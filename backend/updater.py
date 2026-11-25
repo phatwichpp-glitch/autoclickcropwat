@@ -68,16 +68,47 @@ def check_for_update() -> dict:
             (a.get("browser_download_url") for a in data.get("assets", []) if a.get("name") == ASSET_NAME),
             None,
         )
-        result["latest"] = latest_tag
         result["notes"] = (data.get("body") or "")[:2000]
-        result["asset_url"] = asset_url
-        result["update_available"] = (
-            asset_url is not None and _version_tuple(latest_tag) > _version_tuple(APP_VERSION)
-        )
-    except Exception as exc:  # noqa: BLE001 -- ออฟไลน์/rate limit/GitHub ล่ม = เช็คไม่ได้เฉยๆ
-        logger.warning("เช็คอัปเดตไม่สำเร็จ: %s", exc)
-        result["error"] = f"เช็คอัปเดตไม่สำเร็จ (ดูอินเทอร์เน็ต): {exc}"
+    except Exception as api_exc:  # noqa: BLE001
+        # v1.1.1 — GitHub API แบบไม่ล็อกอินจำกัด 60 ครั้ง/ชั่วโมง "ต่อ IP" เครื่องที่อยู่ใน
+        # เน็ตเดียวกัน (สำนักงาน/มหาวิทยาลัย) ใช้โควตาร่วมกันจนหมดเร็ว → ได้ 403 แล้วเช็ค
+        # ไม่ได้ (อาการจริงจากผู้ใช้: บางเครื่องกดเช็คแล้วไม่ขึ้นเวอร์ชันใหม่) — ถอยไปอ่าน
+        # tag ล่าสุดจากหน้าเว็บ Releases (redirect ไป /releases/tag/vX.Y.Z ไม่ติดโควตา API)
+        # แล้วสร้างลิงก์ดาวน์โหลดจากชื่อ tag ตรงๆ (release ทุกตัวแนบไฟล์ชื่อเดียวกันเสมอ)
+        logger.warning("เช็คอัปเดตผ่าน API ไม่สำเร็จ (%s) — ลองผ่านหน้า Releases แทน", api_exc)
+        try:
+            latest_tag = _latest_tag_from_web()
+        except Exception as web_exc:  # noqa: BLE001 -- ออฟไลน์/GitHub ล่ม = เช็คไม่ได้เฉยๆ
+            logger.warning("เช็คอัปเดตผ่านหน้า Releases ไม่สำเร็จ: %s", web_exc)
+            result["error"] = f"เช็คอัปเดตไม่สำเร็จ (ดูอินเทอร์เน็ต): {api_exc}"
+            return result
+        asset_url = f"https://github.com/{REPO}/releases/download/v{latest_tag}/{ASSET_NAME}"
+        result["notes"] = "รายละเอียดการเปลี่ยนแปลงดูได้ที่หน้า Releases ของโปรแกรมบน GitHub"
+    result["latest"] = latest_tag
+    result["asset_url"] = asset_url
+    result["update_available"] = (
+        asset_url is not None and _version_tuple(latest_tag) > _version_tuple(APP_VERSION)
+    )
     return result
+
+
+_TAG_IN_URL_RE = re.compile(r"/releases/tag/v?([^/?#]+)")
+
+
+def _latest_tag_from_web() -> str:
+    """อ่านเลขเวอร์ชันล่าสุดจาก redirect ของ https://github.com/<repo>/releases/latest
+    (HEAD ไม่โหลดตัวหน้า) — คืนเช่น "1.1.0" หรือ raise ถ้าอ่านไม่ได้"""
+    req = urllib.request.Request(
+        f"https://github.com/{REPO}/releases/latest",
+        headers={"User-Agent": "CropWatAutoRunner"},
+        method="HEAD",
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        final_url = resp.geturl()
+    m = _TAG_IN_URL_RE.search(final_url)
+    if not m:
+        raise UpdateError(f"อ่านเวอร์ชันล่าสุดจากหน้า Releases ไม่ได้: {final_url}")
+    return m.group(1)
 
 
 # สคริปต์สลับไฟล์: วน move ทับจนกว่าจะสำเร็จ (สำเร็จได้ก็ต่อเมื่อโปรแกรมเดิมปิด
