@@ -899,14 +899,18 @@ class CropWatEngine:
     # เพดานเวลาที่รอ PrintWindow — ดู docstring ของ _print_window_with_timeout
     _PRINT_WINDOW_TIMEOUT_SECONDS = 8.0
 
-    def _print_window_with_timeout(self, hwnd: int, hdc: int, flags: int) -> bool:
+    def _print_window_with_timeout(self, hwnd: int, hdc: int, flags: int) -> Optional[bool]:
         """v0.5.19 — PrintWindow (Win32 API) ไม่มี timeout ในตัวเอง เป็น call
         แบบ synchronous ที่รอให้หน้าต่างเป้าหมายวาดตัวเองเสร็จ ถ้า UI thread ของ
         มันไม่ได้ปั๊ม message (ระบบมีงานอื่นแย่ง CPU/GPU หนักๆ) เรียกตรงๆ อาจค้าง
         ตลอดกาล — รันใน thread แยกแล้วรอแบบมีเพดานเวลาเอง ถ้าไม่เสร็จทันถือว่า
-        ล้มเหลว (คืน False ให้ caller ถอยไปใช้วิธีอื่น) — thread ที่ค้างจะถูกทิ้งไว้
-        เบื้องหลัง (daemon) ตายไปพร้อม process ตอนปิดโปรแกรม ไม่ได้ฆ่ากลางคัน
-        เพราะ Win32 API ไม่มีทางบังคับยกเลิก PrintWindow ที่กำลังทำงานอยู่ได้"""
+        ล้มเหลว — thread ที่ค้างจะถูกทิ้งไว้เบื้องหลัง (daemon) ตายไปพร้อม process
+        ตอนปิดโปรแกรม ไม่ได้ฆ่ากลางคัน เพราะ Win32 API ไม่มีทางบังคับยกเลิก
+        PrintWindow ที่กำลังทำงานอยู่ได้
+
+        คืน True = สำเร็จ, False = PrintWindow ตอบว่าล้มเหลว, None = ค้างเกินเวลา
+        (v0.11.3) — กรณี None thread ยังเขียนลง hdc อยู่ caller ห้ามคืน DC/bitmap
+        เด็ดขาด (ปล่อยรั่วไว้ ดีกว่าให้ PrintWindow เขียนลง handle ที่ถูกนำไปใช้ซ้ำ)"""
         result: dict[str, bool] = {}
 
         def _call() -> None:
@@ -915,6 +919,8 @@ class CropWatEngine:
         t = threading.Thread(target=_call, daemon=True, name="printwindow-guard")
         t.start()
         t.join(self._PRINT_WINDOW_TIMEOUT_SECONDS)
+        if t.is_alive():
+            return None
         return result.get("ok", False)
 
     def _capture_main_window(self, save_path: Path) -> None:
@@ -933,31 +939,15 @@ class CropWatEngine:
 
         hwnd = self.main_window.handle
         left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-        width, height = right - left, bottom - top
-
-        # แก้ภาพมีขอบดำบนจอที่ตั้ง display scaling 125%/150% (ยืนยันจากภาพจริง
-        # ของผู้ใช้): CropWat เป็นโปรแกรมเก่าที่ไม่รู้จัก DPI — PrintWindow ให้มัน
-        # วาดตัวเองที่ขนาด "logical" ของมันเอง ขณะที่ GetWindowRect (จาก process
-        # เราที่ DPI-aware) คืนขนาด "physical" ที่ใหญ่กว่า → bitmap เหลือที่ว่าง
-        # เป็นสีดำ — คำนวณขนาดที่มันจะวาดจริงจากอัตราส่วน DPI ของหน้าต่างเทียบ
-        # กับจอ: unaware ได้ 96/จอ (เล็กลงพอดีเป๊ะ), aware ได้ 1:1 (เท่าเดิม)
-        try:
-            import ctypes as _ct
-
-            win_dpi = _ct.windll.user32.GetDpiForWindow(hwnd) or 96
-            hmon = _ct.windll.user32.MonitorFromWindow(hwnd, 2)  # MONITOR_DEFAULTTONEAREST
-            mon_x, mon_y = _ct.c_uint(96), _ct.c_uint(96)
-            _ct.windll.shcore.GetDpiForMonitor(hmon, 0, _ct.byref(mon_x), _ct.byref(mon_y))
-            mon_dpi = mon_x.value or 96
-            width = round(width * win_dpi / mon_dpi)
-            height = round(height * win_dpi / mon_dpi)
-        except Exception:  # noqa: BLE001 -- Windows เก่าไม่มี API นี้ → ใช้ขนาด physical เดิม
-            pass
+        # แก้ภาพมีขอบดำบนจอ scaling 125%/150% — ดู _window_dpi_scale
+        scale = self._window_dpi_scale(hwnd)
+        width, height = round((right - left) * scale), round((bottom - top) * scale)
 
         hwnd_dc = win32gui.GetWindowDC(hwnd)
         mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
         save_dc = mfc_dc.CreateCompatibleDC()
         bmp = win32ui.CreateBitmap()
+        ok: Optional[bool] = False
         try:
             bmp.CreateCompatibleBitmap(mfc_dc, width, height)
             save_dc.SelectObject(bmp)
@@ -987,46 +977,74 @@ class CropWatEngine:
             )
             img.save(save_path)
         finally:
-            win32gui.DeleteObject(bmp.GetHandle())
-            save_dc.DeleteDC()
-            mfc_dc.DeleteDC()
-            win32gui.ReleaseDC(hwnd, hwnd_dc)
+            self._release_gdi(ok, hwnd, hwnd_dc, mfc_dc, save_dc, bmp)
 
-    def _printwindow_image(self, hwnd: int):
-        """ถ่ายภาพหน้าต่างใดๆ ด้วย PrintWindow แล้วคืนเป็น PIL Image (v0.11.0/0.11.2)
-        — แยกจาก _capture_main_window เพื่อไม่แตะ path ถ่ายภาพงานส่งที่พิสูจน์แล้ว
-        คืน None ถ้าล้มเหลว (ใช้ DPI correction + timeout เหมือนกัน เพราะหน้าต่าง
-        CropWat ไม่รู้จัก DPI)"""
+    @staticmethod
+    def _release_gdi(ok: Optional[bool], hwnd: int, hwnd_dc, mfc_dc, save_dc, bmp) -> None:
+        """คืน DC/bitmap หลัง PrintWindow — ยกเว้นกรณีค้างเกินเวลา (ok is None)
+        ที่ guard thread ยังวาดลง hdc อยู่: ปล่อยรั่วไว้ (เกิดน้อยมาก ไม่กี่ handle)
+        ดีกว่าคืนแล้ว Windows เอา handle ไปใช้ซ้ำ ให้ PrintWindow เขียนทับของคนอื่น"""
+        if ok is None:
+            logger.warning("PrintWindow ยังค้างอยู่ — ไม่คืน DC/bitmap ชุดนี้ (กันเขียนทับ handle ที่ใช้ซ้ำ)")
+            return
+        win32gui.DeleteObject(bmp.GetHandle())
+        save_dc.DeleteDC()
+        mfc_dc.DeleteDC()
+        win32gui.ReleaseDC(hwnd, hwnd_dc)
+
+    def _printwindow_image(self, hwnd: int, scale: Optional[float] = None):
+        """ถ่ายภาพหน้าต่างใดๆ ด้วย PrintWindow (v0.11.0/0.11.2) — แยกจาก
+        _capture_main_window เพื่อไม่แตะ path ถ่ายภาพงานส่งที่พิสูจน์แล้ว
+
+        คืน (PIL Image หรือ None, timed_out) — timed_out=True แปลว่า UI thread ของ
+        CropWat ค้าง ถ่ายหน้าต่างอื่นของ process เดียวกันต่อก็จะค้างอีก ควรหยุด
+        scale: ระบุเองได้ (เช่นใช้ค่าของหน้าต่างหลัก กรณีกล่อง error ถูกเหวี่ยงไป
+        นอกจอแล้ว MonitorFromWindow จะหาจอผิด) ไม่ระบุ = คำนวณจากหน้าต่างนี้เอง"""
         import win32ui
         from PIL import Image
 
         left, top, right, bottom = win32gui.GetWindowRect(hwnd)
         width, height = right - left, bottom - top
         if width <= 0 or height <= 0:
-            return None
-        scale = self._window_dpi_scale(hwnd)
+            return None, False
+        if scale is None:
+            scale = self._window_dpi_scale(hwnd)
         width, height = round(width * scale), round(height * scale)
 
         hwnd_dc = win32gui.GetWindowDC(hwnd)
         mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
         save_dc = mfc_dc.CreateCompatibleDC()
         bmp = win32ui.CreateBitmap()
+        ok: Optional[bool] = False
         try:
             bmp.CreateCompatibleBitmap(mfc_dc, width, height)
             save_dc.SelectObject(bmp)
             PW_RENDERFULLCONTENT = 2
-            if not self._print_window_with_timeout(hwnd, save_dc.GetSafeHdc(), PW_RENDERFULLCONTENT):
-                return None
+            ok = self._print_window_with_timeout(hwnd, save_dc.GetSafeHdc(), PW_RENDERFULLCONTENT)
+            if not ok:
+                return None, ok is None
             info = bmp.GetInfo()
             pixels = bmp.GetBitmapBits(True)
             return Image.frombuffer(
                 "RGB", (info["bmWidth"], info["bmHeight"]), pixels, "raw", "BGRX", 0, 1
-            )
+            ), False
         finally:
-            win32gui.DeleteObject(bmp.GetHandle())
-            save_dc.DeleteDC()
-            mfc_dc.DeleteDC()
-            win32gui.ReleaseDC(hwnd, hwnd_dc)
+            self._release_gdi(ok, hwnd, hwnd_dc, mfc_dc, save_dc, bmp)
+
+    def _find_main_hwnd(self) -> Optional[int]:
+        """หา handle หน้าต่างหลัก CropWat แบบ "ไม่รอ" (v0.11.3) — ต่างจาก
+        self.main_window.handle ที่ค้นซ้ำแล้วรอได้ถึง ~5 วิ และ raise ถ้าไม่เจอ/เจอ
+        หลายบาน (เช่นตอน error เด้งระหว่าง connect() ที่ฟอร์มหลักยังไม่ขึ้น)"""
+        if self.app is None:
+            return None
+        try:
+            hwnds = find_windows(
+                class_name=controls.MAIN_WINDOW_CLASS_NAME, top_level_only=True,
+                process=self.app.process, visible_only=False,
+            )
+        except Exception:  # noqa: BLE001
+            return None
+        return hwnds[0] if len(hwnds) == 1 else None
 
     @staticmethod
     def _window_dpi_scale(hwnd: int) -> float:
@@ -1160,37 +1178,62 @@ class CropWatEngine:
         หลัก CropWat ทั้งบาน (เห็นข้อมูลที่โหลดอยู่ หน้าต่างโมดูล ค่าต่างๆ) แล้ววาง
         กล่อง error ทับตรงกลาง — เห็นทั้งข้อความ error และบริบทข้อมูลในภาพเดียว)
 
-        วางกล่องไว้ "ตรงกลาง" หน้าต่างหลักเสมอ (VCL MessageDlg จัดตัวเองกลางฟอร์ม
-        อยู่แล้ว) จึงไม่ต้องพึ่งตำแหน่งจริงของกล่อง — ทนต่อการที่กล่องถูกเหวี่ยง
-        ออกนอกจอในโหมดเบื้องหลังด้วย คืน path ไฟล์ หรือ None ถ้าถ่ายไม่ได้"""
+        วางกล่องไว้ "ตรงกลาง" ภาพหน้าต่างหลักเสมอ จึงไม่ต้องพึ่งตำแหน่งจริงของกล่อง
+        — ทนต่อการที่กล่องถูกเหวี่ยงออกนอกจอในโหมดเบื้องหลังด้วย
+
+        v0.11.3 — กันภาพ error หาย/ขาด: ถ่ายกล่อง error ก่อนเสมอ แล้วส่วน
+        "หน้าต่างหลัก" เป็นของแถม — หาไม่เจอ/ถูกย่อ/เล็กกว่ากล่อง/ถ่ายพัง →
+        เซฟแค่กล่อง error, ถ้าถ่ายกล่องค้างเกินเวลา ไม่ถ่ายหน้าต่างหลักซ้ำ (UI
+        thread เดียวกัน จะค้างอีกรอบ) คืน path ไฟล์ หรือ None ถ้าถ่ายไม่ได้"""
         if self.error_shots_dir is None:
             return None
         try:
-            self.error_shots_dir.mkdir(parents=True, exist_ok=True)
-            stamp = time.strftime("%H%M%S")
-            label = self.current_candidate_label or "error"
-            path = self.error_shots_dir / f"{label}_{stamp}.png"
+            main_hwnd = self._find_main_hwnd()
+            # ใช้ DPI ของหน้าต่างหลัก — กล่องถูกเหวี่ยงไป (-32000,-32000) แล้ว
+            # MonitorFromWindow ของกล่องเองจะได้จอผิดบนเครื่องหลายจอ
+            scale = self._window_dpi_scale(main_hwnd) if main_hwnd else None
+            dlg_img, timed_out = self._printwindow_image(dialog_hwnd, scale)
 
-            dlg_img = self._printwindow_image(dialog_hwnd)
-            main_hwnd = self.main_window.handle if self.main_window is not None else None
-            main_img = self._printwindow_image(main_hwnd) if main_hwnd else None
+            main_img = None
+            if main_hwnd and not timed_out and not win32gui.IsIconic(main_hwnd):
+                try:
+                    main_img, _ = self._printwindow_image(main_hwnd)
+                except Exception:  # noqa: BLE001 -- พังแค่ส่วนบริบท ยังเซฟกล่องได้
+                    logger.debug("ถ่ายหน้าต่างหลักตอน error ไม่สำเร็จ", exc_info=True)
 
-            if main_img is None:
-                # ไม่มีบริบทหน้าต่างหลัก — เซฟแค่กล่อง error (ยังดีกว่าไม่มีอะไร)
-                if dlg_img is None:
-                    return None
-                dlg_img.save(path)
-                return str(path)
-
-            if dlg_img is not None:
-                ox = max(0, (main_img.width - dlg_img.width) // 2)
-                oy = max(0, (main_img.height - dlg_img.height) // 2)
+            if dlg_img is not None and main_img is not None and (
+                main_img.width >= dlg_img.width and main_img.height >= dlg_img.height
+            ):
+                ox = (main_img.width - dlg_img.width) // 2
+                oy = (main_img.height - dlg_img.height) // 2
                 main_img.paste(dlg_img, (ox, oy))
-            main_img.save(path)
+                image = main_img
+            else:
+                # หน้าต่างหลักใช้ไม่ได้ (หรือเล็กกว่ากล่องจนข้อความจะขาด) — เซฟ
+                # แค่กล่อง error ที่ยังอ่านได้ครบ, ไม่มีกล่องเลยค่อยเอาหน้าต่างหลัก
+                image = dlg_img if dlg_img is not None else main_img
+            if image is None:
+                return None
+
+            path = self._unique_error_shot_path()
+            image.save(path)
             return str(path)
         except Exception:  # noqa: BLE001 -- ถ่ายภาพ error ล้มเหลวห้ามกลบ error จริง
             logger.debug("ถ่ายภาพ error dialog ไม่สำเร็จ", exc_info=True)
         return None
+
+    def _unique_error_shot_path(self) -> Path:
+        """ชื่อไฟล์ภาพ error ที่ไม่ซ้ำ — เดิมใช้แค่ {label}_{HHMMSS} error 2 กล่อง
+        ในวินาทีเดียวกันจึงเซฟทับกัน (v0.11.3 เติม _2, _3, ... ถ้าชื่อซ้ำ)"""
+        assert self.error_shots_dir is not None
+        self.error_shots_dir.mkdir(parents=True, exist_ok=True)
+        base = f"{self.current_candidate_label or 'error'}_{time.strftime('%H%M%S')}"
+        path = self.error_shots_dir / f"{base}.png"
+        n = 2
+        while path.exists():
+            path = self.error_shots_dir / f"{base}_{n}.png"
+            n += 1
+        return path
 
     def _poll_error_dialog(self) -> Optional[str]:
         """เช็คครั้งเดียว (ไม่รอ) ว่ามี error dialog เด้งอยู่ไหม ถ้ามีให้จัดการ

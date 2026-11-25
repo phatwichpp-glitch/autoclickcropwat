@@ -11,7 +11,7 @@
   <header class="topbar">
     <div class="brand">
       <div class="mark">CW</div>
-      <div>
+      <div class="brand-txt">
         <h1>CropWat Auto-runner</h1>
         <div class="sub" id="brand-sub">&nbsp;</div>
       </div>
@@ -22,330 +22,279 @@
     </nav>
     <div class="conn">
       <button id="btn-update" class="btn btn-primary sm" hidden type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>อัปเดต</button>
-      <button id="btn-help" class="btn btn-ghost sm" type="button" title="เปิดคู่มือเริ่มต้นใช้งาน"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>คู่มือ</button>
-      <button id="btn-check-update" class="btn btn-ghost sm" type="button" title="ตรวจสอบเวอร์ชันใหม่ทันที"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>ตรวจอัปเดต</button>
-      <button id="btn-minimize" class="btn btn-ghost sm" type="button" title="ย่อหน้าต่างลงถาดระบบ (System Tray) — โปรแกรมยังทำงานต่อเบื้องหลัง เปิดกลับได้จากไอคอนถาดระบบ"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>ย่อหน้าต่าง</button>
+      <button id="btn-help" class="icon-btn" type="button" title="คู่มือเริ่มต้นใช้งาน"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
+      <button id="btn-check-update" class="icon-btn" type="button" title="ตรวจอัปเดต — ตรวจสอบเวอร์ชันใหม่ทันที"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
+      <button id="btn-minimize" class="icon-btn" type="button" title="ย่อหน้าต่างลงถาดระบบ — โปรแกรมยังทำงานต่อเบื้องหลัง"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       <span class="ver" id="app-version"></span>
-      <span class="dot" id="conn-dot"></span>
-      <span id="conn-label">กำลังเชื่อมต่อ...</span>
+      <span class="dot" id="conn-dot" title="สถานะการเชื่อมต่อ"></span>
+      <span class="conn-label" id="conn-label">กำลังเชื่อมต่อ...</span>
     </div>
   </header>
 
-  <div class="shell">
-    <!-- ================= DASHBOARD VIEW ================= -->
+  <main class="shell">
+    <!-- ================= ภาพรวม ================= -->
     <section class="view active" id="view-dash">
 
-      <div class="card">
-        <div class="card-head">
-          <h2>กำหนดการประมวลผล</h2>
-          <span class="hint">ช่วงปีและวันปลูกที่ต้องการทดสอบ</span>
-        </div>
-        <div class="card-body stack">
+      <!-- แผงควบคุมหลัก: ช่วงปี + เริ่ม/หยุด + ความคืบหน้า อยู่ที่เดียวกัน -->
+      <div class="card run-card">
+        <div class="run-top">
           <div class="range-row">
-            <label class="field">
-              <span class="lbl">ปีเริ่มต้น</span>
-              <input type="number" id="start-year" value="1981" class="tabular" />
+            <label class="field inline">
+              <span class="lbl">ปี</span>
+              <input type="number" id="start-year" value="1981" class="tabular" aria-label="ปีเริ่มต้น" />
             </label>
-            <span class="arrow">&rarr;</span>
-            <label class="field">
-              <span class="lbl">ปีสิ้นสุด</span>
-              <input type="number" id="end-year" value="2025" class="tabular" />
-            </label>
+            <span class="dash">–</span>
+            <input type="number" id="end-year" value="2025" class="tabular" aria-label="ปีสิ้นสุด" />
           </div>
+          <div class="run-actions">
+            <button id="btn-launch-cropwat" class="btn btn-ghost" type="button" title="เปิดโปรแกรม CropWat 8.0 (โหมดคลาสสิก)">เปิด CropWat</button>
+            <button id="btn-stop" class="btn btn-ghost"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>หยุด</button>
+            <button id="btn-start" class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>เริ่มประมวลผล</button>
+          </div>
+        </div>
 
-          <div id="month-grid" class="month-grid"><!-- filled by JS --></div>
+        <div class="summary-line">
+          <span><b class="tabular" id="sum-days">0</b> วันปลูก/ปี</span>
+          <span><b class="tabular" id="sum-total">0</b> รอบทั้งหมด</span>
+          <span><b class="tabular" id="sum-shots">0</b> ภาพบันทึก/ปี</span>
+          <span>ประหยัด ~<b class="tabular" id="sum-manual-hours">0</b> ชม.</span>
+        </div>
 
-          <div class="summary-bar">
-            <div class="summary-stats">
-              <div>
-                <div class="num tabular" id="sum-days">0</div>
-                <div class="lbl">วันปลูก / ปี</div>
-              </div>
-              <div>
-                <div class="num tabular" id="sum-total">0</div>
-                <div class="lbl">รอบคำนวณทั้งหมด</div>
-              </div>
-              <div>
-                <div class="num tabular gold" id="sum-shots">0</div>
-                <div class="lbl"><svg class="ic-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg> ภาพบันทึก / ปี</div>
-              </div>
-              <div>
-                <div class="num tabular" id="sum-manual-hours">0</div>
-                <div class="lbl"><svg class="ic-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ชั่วโมงงานที่ประหยัด</div>
-              </div>
-            </div>
-            <div class="summary-actions">
-              <button id="btn-launch-cropwat" class="btn btn-ghost" type="button" title="เปิดโปรแกรม CropWat 8.0 (กำหนดตำแหน่งไฟล์ในแท็บตั้งค่า)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>เปิด CropWat</button>
-              <button id="btn-start" class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>เริ่มประมวลผล</button>
-              <button id="btn-stop" class="btn btn-danger-ghost"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>หยุด</button>
-              <button id="btn-force-close" class="btn btn-danger-ghost sm" type="button" title="ใช้เมื่อ CropWat ไม่ตอบสนอง — บังคับปิด CropWat และคืนสถานะระบบให้พร้อมเริ่มใหม่ทันที ข้อมูลที่เสร็จสมบูรณ์แล้วไม่สูญหาย"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Force Close</button>
-            </div>
+        <div class="progress-wrap">
+          <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+          <div class="progress-row">
+            <span class="progress-txt" id="progress-txt">0 / 0 ปี</span>
+            <button id="btn-force-close" class="link-btn danger" type="button" title="ใช้เมื่อ CropWat ไม่ตอบสนอง — บังคับปิด CropWat และคืนสถานะให้พร้อมเริ่มใหม่ ข้อมูลที่เสร็จแล้วไม่หาย">CropWat ค้าง? Force Close</button>
           </div>
         </div>
       </div>
 
-      <!-- ================= LIVE SCREENSHOT MONITOR (v0.9.0) =================
-           แสดงภาพหน้าจอ CropWat โดยอัตโนมัติ: ภาพแรกเมื่อเริ่มประมวลผล จากนั้น
-           อัปเดตทุกครั้งที่ระบบบันทึกภาพตามปฏิทิน และกด "Snapshot" ได้ตลอด -->
+      <!-- ปฏิทินวันปลูก (บันทึกอัตโนมัติ) -->
+      <details class="card" open>
+        <summary class="card-head">
+          <h2>วันปลูก</h2>
+          <span class="hint">เลือกแบบด่วน หรือ "กำหนดเอง" เพื่อคลิกเลือกรายวัน · บันทึกอัตโนมัติ</span>
+        </summary>
+        <div class="card-body">
+          <div id="month-grid" class="month-grid"><!-- filled by JS --></div>
+        </div>
+      </details>
+
+      <!-- ภาพหน้าจอ CropWat -->
       <div class="card">
         <div class="card-head">
-          <div class="row" style="gap:10px">
+          <div class="row">
             <h2>ภาพหน้าจอ CropWat</h2>
             <span class="badge live" id="shot-live-badge" hidden>LIVE</span>
             <span class="badge neutral" id="shot-kind-badge" hidden></span>
           </div>
-          <div class="row" style="gap:10px">
+          <div class="row">
             <span class="shot-meta" id="shot-meta"></span>
-            <button id="btn-live-toggle" class="btn btn-ghost sm" type="button" title="ดูการทำงานของ CropWat แบบต่อเนื่อง — ระบบถ่ายภาพให้ใหม่ทุก ~2 วินาทีระหว่างประมวลผล (การประมวลผลอาจช้าลงเล็กน้อยขณะเปิด Live View)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>Live View</button>
-            <button id="btn-take-screenshot" class="btn btn-ghost sm" type="button" title="บันทึกภาพหน้าจอ CropWat ณ ขณะนี้ทันที (ใช้ตรวจสอบการทำงาน — แยกจากภาพบันทึกที่ใช้ส่งงาน)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Snapshot</button>
+            <button id="btn-live-toggle" class="btn btn-ghost sm" type="button" title="ดูการทำงานแบบต่อเนื่อง — ถ่ายภาพใหม่ทุก ~2 วินาทีระหว่างประมวลผล"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>Live View</button>
+            <button id="btn-take-screenshot" class="btn btn-ghost sm" type="button" title="ถ่ายภาพหน้าจอ CropWat ตอนนี้ (ใช้ตรวจสอบ — แยกจากภาพที่ใช้ส่งงาน)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Snapshot</button>
           </div>
         </div>
         <div class="card-body">
           <div class="shot-stage" id="shot-stage" title="คลิกที่ภาพเพื่อขยาย">
             <img id="shot-img" alt="ภาพหน้าจอ CropWat" hidden />
             <div class="shot-empty" id="shot-empty">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
               <div class="se-title">ยังไม่มีภาพหน้าจอ</div>
-              <div class="se-sub">ภาพจะแสดงโดยอัตโนมัติเมื่อเริ่มประมวลผล หรือกด "Snapshot" ระหว่างการทำงาน</div>
+              <div class="se-sub">ภาพจะขึ้นเองเมื่อเริ่มประมวลผล</div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ผลลัพธ์รายปี -->
+      <div class="card">
+        <div class="card-head">
+          <div class="row">
+            <h2>ผลลัพธ์</h2>
+            <span class="badge error" id="error-count-badge" hidden></span>
+          </div>
+          <div class="row">
+            <button id="btn-retry" class="btn btn-ghost sm" title="ประมวลผลซ้ำเฉพาะปีที่มีปัญหา" hidden>ประมวลผลซ้ำปีที่มีปัญหา</button>
+            <button id="btn-copy-all-errors" class="btn btn-ghost sm" type="button" title="คัดลอกรายละเอียดข้อผิดพลาดทั้งหมด" hidden>คัดลอกข้อผิดพลาด</button>
+            <button id="btn-build-excel" class="btn btn-ghost sm" title="ระบบสร้างให้อัตโนมัติเมื่อเสร็จ — กดเพื่อสร้างซ้ำ">สร้าง Excel</button>
+            <button id="btn-build-word" class="btn btn-ghost sm" title="รวมภาพบันทึกเป็นไฟล์ Word — ระบบสร้างให้อัตโนมัติเมื่อเสร็จ">สร้าง Word</button>
+            <button id="btn-open-output" class="btn btn-ghost sm" type="button" title="เปิดโฟลเดอร์ผลลัพธ์ใน Explorer"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>เปิดโฟลเดอร์</button>
+          </div>
+        </div>
+        <div class="card-body stack">
+          <div id="year-list" class="year-grid"><!-- filled by JS --></div>
+          <div id="error-list" class="error-list"><!-- filled by JS --></div>
+
+          <div class="output-scan" id="output-scan">
+            <div class="os-head">
+              <span class="os-summary" id="os-summary">—</span>
+              <button id="btn-rescan" class="link-btn" type="button">ตรวจไฟล์ใหม่</button>
+            </div>
+            <details class="os-details">
+              <summary>รายการที่เสร็จสมบูรณ์รายปี</summary>
+              <div class="os-grid" id="os-grid"><!-- filled by JS --></div>
+            </details>
+            <div class="os-note">กด "เริ่มประมวลผล" อีกครั้งได้ทุกเมื่อ — ระบบข้ามรายการที่เสร็จแล้วและทำต่อเฉพาะส่วนที่เหลือ</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ตั้งค่า ================= -->
+    <section class="view" id="view-setup">
+
+      <div class="card">
+        <div class="card-head"><h2>ไฟล์และโฟลเดอร์</h2></div>
+        <div class="card-body stack">
+          <div class="field">
+            <div class="lbl-row">
+              <span class="lbl">โฟลเดอร์ข้อมูลต้นทาง</span>
+              <span class="badge neutral" id="scan-badge">ยังไม่ได้ตรวจสอบ</span>
+            </div>
+            <div class="path-field">
+              <input type="text" id="input-dir" placeholder="เช่น D:\Cropwat\data" />
+              <button id="btn-copy-input" class="icon-btn" type="button" title="คัดลอกตำแหน่งนี้"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+              <button id="btn-open-input" class="icon-btn" type="button" title="เปิดใน Explorer"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></button>
+              <button id="btn-browse-input" class="btn btn-ghost sm" type="button">เลือก...</button>
+              <button id="btn-scan" class="btn btn-ghost sm">ตรวจสอบ</button>
+            </div>
+            <span class="note">โฟลเดอร์เดียวที่มีไฟล์ climate, rain, crop, soil อยู่ข้างใน (ซ้อนโฟลเดอร์ย่อยได้)</span>
+            <div class="readiness-strip" id="readiness-strip"><!-- filled by JS --></div>
+            <div id="scan-results"><!-- filled by JS --></div>
+          </div>
+
+          <div class="field">
+            <span class="lbl">โฟลเดอร์ผลลัพธ์</span>
+            <div class="path-field">
+              <input type="text" id="output-dir" placeholder="เช่น D:\Cropwat\output" />
+              <button id="btn-copy-output" class="icon-btn" type="button" title="คัดลอกตำแหน่งนี้"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+              <button id="btn-browse-output" class="btn btn-ghost sm" type="button">เลือก...</button>
+            </div>
+            <span class="note">ข้างในจะมี <code>txt/</code> <code>screenshots/</code> และ <code>Result.xlsx</code> ให้อัตโนมัติ</span>
+          </div>
+
+          <div class="field">
+            <span class="lbl">โปรแกรม CropWat 8.0</span>
+            <div class="path-field">
+              <input type="text" id="cropwat-exe-path" placeholder="ว่างไว้ได้ — ระบบหาให้เอง" />
+              <button id="btn-browse-cropwat-exe" class="btn btn-ghost sm" type="button">เลือก...</button>
+            </div>
+            <span class="note" id="cropwat-exe-status">กำลังตรวจสอบ...</span>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-head">
-          <div class="row" style="gap:10px">
-            <h2>ความคืบหน้า</h2>
-            <span class="badge error" id="error-count-badge" hidden></span>
-          </div>
-          <div class="row" style="gap:8px">
-            <button id="btn-retry" class="btn btn-ghost sm" title="ประมวลผลซ้ำเฉพาะปีที่มีข้อผิดพลาด — หากต้องการทำต่อจากรายการที่ยังไม่เสร็จ ให้กด &quot;เริ่มประมวลผล&quot;" hidden><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>ประมวลผลซ้ำ</button>
-            <button id="btn-copy-all-errors" class="btn btn-ghost sm" type="button" title="คัดลอกรายละเอียดข้อผิดพลาดทั้งหมด สำหรับส่งขอรับการสนับสนุน" hidden><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>คัดลอกข้อผิดพลาด</button>
-            <button id="btn-build-excel" class="btn btn-ghost sm" title="ระบบสร้างให้อัตโนมัติเมื่อประมวลผลเสร็จ — ปุ่มนี้สำหรับสร้างซ้ำระหว่างดำเนินการหรือหลังแก้ไขไฟล์"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>สร้าง Excel</button>
-            <button id="btn-build-word" class="btn btn-ghost sm" title="รวมภาพบันทึกทั้งหมดเป็นเอกสาร Word — ระบบสร้างให้อัตโนมัติเมื่อประมวลผลเสร็จ"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>สร้าง Word</button>
-            <button id="btn-open-output" class="btn btn-ghost sm" type="button" title="เปิดโฟลเดอร์ผลลัพธ์ใน Explorer"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>เปิดโฟลเดอร์</button>
-          </div>
+        <div class="card-head"><h2>ตัวเลือก</h2></div>
+        <div class="card-body opt-list">
+          <label class="opt">
+            <span class="opt-txt">
+              <span class="opt-title">รันบนเดสก์ท็อปเบื้องหลัง <span class="tag">แนะนำ</span></span>
+              <span class="note">ระบบเปิด CropWat ให้เองแบบมองไม่เห็น ใช้เครื่องทำงานอื่นได้ตามปกติ — ปิด = CropWat ทำงานบนจอจริง (ต้องเปิดค้างไว้เอง)</span>
+            </span>
+            <input type="checkbox" class="switch" id="hidden-desktop-mode" />
+          </label>
+          <label class="opt">
+            <span class="opt-txt">
+              <span class="opt-title">สร้าง Excel และ Word ให้อัตโนมัติเมื่อเสร็จ</span>
+              <span class="note">Result.xlsx และ Screenshots.docx</span>
+            </span>
+            <input type="checkbox" class="switch" id="auto-build-outputs" />
+          </label>
+          <label class="opt">
+            <span class="opt-txt">
+              <span class="opt-title">ใช้ไฟล์ climate/rain ตามเดือนปลูก</span>
+              <span class="note">ปลูก เม.ย. ใช้ไฟล์ Apr — ถ้าไม่มี ใช้เดือนก่อนหน้าที่ใกล้ที่สุด · ปิด = ใช้ไฟล์เดือนแรกทั้งปี</span>
+            </span>
+            <input type="checkbox" class="switch" id="shift-year-per-candidate" />
+          </label>
+          <label class="opt">
+            <span class="opt-txt">
+              <span class="opt-title">ความเร็ว</span>
+              <span class="note">CropWat ค้างบ่อย (เครื่องรุ่นเก่า) ให้เลือก "ช้า"</span>
+            </span>
+            <select id="speed-preset">
+              <option value="fast">เร็ว</option>
+              <option value="normal">ปกติ</option>
+              <option value="slow">ช้า</option>
+            </select>
+          </label>
+          <label class="opt">
+            <span class="opt-txt">
+              <span class="opt-title">นาทีต่อวันปลูก (ถ้าทำมือ)</span>
+              <span class="note">ใช้คำนวณ "ชั่วโมงที่ประหยัด" ในหน้าภาพรวม</span>
+            </span>
+            <input type="number" id="manual-per-candidate" step="0.5" min="0" class="tabular" />
+          </label>
         </div>
-        <div class="card-body">
-          <div class="progress-wrap">
-            <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
-            <div class="progress-txt" id="progress-txt">0 / 0 ปี</div>
-          </div>
+      </div>
 
-          <div class="output-scan" id="output-scan">
-            <div class="os-head">
-              <span class="os-title">รายการที่เสร็จสมบูรณ์ (ดำเนินการต่อจากเดิมได้)</span>
-              <button id="btn-rescan" class="btn btn-ghost sm" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>ตรวจสอบใหม่</button>
-            </div>
-            <div class="os-summary" id="os-summary">—</div>
-            <div class="os-grid" id="os-grid"><!-- filled by JS --></div>
-            <div class="os-note">กด "เริ่มประมวลผล" อีกครั้งได้ทุกเมื่อ — ระบบจะข้ามรายการที่เสร็จสมบูรณ์แล้ว และดำเนินการเฉพาะส่วนที่เหลือโดยอัตโนมัติ</div>
-          </div>
-
-          <div id="year-list" class="year-list"><!-- filled by JS --></div>
+      <details class="card">
+        <summary class="card-head"><h2>ขั้นสูง: กำหนดสถานี/ไฟล์เอง</h2></summary>
+        <div class="card-body stack">
+          <span class="note">เว้นว่างไว้ได้ — ระบุเฉพาะเมื่อตรวจสอบแล้วพบมากกว่า 1 ตัวเลือก</span>
+          <label class="field">
+            <span class="lbl">โฟลเดอร์สถานี Climate/ETo</span>
+            <input type="text" id="climate-station-dir" />
+          </label>
+          <label class="field">
+            <span class="lbl">โฟลเดอร์สถานี Rain</span>
+            <input type="text" id="rain-station-dir" />
+          </label>
+          <label class="field">
+            <span class="lbl">ไฟล์ Crop (.CRO)</span>
+            <input type="text" id="crop-file" />
+          </label>
+          <label class="field">
+            <span class="lbl">ไฟล์ Soil (.SOI)</span>
+            <input type="text" id="soil-file" />
+          </label>
         </div>
+      </details>
+
+      <div class="save-bar">
+        <span class="note">การตั้งค่าในหน้านี้จะมีผลหลังกดบันทึก</span>
+        <button id="btn-save-setup" class="btn btn-primary">บันทึกการตั้งค่า</button>
       </div>
     </section>
+  </main>
 
-    <!-- ================= SETUP VIEW ================= -->
-    <section class="view" id="view-setup">
-
-      <div class="readiness-strip" id="readiness-strip"><!-- filled by JS --></div>
-
-      <div class="setup-grid">
-        <div class="card">
-          <div class="card-head">
-            <h2>โฟลเดอร์ข้อมูลต้นทาง</h2>
-            <span class="badge neutral" id="scan-badge">ยังไม่ได้ตรวจสอบ</span>
-          </div>
-          <div class="card-body stack">
-            <label class="field">
-              <span class="lbl">เลือกโฟลเดอร์เดียวที่รวมข้อมูลทั้งหมดไว้ภายใน</span>
-              <div class="path-field">
-                <input type="text" id="input-dir" placeholder="เช่น D:\Cropwat\autoclickcropwat\cropwat" />
-                <button id="btn-copy-input" class="btn btn-ghost sm icon-only" type="button" title="คัดลอกตำแหน่งนี้"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
-                <button id="btn-open-input" class="btn btn-ghost sm icon-only" type="button" title="เปิดโฟลเดอร์นี้ใน Explorer"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></button>
-                <button id="btn-browse-input" class="btn btn-ghost sm" type="button" title="เลือกโฟลเดอร์จากหน้าต่างเลือกไฟล์"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>เลือกโฟลเดอร์</button>
-                <button id="btn-scan" class="btn btn-ghost sm"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>ตรวจสอบ</button>
-              </div>
-              <span class="note">วางไฟล์ climate, rain, crop, soil ไว้ภายในรูปแบบใดก็ได้ ระบบค้นหาและจัดเรียงให้อัตโนมัติ</span>
-            </label>
-            <div id="scan-results"><!-- filled by JS --></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><h2>โปรแกรม CropWat 8.0</h2></div>
-          <div class="card-body stack">
-            <label class="field">
-              <span class="lbl">ตำแหน่งไฟล์ .exe ของ CropWat 8.0 (หากติดตั้งไว้ที่ตำแหน่งมาตรฐาน ระบบค้นหาให้อัตโนมัติ)</span>
-              <div class="path-field">
-                <input type="text" id="cropwat-exe-path" placeholder="เช่น C:\CROPWAT8.0\CROPWAT.exe" />
-                <button id="btn-browse-cropwat-exe" class="btn btn-ghost sm" type="button" title="เลือกไฟล์ CROPWAT.exe จากหน้าต่างเลือกไฟล์"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>เลือกไฟล์</button>
-              </div>
-              <span class="note">ใช้สำหรับเปิด CropWat ในเดสก์ท็อปเบื้องหลังโดยอัตโนมัติ และปุ่ม "เปิด CropWat" ในหน้าภาพรวม</span>
-            </label>
-            <div class="note" id="cropwat-exe-status">กำลังตรวจสอบ...</div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><h2>โฟลเดอร์ผลลัพธ์</h2></div>
-          <div class="card-body stack">
-            <label class="field">
-              <span class="lbl">เลือกโฟลเดอร์เดียวสำหรับจัดเก็บผลลัพธ์ทั้งหมด</span>
-              <div class="path-field">
-                <input type="text" id="output-dir" placeholder="เช่น D:\Cropwat\autoclickcropwat\output" />
-                <button id="btn-copy-output" class="btn btn-ghost sm icon-only" type="button" title="คัดลอกตำแหน่งนี้"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
-                <button id="btn-browse-output" class="btn btn-ghost sm" type="button" title="เลือกโฟลเดอร์จากหน้าต่างเลือกไฟล์"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>เลือกโฟลเดอร์</button>
-              </div>
-              <span class="note">ระบบจัดโครงสร้างภายในให้อัตโนมัติ ดังนี้</span>
-            </label>
-            <label class="dontshow" style="font-size:13px; color:var(--text)">
-              <input type="checkbox" id="auto-build-outputs" />
-              สร้าง Result.xlsx และ Screenshots.docx โดยอัตโนมัติเมื่อประมวลผลเสร็จ (แนะนำ)
-            </label>
-            <div class="tree">
-<b>output/</b><br>
-&nbsp;&nbsp;txt/<span class="tree-note">&nbsp;&nbsp;&larr; ไฟล์ .txt จาก CropWat (ขั้นที่ 1)</span><br>
-&nbsp;&nbsp;screenshots/<span class="tree-note">&nbsp;&larr; ภาพบันทึกหน้าจอ (เฉพาะวันที่กำหนด)</span><br>
-&nbsp;&nbsp;<b>Result.xlsx</b><span class="tree-note">&nbsp;&larr; ตารางรวมผลทั้งหมด (ขั้นที่ 2)</span>
-            </div>
-            <div class="phase-flow">
-              <div class="phase-step">
-                <div class="ph-eyebrow">ขั้นที่ 1</div>
-                <div class="ph-title">ประมวลผล CropWat</div>
-                <div class="ph-desc">ดำเนินการทุกปี ทุกวันปลูกที่กำหนด &rarr; ได้ไฟล์ .txt ครบถ้วน</div>
-              </div>
-              <div class="phase-arrow">&rarr;</div>
-              <div class="phase-step">
-                <div class="ph-eyebrow">ขั้นที่ 2</div>
-                <div class="ph-title">จัดทำรายงาน Excel</div>
-                <div class="ph-desc">รวบรวมไฟล์ .txt ทั้งหมดเป็น Result.xlsx สั่งซ้ำได้ทุกเมื่อ</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><h2>โหมดเดสก์ท็อปเบื้องหลัง (ค่าเริ่มต้น — แนะนำ)</h2></div>
-          <div class="card-body stack">
-            <label class="dontshow" style="font-size:13px; color:var(--text)">
-              <input type="checkbox" id="hidden-desktop-mode" />
-              ประมวลผลบนเดสก์ท็อปแยกเบื้องหลัง — ไม่รบกวนหน้าจอและการใช้งานเครื่องของท่าน
-            </label>
-            <span class="note">ระบบจะ<b>เปิด CropWat ให้เอง</b>ในเดสก์ท็อปแยกที่มองไม่เห็น — ท่านใช้งานเครื่องได้ตามปกติระหว่างประมวลผล การคลิกหรือพิมพ์ใดๆ ไม่ส่งผลต่อการทำงาน และมีเสถียรภาพสูงเมื่อสลับไฟล์ข้ามเดือน/ปี <b>ไม่ต้องเปิด CropWat ค้างไว้เอง</b> เพียงกำหนดตำแหน่งไฟล์ .exe ที่การ์ด "โปรแกรม CropWat 8.0" ด้านบน (ตำแหน่งมาตรฐานระบบค้นหาให้อัตโนมัติ) — ระหว่างประมวลผล ติดตามการทำงานได้จากการ์ด "ภาพหน้าจอ CropWat" ในหน้าภาพรวม ซึ่งแสดงภาพโดยอัตโนมัติ หรือกด "Snapshot" ได้ตลอดเวลา <b>ปิดตัวเลือกนี้</b> = โหมดคลาสสิก: CropWat ทำงานบนหน้าจอจริง (ต้องเปิด CropWat ค้างไว้เอง และไม่ควรใช้เครื่องระหว่างประมวลผล)</span>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><h2>ความเร็วการประมวลผล</h2></div>
-          <div class="card-body stack">
-            <label class="field">
-              <span class="lbl">ระดับความเร็ว</span>
-              <select id="speed-preset">
-                <option value="fast">เร็ว — สำหรับเครื่องประสิทธิภาพสูง</option>
-                <option value="normal">ปกติ (แนะนำ)</option>
-                <option value="slow">ช้า — สำหรับเครื่องรุ่นเก่า</option>
-              </select>
-            </label>
-            <span class="note">หากพบว่า CropWat ไม่ตอบสนองระหว่างประมวลผล (พบบ่อยในเครื่องรุ่นเก่า) แนะนำให้เลือกระดับ "ช้า" เพื่อเพิ่มระยะเวลาระหว่างคำสั่ง จากนั้นบันทึกการตั้งค่าและเริ่มประมวลผลใหม่</span>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><h2>การเลือกไฟล์ Climate/Rain ตามเดือน (Shift-year)</h2></div>
-          <div class="card-body stack">
-            <label class="dontshow" style="font-size:13px; color:var(--text)">
-              <input type="checkbox" id="shift-year-per-candidate" />
-              เลือกไฟล์ให้ตรงกับเดือนปลูกของแต่ละวัน (แนะนำ — ค่าเริ่มต้น)
-            </label>
-            <span class="note">แต่ละวันปลูกจะใช้ไฟล์ climate/rain ของเดือนนั้นโดยตรง เช่น ปลูกเดือนเมษายนใช้ไฟล์ Apr ปลูกเดือนพฤษภาคมใช้ไฟล์ May — หากไม่มีไฟล์ของเดือนดังกล่าว ระบบจะใช้ไฟล์เดือน<b>ก่อนหน้า</b>ที่ใกล้ที่สุดแทนโดยอัตโนมัติ (เช่น ไม่มีไฟล์ Sep จะใช้ Aug) — ปิดตัวเลือกนี้เพื่อใช้พฤติกรรมเดิม (ทั้งปีใช้ไฟล์ของเดือนแรกที่ทดสอบเพียงไฟล์เดียว)</span>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><h2>เวลาดำเนินการด้วยตนเองเทียบเท่า</h2></div>
-          <div class="card-body stack">
-            <span class="note">ใช้คำนวณตัวเลข "ชั่วโมงงานที่ประหยัด" ในหน้าภาพรวม — นาทีต่อวันปลูก 1 วัน (รวมทุกขั้นตอน: ค้นหาไฟล์ ประมวลผล พิมพ์ผล บันทึกภาพ กรอก Excel) × จำนวนวันปลูกทั้งหมด</span>
-            <label class="field">
-              <span class="lbl">นาทีต่อวันปลูก (รวมทุกขั้นตอน)</span>
-              <input type="number" id="manual-per-candidate" step="0.5" min="0" class="tabular" />
-            </label>
-          </div>
-        </div>
-
-        <details class="card">
-          <summary class="card-head"><h2>กำหนดสถานี/ไฟล์เอง (กรณีจำเป็น)</h2></summary>
-          <div class="card-body stack">
-            <span class="note">เว้นว่างไว้หากตรวจสอบแล้วพบตัวเลือกเดียว ระบบจะเลือกให้อัตโนมัติ — ระบุเฉพาะกรณีพบมากกว่า 1 ตัวเลือก</span>
-            <label class="field">
-              <span class="lbl">โฟลเดอร์สถานี Climate/ETo</span>
-              <input type="text" id="climate-station-dir" />
-            </label>
-            <label class="field">
-              <span class="lbl">โฟลเดอร์สถานี Rain</span>
-              <input type="text" id="rain-station-dir" />
-            </label>
-            <label class="field">
-              <span class="lbl">ไฟล์ Crop (.CRO)</span>
-              <input type="text" id="crop-file" />
-            </label>
-            <label class="field">
-              <span class="lbl">ไฟล์ Soil (.SOI)</span>
-              <input type="text" id="soil-file" />
-            </label>
-          </div>
-        </details>
-      </div>
-
-      <div class="footer-actions">
-        <button id="btn-save-setup" class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>บันทึกการตั้งค่า</button>
-      </div>
-    </section>
-  </div>
-
-  <!-- ================= QUICK-START GUIDE MODAL ================= -->
+  <!-- ================= คู่มือเริ่มต้นใช้งาน ================= -->
   <div class="modal-backdrop" id="guide-modal" hidden>
     <div class="modal">
       <div class="modal-head">
-        <h2>คู่มือเริ่มต้นใช้งาน</h2>
+        <h2>เริ่มต้นใช้งาน</h2>
         <button class="modal-close" id="guide-close-x" type="button">&times;</button>
       </div>
       <ol class="guide-steps">
         <li>
-          <b>จัดเตรียมข้อมูลไว้ในโฟลเดอร์เดียว — ชื่อไฟล์ต้องเป็นไปตามรูปแบบ</b>
-          <div>ระบบอ่าน "ปี+เดือน" จากชื่อไฟล์โดยตรง <b>ชื่อไม่ตรงรูปแบบ = ตรวจสอบไม่พบ</b> (ไม่แยกตัวพิมพ์ใหญ่-เล็ก ซ้อนโฟลเดอร์ย่อยได้):
-            <br>• โฟลเดอร์สถานี: ขึ้นต้น <code>Clim_</code> และ <code>Rain_</code> เช่น <code>Clim_425201</code>
-            <br>• ไฟล์ climate: <code>{รหัสสถานี}clim_{ปี}{เดือน3ตัว}.PED</code> เช่น <code>425201clim_1981apr.PED</code>
-            <br>• ไฟล์ rain: <code>rain_{รหัสสถานี}_{ปี}{เดือน3ตัว}.CRD</code> เช่น <code>Rain_450006_1981Apr.CRD</code>
-            <br>• ไฟล์พืช/ดิน: ชื่อใดก็ได้ ขอเพียงนามสกุล <code>.CRO</code> / <code>.SOI</code></div>
+          <b>เตรียมข้อมูลไว้ในโฟลเดอร์เดียว</b>
+          <div>ระบบอ่านปี+เดือนจากชื่อไฟล์ ชื่อต้องตรงรูปแบบ (ไม่แยกตัวพิมพ์ใหญ่-เล็ก):
+            <br>• โฟลเดอร์สถานี: <code>Clim_425201</code>, <code>Rain_450006</code>
+            <br>• climate: <code>425201clim_1981apr.PED</code>
+            <br>• rain: <code>Rain_450006_1981Apr.CRD</code>
+            <br>• พืช/ดิน: ชื่อใดก็ได้ นามสกุล <code>.CRO</code> / <code>.SOI</code></div>
         </li>
         <li>
-          <b>ตั้งค่าครั้งแรก (แท็บ "ตั้งค่า")</b>
-          <div>ระบุโฟลเดอร์ข้อมูลต้นทาง &rarr; กด <b>ตรวจสอบ</b> เพื่อยืนยันว่าพบข้อมูลครบถ้วน &rarr; ระบุโฟลเดอร์ผลลัพธ์ &rarr; กด <b>บันทึกการตั้งค่า</b> (ตั้งค่าเพียงครั้งเดียว ระบบจดจำถาวร) — ส่วนตำแหน่งโปรแกรม CropWat ตามปกติ<b>ไม่ต้องตั้งเอง</b> ระบบค้นหาให้อัตโนมัติ ดูผลได้ที่การ์ด "โปรแกรม CropWat 8.0" (ขึ้น ✓ สีเขียว = พร้อมใช้งาน ต้องระบุเองเฉพาะกรณีติดตั้ง CropWat ไว้นอกตำแหน่งมาตรฐาน)</div>
+          <b>แท็บ "ตั้งค่า"</b>
+          <div>เลือกโฟลเดอร์ข้อมูล &rarr; กด <b>ตรวจสอบ</b> &rarr; เลือกโฟลเดอร์ผลลัพธ์ &rarr; กด <b>บันทึกการตั้งค่า</b> (ทำครั้งเดียว) — ตำแหน่ง CropWat ระบบหาให้เอง ไม่ต้องเปิด CropWat ไว้</div>
         </li>
         <li>
-          <b>ไม่ต้องเปิด CropWat เอง (โหมดเดสก์ท็อปเบื้องหลัง — ค่าเริ่มต้น)</b>
-          <div>ระบบเปิด CropWat ให้เองใน<b>เดสก์ท็อปแยกเบื้องหลัง</b>ที่ไม่รบกวนหน้าจอของท่าน — ใช้งานเครื่องได้ตามปกติระหว่างประมวลผล — ติดตามการทำงานได้จากการ์ด <b>"ภาพหน้าจอ CropWat"</b> ในหน้าภาพรวม ซึ่งแสดงภาพโดยอัตโนมัติทุกครั้งที่ระบบบันทึกภาพ กด <b>"Snapshot"</b> เพื่อดูสถานะปัจจุบัน หรือ <b>"Live View"</b> เพื่อดูการทำงานแบบต่อเนื่อง</div>
+          <b>แท็บ "ภาพรวม"</b>
+          <div>ใส่ช่วงปี เลือกวันปลูก &rarr; กด <b>เริ่มประมวลผล</b> (หรือ <kbd>Ctrl+Alt+F9</kbd>, หยุด <kbd>Ctrl+Alt+F10</kbd>) — ระหว่างรันใช้เครื่องทำอย่างอื่นได้ ดูการทำงานได้ที่ "ภาพหน้าจอ CropWat"</div>
         </li>
         <li>
-          <b>เริ่มประมวลผล (แท็บ "ภาพรวม")</b>
-          <div>เลือกช่วงปีและวันปลูกในปฏิทิน &rarr; กด <b>เริ่มประมวลผล</b> (หรือกด <kbd>Ctrl+Alt+F9</kbd> จากที่ใดก็ได้) ติดตามความคืบหน้าได้จากแถบแสดงผลมุมล่างขวาของจอ หรือ<b>ไอคอนถาดระบบ (System Tray)</b> — กดปุ่ม <b>"ย่อหน้าต่าง"</b> มุมขวาบนเพื่อพับเก็บหน้าต่างนี้ ระบบยังทำงานต่อเบื้องหลัง (<kbd>Ctrl+Alt+F10</kbd> = หยุด)</div>
-        </li>
-        <li>
-          <b>รับไฟล์ผลลัพธ์เมื่อเสร็จสมบูรณ์</b>
-          <div>ระบบสร้าง <b>Result.xlsx</b> และ <b>Screenshots.docx</b> ให้โดยอัตโนมัติ — หากต้องการสร้างซ้ำ กด <b>สร้าง Excel</b> หรือ <b>สร้าง Word</b> ได้ทุกเมื่อ</div>
+          <b>รับผลลัพธ์</b>
+          <div>เสร็จแล้วได้ <b>Result.xlsx</b> และ <b>Screenshots.docx</b> อัตโนมัติ กด <b>เปิดโฟลเดอร์</b> เพื่อดูไฟล์</div>
         </li>
       </ol>
       <div class="modal-foot">
-        <label class="dontshow"><input type="checkbox" id="guide-dontshow" /> ไม่ต้องแสดงอีกเมื่อเปิดโปรแกรม</label>
+        <label class="dontshow"><input type="checkbox" id="guide-dontshow" /> ไม่ต้องแสดงอีก</label>
         <button class="btn btn-primary" id="guide-close" type="button">เริ่มใช้งาน</button>
       </div>
     </div>
   </div>
 
-  <!-- ================= UPDATE NOTICE MODAL (เด้งทุกครั้งที่มีเวอร์ชันใหม่) ================= -->
+  <!-- ================= แจ้งเวอร์ชันใหม่ ================= -->
   <div class="modal-backdrop" id="update-modal" hidden>
     <div class="modal">
       <div class="modal-head">
@@ -353,8 +302,7 @@
         <button class="modal-close" id="upd-close-x" type="button">&times;</button>
       </div>
       <div class="upd-notes" id="upd-notes"></div>
-      <div class="os-note">แนะนำให้อัปเดตทันทีเพื่อรับการแก้ไขล่าสุด — โปรแกรมจะปิดและเปิดใหม่โดยอัตโนมัติ<br>
-      หากอัปเดตแล้วโปรแกรมไม่เปิดขึ้นเอง: ปิดโปรแกรมแล้วเปิดใหม่ จากนั้นดำเนินการอัปเดตอีกครั้ง</div>
+      <div class="os-note">โปรแกรมจะปิดและเปิดใหม่เอง — ถ้าไม่เปิดขึ้นมา ให้เปิดโปรแกรมใหม่แล้วอัปเดตอีกครั้ง</div>
       <div class="modal-foot">
         <button class="btn btn-ghost" id="upd-later" type="button">ภายหลัง</button>
         <button class="btn btn-primary" id="upd-now" type="button">อัปเดตทันที</button>
@@ -362,27 +310,26 @@
     </div>
   </div>
 
-  <!-- ================= UPDATING PROGRESS MODAL (โชว์ระหว่างดาวน์โหลด/รีสตาร์ท) ================= -->
+  <!-- ================= กำลังอัปเดต ================= -->
   <div class="modal-backdrop" id="updating-modal" hidden>
-    <div class="modal" style="max-width:480px; text-align:center">
+    <div class="modal narrow center">
       <div class="upd-spinner"></div>
-      <h2 id="updating-status" style="font-size:15px; margin:14px 0 8px">กำลังดาวน์โหลดเวอร์ชันใหม่...</h2>
-      <div class="os-note" id="updating-hint" style="text-align:center">
-        กรุณาอย่าปิดโปรแกรมระหว่างนี้ — เมื่อดาวน์โหลดเสร็จ โปรแกรมจะเปิดใหม่โดยอัตโนมัติ
-        และหน้านี้จะกลับมาเอง
+      <h2 id="updating-status" class="updating-title">กำลังดาวน์โหลดเวอร์ชันใหม่...</h2>
+      <div class="os-note" id="updating-hint">
+        อย่าปิดโปรแกรมระหว่างนี้ — เมื่อดาวน์โหลดเสร็จ โปรแกรมจะเปิดใหม่เองและหน้านี้จะกลับมา
       </div>
     </div>
   </div>
 
-  <!-- ================= SCREENSHOT ZOOM MODAL (ขยายภาพจากการ์ดภาพหน้าจอ) ================= -->
+  <!-- ================= ขยายภาพ ================= -->
   <div class="modal-backdrop" id="screenshot-modal" hidden>
-    <div class="modal" style="max-width:min(94vw, 1100px)">
+    <div class="modal wide">
       <div class="modal-head">
         <h2 id="screenshot-modal-title">ภาพหน้าจอ CropWat</h2>
         <button class="modal-close" id="screenshot-close-x" type="button">&times;</button>
       </div>
-      <div style="margin-top:8px; text-align:center">
-        <img id="screenshot-img" src="" alt="ภาพหน้าจอ CropWat" style="max-width:100%; max-height:76vh; border-radius:10px; border:1px solid var(--border)" />
+      <div class="zoom-wrap">
+        <img id="screenshot-img" src="" alt="ภาพหน้าจอ CropWat" />
       </div>
       <div class="modal-foot">
         <span class="note" id="screenshot-caption"></span>

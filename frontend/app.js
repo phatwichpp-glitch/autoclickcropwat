@@ -7,6 +7,9 @@ const MONTH_NAMES = [
 const MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const CANDIDATE_PRESETS = ["ทุกวัน", "ทุก 7 วัน", "วันที่ 1, 15", "กำหนดเอง"];
 const SHOT_PRESETS = ["ไม่มี", "ทุกวันที่เลือก", "วันที่ 1,15"];
+// ข้อความบนชิป (สั้นลงให้อยู่บรรทัดเดียว) — ค่า preset ข้างบนยังเป็น key ภายในเหมือนเดิม
+const CHIP_LABEL = { "วันที่ 1, 15": "1, 15", "ทุกวันที่เลือก": "ทั้งหมด", "วันที่ 1,15": "1, 15" };
+const chipLabel = (p) => CHIP_LABEL[p] || p;
 
 let settings = null;
 // calendarState[month(1-12)] = { days: Set<number>, shotDays: Set<number> }
@@ -27,15 +30,19 @@ const ICONS = {
 // ---------------------------------------------------------------------------
 // Tabs
 // ---------------------------------------------------------------------------
+function showTab(target) {
+  document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === target));
+  document.getElementById("view-dash").classList.toggle("active", target === "dash");
+  document.getElementById("view-setup").classList.toggle("active", target === "setup");
+  // จำแท็บไว้ใน URL — กด refresh แล้วยังอยู่แท็บเดิม
+  history.replaceState(null, "", target === "setup" ? "#setup" : location.pathname);
+  if (target === "setup") renderScanResults(lastScan);
+}
+
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
-    const target = btn.dataset.tab;
-    if (!target) return; // กันปุ่มอื่นที่เผลอใส่ class นี้มาทำ view หายทั้งหน้า
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById("view-dash").classList.toggle("active", target === "dash");
-    document.getElementById("view-setup").classList.toggle("active", target === "setup");
-    if (target === "setup") renderScanResults(lastScan);
+    if (!btn.dataset.tab) return; // กันปุ่มอื่นที่เผลอใส่ class นี้มาทำ view หายทั้งหน้า
+    showTab(btn.dataset.tab);
   });
 });
 
@@ -58,12 +65,7 @@ async function loadConfig() {
   document.getElementById("manual-per-candidate").value = settings.manual_minutes_per_candidate;
   document.getElementById("hidden-desktop-mode").checked = settings.hidden_desktop_mode !== false;
   document.getElementById("auto-build-outputs").checked = settings.auto_build_outputs !== false;
-  // ปุ่ม "เปิด CropWat" มีประโยชน์เฉพาะโหมดคลาสสิก (ผู้ใช้ต้องเปิด CropWat เอง) —
-  // โหมดเดสก์ท็อปซ่อนโปรแกรมเปิดให้เองอยู่แล้ว โชว์ไว้มีแต่ทำให้งง
-  document.getElementById("btn-launch-cropwat").hidden = settings.hidden_desktop_mode !== false;
-  // ปุ่ม Snapshot/Live View กลับกัน: มีประโยชน์เฉพาะโหมดเดสก์ท็อปเบื้องหลัง
-  document.getElementById("btn-take-screenshot").hidden = settings.hidden_desktop_mode === false;
-  document.getElementById("btn-live-toggle").hidden = settings.hidden_desktop_mode === false;
+  applyModeVisibility();
   document.getElementById("speed-preset").value = settings.speed_preset || "normal";
   document.getElementById("shift-year-per-candidate").checked = settings.shift_year_per_candidate !== false;
   document.getElementById("brand-sub").textContent = settings.input_dir
@@ -76,6 +78,17 @@ async function loadConfig() {
     calendarState[m] = { days: new Set(src.days), shotDays: new Set(src.shot_days) };
   }
   renderMonthGrid();
+}
+
+// ปุ่ม "เปิด CropWat" มีประโยชน์เฉพาะโหมดคลาสสิก (ผู้ใช้ต้องเปิด CropWat เอง) —
+// โหมดเดสก์ท็อปซ่อนโปรแกรมเปิดให้เองอยู่แล้ว โชว์ไว้มีแต่ทำให้งง ส่วนปุ่ม
+// Snapshot/Live View กลับกัน: มีประโยชน์เฉพาะโหมดเดสก์ท็อปเบื้องหลัง
+// (v0.11.3 แยกเป็นฟังก์ชัน — เรียกซ้ำหลังบันทึกตั้งค่า ปุ่มเปลี่ยนทันทีไม่ต้องเปิดใหม่)
+function applyModeVisibility() {
+  const hiddenMode = settings.hidden_desktop_mode !== false;
+  document.getElementById("btn-launch-cropwat").hidden = hiddenMode;
+  document.getElementById("btn-take-screenshot").hidden = !hiddenMode;
+  document.getElementById("btn-live-toggle").hidden = !hiddenMode;
 }
 
 function calendarStateToPayload() {
@@ -110,16 +123,17 @@ async function saveConfig(partial) {
 // ทุกครั้งที่แก้ปฏิทิน/ช่วงปี (debounce กันยิง API รัวตอนคลิกติดกันหลายครั้ง)
 // พร้อม toast ยืนยันแทน alert() ที่บล็อกการใช้งาน
 let toastEl = null;
-function showToast(msg) {
+function showToast(msg, isError = false) {
   if (!toastEl) {
     toastEl = document.createElement("div");
     toastEl.className = "toast";
     document.body.appendChild(toastEl);
   }
   toastEl.textContent = msg;
+  toastEl.classList.toggle("error", isError);
   toastEl.classList.add("show");
   clearTimeout(toastEl._hideTimer);
-  toastEl._hideTimer = setTimeout(() => toastEl.classList.remove("show"), 1800);
+  toastEl._hideTimer = setTimeout(() => toastEl.classList.remove("show"), isError ? 4000 : 2200);
 }
 
 async function copyText(text, okMessage = "คัดลอกแล้ว") {
@@ -163,8 +177,9 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
   updateSummary();
   if (ok) {
     document.getElementById("brand-sub").textContent = settings.input_dir || "ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง";
+    applyModeVisibility();
     refreshCropwatExeStatus(); // path CropWat อาจเพิ่งเปลี่ยน — อัปเดตสถานะทันที
-    alert("บันทึกการตั้งค่าแล้ว");
+    showToast("บันทึกการตั้งค่าแล้ว");
   }
 });
 
@@ -178,13 +193,13 @@ async function refreshCropwatExeStatus() {
     const res = await fetch("/api/cropwat-exe");
     const data = await res.json();
     if (data.found && data.source === "auto") {
-      el.textContent = `✓ พบโปรแกรมอัตโนมัติที่ ${data.path} — ไม่ต้องตั้งค่าใดๆ เพิ่ม`;
+      el.textContent = `✓ พบอัตโนมัติ: ${data.path}`;
       el.style.color = "var(--done)";
     } else if (data.found) {
-      el.textContent = `✓ ใช้ไฟล์ที่ระบุไว้: ${data.path}`;
+      el.textContent = `✓ ใช้ไฟล์ที่ระบุ: ${data.path}`;
       el.style.color = "var(--done)";
     } else {
-      el.textContent = "✗ ยังไม่พบโปรแกรม CropWat 8.0 ในเครื่อง — หากติดตั้งไว้แล้ว กด \"เลือกไฟล์\" เพื่อระบุตำแหน่ง CROPWAT.exe ด้านบน";
+      el.textContent = "✗ ไม่พบ CropWat 8.0 — ถ้าติดตั้งไว้แล้ว กด \"เลือก...\" แล้วชี้ไปที่ CROPWAT.exe";
       el.style.color = "var(--error)";
     }
   } catch {
@@ -226,6 +241,9 @@ function detectShotPreset(shotDays, candidateDays) {
 }
 
 const monthGrid = document.getElementById("month-grid");
+// v0.11.3 — ตารางรายวันซ่อนไว้เป็นค่าเริ่มต้น (หน้าสั้นลงมาก) เปิดเฉพาะเดือนที่
+// วันปลูกไม่ตรงแบบด่วนใดๆ หรือผู้ใช้กดชิป "กำหนดเอง" (กดซ้ำ = พับเก็บ)
+const openMonths = new Set();
 
 function renderMonthGrid() {
   monthGrid.innerHTML = "";
@@ -242,7 +260,7 @@ function renderMonthGrid() {
 
     card.innerHTML = `
       <div class="month-head">
-        <span class="month-name">${MONTH_NAMES[m - 1]}</span>
+        <span class="month-name">${MONTH_NAMES[m - 1]}<span class="cnt-wrap"><span class="cnt">${s.days.size}</span> วัน</span></span>
         <label class="skip-toggle">
           <input type="checkbox" class="skipbox" ${skipped ? "checked" : ""} />
           ข้าม
@@ -250,15 +268,14 @@ function renderMonthGrid() {
       </div>
       <div class="preset-chips">
         ${CANDIDATE_PRESETS.map(
-          (p) => `<span class="chip" data-preset="${p}">${p}</span>`
+          (p) => `<span class="chip" data-preset="${p}">${chipLabel(p)}</span>`
         ).join("")}
       </div>
       <div class="day-grid"></div>
-      <div class="month-count"><b class="cnt">${s.days.size}</b> วัน</div>
-      <div class="shot-row">
-        <span class="shot-lbl">${ICONS.camera} Capture:</span>
+      <div class="shot-row" title="วันที่จะถ่ายภาพบันทึกไว้ส่งงาน (จุดสีทองบนตารางรายวัน)">
+        <span class="shot-lbl">${ICONS.camera} ถ่ายภาพ</span>
         ${SHOT_PRESETS.map(
-          (p) => `<span class="chip shot-chip" data-shot="${p}">${p}</span>`
+          (p) => `<span class="chip shot-chip" data-shot="${p}">${chipLabel(p)}</span>`
         ).join("")}
       </div>
     `;
@@ -283,14 +300,16 @@ function syncMonthCard(card, month, candidatePreset, shotPreset) {
   const len = MONTH_DAYS[month - 1];
   card.classList.toggle("skipped", s.days.size === 0);
   card.querySelector(".skipbox").checked = s.days.size === 0;
+  const gridOpen = s.days.size > 0 && (candidatePreset === "กำหนดเอง" || openMonths.has(month));
   card.querySelectorAll(".chip[data-preset]").forEach((c) => {
-    c.classList.toggle("selected", c.dataset.preset === candidatePreset);
+    const p = c.dataset.preset;
+    c.classList.toggle("selected", p === candidatePreset || (p === "กำหนดเอง" && gridOpen));
   });
   card.querySelectorAll(".chip[data-shot]").forEach((c) => {
     c.classList.toggle("selected", c.dataset.shot === shotPreset);
   });
   const dayGrid = card.querySelector(".day-grid");
-  dayGrid.classList.toggle("open", candidatePreset === "กำหนดเอง" || s.days.size > 0);
+  dayGrid.classList.toggle("open", gridOpen);
   dayGrid.querySelectorAll(".day-cell").forEach((cell) => {
     const d = Number(cell.dataset.day);
     cell.classList.toggle("on", s.days.has(d));
@@ -311,12 +330,21 @@ monthGrid.addEventListener("click", (e) => {
     s.shotDays = shotDaysForPreset(e.target.dataset.shot, s.days);
   } else if (e.target.matches(".chip[data-preset]")) {
     const preset = e.target.dataset.preset;
-    if (preset !== "กำหนดเอง") s.days = daysForPreset(preset, len);
+    if (preset === "กำหนดเอง") {
+      // แค่เปิด/ปิดตารางรายวัน ไม่แตะวันที่เลือกไว้ (เดือนที่ข้ามอยู่ → เริ่มจาก 1, 15)
+      if (openMonths.has(month)) openMonths.delete(month);
+      else openMonths.add(month);
+      if (s.days.size === 0) s.days = daysForPreset("วันที่ 1, 15", len);
+    } else {
+      openMonths.delete(month);
+      s.days = daysForPreset(preset, len);
+    }
     s.shotDays = new Set([...s.shotDays].filter((d) => s.days.has(d)));
   } else if (e.target.matches(".day-cell")) {
     const d = Number(e.target.dataset.day);
     if (s.days.has(d)) { s.days.delete(d); s.shotDays.delete(d); }
     else s.days.add(d);
+    openMonths.add(month); // กันตารางพับหายเองกลางคันตอนคลิกจนตรงแบบด่วนพอดี
   } else {
     return;
   }
@@ -336,6 +364,7 @@ monthGrid.addEventListener("change", (e) => {
   if (e.target.checked) {
     s.days = new Set();
     s.shotDays = new Set();
+    openMonths.delete(month);
   } else {
     s.days = daysForPreset("วันที่ 1, 15", len);
   }
@@ -601,53 +630,57 @@ function renderStatus(snapshot) {
   // ถูกยิงจาก WebSocket ถี่กว่านั้นมาก)
   maybePollShot(isRunning);
 
+  // v0.11.3 — สถานะรายปีเป็นตารางช่องเล็กๆ (สีบอกสถานะ ชี้ค้างดูชื่อสถานะ)
+  // แทนแถวยาวทีละปี ส่วนปีที่มีปัญหาแยกไปเป็นรายการ error ด้านล่างให้อ่านง่าย
   const list = document.getElementById("year-list");
   list.innerHTML = "";
   for (const y of years) {
-    const row = document.createElement("div");
-    row.className = "year-row";
-    row.innerHTML = `
-      <span class="yr tabular">${y.year}</span>
-      <span></span>
-      <span class="badge ${y.status}">${STATUS_LABEL[y.status] || y.status}</span>
-      <span class="frac"></span>
-    `;
-    list.appendChild(row);
-    if (y.status === "error" && y.error_message) {
-      const detail = document.createElement("div");
-      detail.className = "year-row";
-      const wrap = document.createElement("div");
-      wrap.className = "err-msg";
-      const text = document.createElement("span");
-      text.className = "err-text";
-      text.textContent = y.error_message;
-      const copyBtn = document.createElement("button");
-      copyBtn.type = "button";
-      copyBtn.className = "btn-copy-err";
-      copyBtn.title = "คัดลอกข้อความ error นี้";
-      copyBtn.textContent = "คัดลอก";
-      copyBtn.addEventListener("click", () => copyText(`ปี ${y.year}: ${y.error_message}`));
-      wrap.appendChild(text);
-      wrap.appendChild(copyBtn);
-      // ถ้า error_message อ้างถึงภาพ error ที่ระบบถ่ายเก็บไว้ (v0.11.0) เพิ่มปุ่ม
-      // เปิดดูภาพนั้นในหน้าต่างขยาย — ผู้ใช้เห็นได้เลยว่า CropWat แจ้ง error อะไร
-      const shotMatch = /([\w-]+\.png)/.exec(y.error_message);
-      if (shotMatch) {
-        const viewBtn = document.createElement("button");
-        viewBtn.type = "button";
-        viewBtn.className = "btn-copy-err";
-        viewBtn.title = "เปิดดูภาพหน้าจอ error ที่ระบบถ่ายเก็บไว้";
-        viewBtn.textContent = "📷 ดูภาพ Error";
-        viewBtn.addEventListener("click", () => {
-          document.getElementById("screenshot-img").src = `/api/error-shots/${shotMatch[1]}`;
-          document.getElementById("screenshot-caption").textContent = `ปี ${y.year} · ${shotMatch[1]}`;
-          document.getElementById("screenshot-modal").hidden = false;
-        });
-        wrap.appendChild(viewBtn);
-      }
-      detail.appendChild(wrap);
-      list.appendChild(detail);
+    const tile = document.createElement("div");
+    tile.className = `yt ${y.status}`;
+    tile.title = `${y.year} · ${STATUS_LABEL[y.status] || y.status}`;
+    tile.textContent = y.year;
+    list.appendChild(tile);
+  }
+
+  const errorList = document.getElementById("error-list");
+  errorList.innerHTML = "";
+  for (const y of years) {
+    if (y.status !== "error" || !y.error_message) continue;
+    const item = document.createElement("div");
+    item.className = "err-item";
+    const yearEl = document.createElement("span");
+    yearEl.className = "err-year";
+    yearEl.textContent = y.year;
+    const text = document.createElement("span");
+    text.className = "err-text";
+    text.textContent = y.error_message;
+    const actions = document.createElement("span");
+    actions.className = "err-actions";
+    // ถ้า error_message อ้างถึงภาพ error ที่ระบบถ่ายเก็บไว้ (v0.11.0) เพิ่มปุ่ม
+    // เปิดดูภาพนั้นในหน้าต่างขยาย — ผู้ใช้เห็นได้เลยว่า CropWat แจ้ง error อะไร
+    const shotMatch = /([\w-]+\.png)/.exec(y.error_message);
+    if (shotMatch) {
+      const viewBtn = document.createElement("button");
+      viewBtn.type = "button";
+      viewBtn.className = "link-btn";
+      viewBtn.title = "เปิดดูภาพหน้าจอ error ที่ระบบถ่ายเก็บไว้";
+      viewBtn.textContent = "ดูภาพ";
+      viewBtn.addEventListener("click", () => {
+        document.getElementById("screenshot-img").src = `/api/error-shots/${shotMatch[1]}`;
+        document.getElementById("screenshot-caption").textContent = `ปี ${y.year} · ${shotMatch[1]}`;
+        document.getElementById("screenshot-modal").hidden = false;
+      });
+      actions.appendChild(viewBtn);
     }
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "link-btn";
+    copyBtn.title = "คัดลอกข้อความ error นี้";
+    copyBtn.textContent = "คัดลอก";
+    copyBtn.addEventListener("click", () => copyText(`ปี ${y.year}: ${y.error_message}`));
+    actions.appendChild(copyBtn);
+    item.append(yearEl, text, actions);
+    errorList.appendChild(item);
   }
 }
 
@@ -685,7 +718,7 @@ async function fetchOutputProgress() {
   const pct = data.total_expected ? Math.round((data.total_done / data.total_expected) * 100) : 0;
   // "เสร็จ" = ผ่านการตรวจเนื้อไฟล์จริง (parse .txt ครบทุกค่า + ภาพครบคู่) ไม่ใช่แค่มีไฟล์
   let html =
-    `ตรวจเนื้อไฟล์แล้ว: สมบูรณ์ <b>${data.total_done.toLocaleString("en-US")}</b> / ${data.total_expected.toLocaleString("en-US")} วันปลูก (${pct}%)` +
+    `ไฟล์ผลลัพธ์สมบูรณ์ <b>${data.total_done.toLocaleString("en-US")}</b> / ${data.total_expected.toLocaleString("en-US")} วันปลูก (${pct}%)` +
     ` · ภาพ ${data.screenshot_count.toLocaleString("en-US")} ไฟล์`;
   if (data.invalid_count > 0) {
     html += `<br><span class="os-warn">⚠ พบไฟล์ไม่สมบูรณ์ ${data.invalid_count} ไฟล์ (เช่น ${data.invalid_files.slice(0, 3).join(", ")}) — จะถูกรันใหม่อัตโนมัติรอบหน้า</span>`;
@@ -933,7 +966,7 @@ document.getElementById("btn-build-excel").addEventListener("click", async (e) =
       alert(data.detail || "สร้าง Excel ไม่สำเร็จ");
       return;
     }
-    alert(`สร้าง Excel สำเร็จ (${data.years_written} ปี)`);
+    showToast(`สร้าง Excel แล้ว (${data.years_written} ปี)`);
   } finally {
     btn.disabled = false;
   }
@@ -949,7 +982,7 @@ document.getElementById("btn-build-word").addEventListener("click", async (e) =>
       alert(data.detail || "สร้างไฟล์ Word ไม่สำเร็จ");
       return;
     }
-    alert(`สร้างไฟล์ Word สำเร็จ (${data.candidates_written} วันปลูก)`);
+    showToast(`สร้างไฟล์ Word แล้ว (${data.candidates_written} วันปลูก)`);
   } finally {
     btn.disabled = false;
   }
@@ -1121,6 +1154,7 @@ screenshotModal.addEventListener("click", (e) => {
 // Init
 // ---------------------------------------------------------------------------
 loadConfig();
+if (location.hash === "#setup") showTab("setup");
 fetchStatus();
 fetchOutputProgress();
 refreshLatestShot(); // แสดงภาพหน้าจอล่าสุดทันทีที่เปิดหน้า (ถ้ามีจากรอบก่อน)
