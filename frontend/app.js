@@ -59,6 +59,33 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 });
 
 // ---------------------------------------------------------------------------
+// v1.1 — ธีม มืด / สว่าง / ตามระบบ (ค่าเริ่มต้นมืด) จำไว้ใน localStorage
+// ค่าเริ่มต้นถูกตั้งตั้งแต่ <head> แล้ว (กันหน้ากะพริบ) — ส่วนนี้แค่สลับและตามธีมระบบ
+// ---------------------------------------------------------------------------
+const THEME_ORDER = ["dark", "light", "auto"];
+const THEME_LABEL = { dark: "ธีมมืด", light: "ธีมสว่าง", auto: "ธีมตามระบบ (Windows)" };
+const darkMq = window.matchMedia("(prefers-color-scheme: dark)");
+
+function applyTheme(pref) {
+  const root = document.documentElement;
+  root.dataset.themePref = pref;
+  root.dataset.theme = pref === "dark" || (pref === "auto" && darkMq.matches) ? "dark" : "light";
+  document.getElementById("btn-theme").title = `${THEME_LABEL[pref]} — กดเพื่อสลับ`;
+}
+
+document.getElementById("btn-theme").addEventListener("click", () => {
+  const cur = document.documentElement.dataset.themePref || "dark";
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(cur) + 1) % THEME_ORDER.length];
+  try { localStorage.setItem("cw-theme", next); } catch { /* ใช้ได้แค่รอบนี้ */ }
+  applyTheme(next);
+  showToast(THEME_LABEL[next]);
+});
+darkMq.addEventListener("change", () => {
+  if (document.documentElement.dataset.themePref === "auto") applyTheme("auto");
+});
+applyTheme(THEME_ORDER.includes(document.documentElement.dataset.themePref) ? document.documentElement.dataset.themePref : "dark");
+
+// ---------------------------------------------------------------------------
 // Config load/save
 // ---------------------------------------------------------------------------
 async function loadConfig() {

@@ -1,11 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- CropWat Auto-runner v1.0 — หยดน้ำ (water) มีต้นกล้า (crop) อยู่ข้างใน
+       ใช้เป็นต้นแบบของ backend/assets/app.ico และโลโก้ในหน้าเว็บด้วย -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#10846a"/>
-      <stop offset="1" stop-color="#0a5f58"/>
+    <linearGradient id="cw-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#13324a"/>
+      <stop offset="1" stop-color="#0a5a55"/>
+    </linearGradient>
+    <radialGradient id="cw-glow" cx="0.28" cy="0.18" r="0.85">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cw-drop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0f9ff"/>
+      <stop offset="1" stop-color="#9fd8ff"/>
+    </linearGradient>
+    <linearGradient id="cw-leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#059669"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
-  <!-- หยดน้ำ: สามเหลี่ยมยอดแหลมสัมผัสวงกลม (จุดสัมผัสคำนวณจากค่าเดียวกับ app.ico) -->
-  <path d="M 256 96 L 197.8 219.4 A 112 112 0 1 0 314.2 219.4 Z" fill="#ffffff"/>
+  <rect width="512" height="512" rx="116" fill="url(#cw-bg)"/>
+  <rect width="512" height="512" rx="116" fill="url(#cw-glow)"/>
+  <!-- หยดน้ำ: ยอดแหลม (256,52) สัมผัสวงกลม c=(256,316) r=142 -->
+  <path d="M256 52 L137.3 238.1 A142 142 0 1 0 374.7 238.1 Z" fill="url(#cw-drop)"/>
+  <!-- ต้นกล้า -->
+  <path d="M256 414 L256 314" stroke="#059669" stroke-width="20" stroke-linecap="round" fill="none"/>
+  <path d="M256 356 C222 356 180 330 176 278 C228 276 254 308 256 356 Z" fill="url(#cw-leaf)"/>
+  <path d="M256 330 C263 276 301 244 350 246 C348 298 306 330 256 330 Z" fill="url(#cw-leaf)"/>
 </svg>

@@ -7,11 +7,46 @@
   <title>CropWat Auto-runner</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="style.css" />
+  <script>
+    // ตั้งธีมก่อนวาดหน้า (กันกะพริบ) — ค่าเริ่มต้นมืด, ผู้ใช้สลับได้ที่ปุ่มมุมขวาบน (app.js: applyTheme)
+    (function () {
+      var pref = "dark";
+      try { pref = localStorage.getItem("cw-theme") || "dark"; } catch (e) {}
+      var dark = pref === "dark" || (pref === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+      document.documentElement.dataset.themePref = pref;
+    })();
+  </script>
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <div class="mark">CW</div>
+      <svg class="mark" viewBox="0 0 512 512" aria-hidden="true"><defs>
+    <linearGradient id="cw-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#13324a"/>
+      <stop offset="1" stop-color="#0a5a55"/>
+    </linearGradient>
+    <radialGradient id="cw-glow" cx="0.28" cy="0.18" r="0.85">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cw-drop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0f9ff"/>
+      <stop offset="1" stop-color="#9fd8ff"/>
+    </linearGradient>
+    <linearGradient id="cw-leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#cw-bg)"/>
+  <rect width="512" height="512" rx="116" fill="url(#cw-glow)"/>
+  
+  <path d="M256 52 L137.3 238.1 A142 142 0 1 0 374.7 238.1 Z" fill="url(#cw-drop)"/>
+  
+  <path d="M256 414 L256 314" stroke="#059669" stroke-width="20" stroke-linecap="round" fill="none"/>
+  <path d="M256 356 C222 356 180 330 176 278 C228 276 254 308 256 356 Z" fill="url(#cw-leaf)"/>
+  <path d="M256 330 C263 276 301 244 350 246 C348 298 306 330 256 330 Z" fill="url(#cw-leaf)"/></svg>
       <div class="brand-txt">
         <h1>CropWat Auto-runner</h1>
         <div class="sub" id="brand-sub">&nbsp;</div>
@@ -23,6 +58,7 @@
     </nav>
     <div class="conn">
       <button id="btn-update" class="btn btn-primary sm" hidden type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>อัปเดต</button>
+      <button id="btn-theme" class="icon-btn" type="button" title="สลับธีม" aria-label="สลับธีม"><svg class="ic th-ic th-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg><svg class="ic th-ic th-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg><svg class="ic th-ic th-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg></button>
       <button id="btn-help" class="icon-btn" type="button" title="คู่มือเริ่มต้นใช้งาน" aria-label="คู่มือเริ่มต้นใช้งาน"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
       <button id="btn-check-update" class="icon-btn" type="button" title="ตรวจอัปเดต — ตรวจสอบเวอร์ชันใหม่ทันที" aria-label="ตรวจอัปเดต"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
       <button id="btn-minimize" class="icon-btn" type="button" title="ย่อหน้าต่างลงถาดระบบ — โปรแกรมยังทำงานต่อเบื้องหลัง" aria-label="ย่อหน้าต่าง"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
