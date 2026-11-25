@@ -498,6 +498,19 @@ async def window_minimize() -> dict:
     return {"ok": True}
 
 
+class WindowThemeRequest(BaseModel):
+    dark: bool
+
+
+@app.post("/api/window/theme")
+async def window_theme(req: WindowThemeRequest) -> dict:
+    """v1.2.1 — แถบชื่อหน้าต่างมืด/สว่างตามธีมที่เลือกในหน้าเว็บ"""
+    import launcher
+
+    await asyncio.to_thread(launcher.set_title_bar_theme, req.dark)
+    return {"ok": True}
+
+
 @app.post("/api/window/show")
 async def window_show() -> dict:
     """โชว์หน้าต่างโปรแกรมของ process นี้ (v0.10.0) — เรียกจาก instance ที่สอง

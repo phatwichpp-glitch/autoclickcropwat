@@ -71,6 +71,12 @@ function applyTheme(pref) {
   root.dataset.themePref = pref;
   root.dataset.theme = pref === "dark" || (pref === "auto" && darkMq.matches) ? "dark" : "light";
   document.getElementById("btn-theme").title = `${THEME_LABEL[pref]} — กดเพื่อสลับ`;
+  // v1.2.1 — แถบชื่อหน้าต่าง (ของ Windows) ให้มืด/สว่างตามธีมด้วย
+  fetch("/api/window/theme", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dark: root.dataset.theme === "dark" }),
+  }).catch(() => { /* แถบชื่อเป็นของเสริม */ });
 }
 
 document.getElementById("btn-theme").addEventListener("click", () => {

@@ -294,6 +294,65 @@ def _apply_window_icon() -> None:
         pass
 
 
+# v1.2.1 — แถบชื่อหน้าต่าง (ของ Windows) ให้มืด/สว่างตามธีมที่ผู้ใช้เลือกในหน้าเว็บ
+# ค่าเริ่มต้นมืด (ตรงกับธีมเริ่มต้นของหน้าเว็บ) — หน้าเว็บแจ้งผ่าน /api/window/theme
+_title_bar_dark = True
+
+
+def _find_own_app_window() -> int | None:
+    """หน้าต่างโปรแกรม (ชื่อตรง APP_WINDOW_TITLE) ที่เป็นของ process นี้เท่านั้น — กันไป
+    เปลี่ยนหน้าต่างของโปรแกรมอีกตัวที่ชื่อเดียวกัน (เช่นตอนเปิดทดสอบบนพอร์ตแยก)"""
+    user32 = ctypes.windll.user32
+    me = os.getpid()
+    found: list[int] = []
+
+    def _cb(hwnd, _lparam):
+        pid = ctypes.c_ulong(0)
+        user32.GetWindowThreadProcessId(ctypes.c_void_p(hwnd), ctypes.byref(pid))
+        if pid.value != me:
+            return True
+        length = user32.GetWindowTextLengthW(ctypes.c_void_p(hwnd))
+        if length:
+            buf = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(ctypes.c_void_p(hwnd), buf, length + 1)
+            if buf.value == APP_WINDOW_TITLE:
+                found.append(hwnd)
+        return True
+
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)
+    user32.EnumWindows(WNDENUMPROC(_cb), 0)
+    return found[0] if found else None
+
+
+def set_title_bar_theme(dark: bool) -> None:
+    """จำธีมไว้ แล้วตั้งให้หน้าต่างโปรแกรมทันที (ถ้ากำลังแสดงอยู่)"""
+    global _title_bar_dark
+    _title_bar_dark = bool(dark)
+    _apply_title_bar_theme()
+
+
+def _apply_title_bar_theme() -> None:
+    """DwmSetWindowAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE) — 20 บน Windows 10 20H1+/11,
+    19 บน Windows 10 รุ่นก่อนหน้า (ลองทั้งคู่) แล้วสั่งวาดกรอบใหม่ (Windows 10 ไม่วาด
+    แถบชื่อใหม่เองจนกว่าจะสลับโฟกัส) — Windows รุ่นเก่ากว่านั้นไม่รองรับ = ข้ามเงียบๆ"""
+    try:
+        hwnd = _find_own_app_window()
+        if not hwnd:
+            return
+        value = ctypes.c_int(1 if _title_bar_dark else 0)
+        dwm = ctypes.windll.dwmapi
+        for attr in (20, 19):
+            if dwm.DwmSetWindowAttribute(ctypes.c_void_p(hwnd), attr, ctypes.byref(value), ctypes.sizeof(value)) == 0:
+                break
+        SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOACTIVATE, SWP_FRAMECHANGED = 0x1, 0x2, 0x4, 0x10, 0x20
+        ctypes.windll.user32.SetWindowPos(
+            ctypes.c_void_p(hwnd), None, 0, 0, 0, 0,
+            SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        )
+    except Exception:  # noqa: BLE001 -- สีแถบชื่อเป็นของเสริม พังแล้วห้ามล้มหน้าต่าง
+        pass
+
+
 def _try_webview_mode(app_module, uvicorn) -> bool:
     """โหมดหน้าต่าง standalone (v0.10.0): รัน uvicorn ใน daemon thread แล้วเปิด
     หน้าต่าง WebView2 ของตัวเองบน main thread (pywebview ต้องการ GUI loop บน
@@ -336,7 +395,7 @@ def _try_webview_mode(app_module, uvicorn) -> bool:
             f"http://{HOST}:{PORT}",
             width=1320,
             height=880,
-            background_color="#0a101e",  # สีพื้นธีมหลัก — กันแฟลชขาวตอนเปิด
+            background_color="#0a0f17",  # สีพื้นธีมมืด (ค่าเริ่มต้น) — กันแฟลชขาวตอนเปิด
         )
 
         def _on_closing():
@@ -349,6 +408,7 @@ def _try_webview_mode(app_module, uvicorn) -> bool:
 
         def _on_shown(*_args):
             _apply_window_icon()
+            _apply_title_bar_theme()
 
         win.events.closing += _on_closing
         win.events.shown += _on_shown
