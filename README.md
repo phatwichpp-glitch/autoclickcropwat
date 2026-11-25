@@ -50,6 +50,7 @@ backend/
   state.py                  In-memory run state + pub/sub for WebSocket
   config.py                 Settings model (single input/output folder, planting calendar)
   cropwat_controls.py       All CropWat control identifiers (see note below)
+  cropwat_options.py        Read/write CropWat Settings → Options (%ProgramData%\CROPWAT\Cropwat.ini); option codes verified against CropWat 8.0
   automation/
     cropwat_engine.py       pywinauto steps: open files, set date, calculate, print, screenshot
   file_engine/

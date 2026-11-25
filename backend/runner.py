@@ -188,11 +188,31 @@ def start_run(years: list[int], settings: Settings) -> bool:
     with _run_lock:
         if is_run_active():
             return False
+        _snapshot_cropwat_options(settings)
         _active_thread = threading.Thread(
             target=_run_years, args=(years, settings), daemon=True
         )
         _active_thread.start()
         return True
+
+
+CROPWAT_OPTIONS_SNAPSHOT = "CropWat_Options_used.ini"
+
+
+def _snapshot_cropwat_options(settings: Settings) -> None:
+    """v1.2.0 — เก็บสำเนา Cropwat.ini ที่ใช้รันรอบนี้ไว้ในโฟลเดอร์ผลลัพธ์ (ผลชุดนี้คำนวณด้วย
+    Options อะไร — เปิดดูย้อนหลัง/ส่งต่อได้ และ sheet "หมายเหตุ" อ่านจากไฟล์นี้)"""
+    import shutil
+
+    import cropwat_options
+
+    try:
+        src = cropwat_options.ini_path()
+        if settings.output_dir and src.is_file():
+            Path(settings.output_dir).mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, Path(settings.output_dir) / CROPWAT_OPTIONS_SNAPSHOT)
+    except Exception:  # noqa: BLE001 -- เก็บสำเนาไม่ได้ห้ามขวางการรัน
+        logger.warning("เก็บสำเนา Cropwat.ini ไม่สำเร็จ", exc_info=True)
 
 
 def force_reset() -> int:
@@ -657,6 +677,15 @@ def _collect_run_notes(settings: Settings):
     for ys in run_state.snapshot().years:
         if ys.status == YearRunStatus.ERROR and ys.error_message:
             notes.year_errors[ys.year] = ys.error_message
+    try:
+        import cropwat_options
+
+        snap = Path(settings.output_dir) / CROPWAT_OPTIONS_SNAPSHOT
+        notes.extra_meta = cropwat_options.summary(snap if snap.is_file() else None)
+        if notes.extra_meta and not snap.is_file():
+            notes.extra_meta.insert(0, ("CropWat Options", "ค่าปัจจุบันของเครื่อง (ไม่พบสำเนาตอนรัน)"))
+    except Exception:  # noqa: BLE001
+        logger.debug("อ่านค่า CropWat Options ไม่ได้", exc_info=True)
     shots_dir = Path(settings.output_dir) / "_error_dialogs"
     if shots_dir.is_dir():
         for p in sorted(shots_dir.glob("*.png")):

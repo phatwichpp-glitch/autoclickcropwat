@@ -91,6 +91,8 @@ class RunNotes:
     planned: dict[int, list[str]] = field(default_factory=dict)
     year_errors: dict[int, str] = field(default_factory=dict)
     error_shots: dict[int, list[str]] = field(default_factory=dict)
+    # v1.2.0 — ค่า CropWat Options ที่ใช้ตอนรัน (จากสำเนา Cropwat.ini ในโฟลเดอร์ผลลัพธ์)
+    extra_meta: list[tuple[str, str]] = field(default_factory=list)
 
 
 def _sort_key(mmdd: str) -> tuple[int, int]:
@@ -257,6 +259,7 @@ def _write_notes_sheet(
         ("Soil", distinct(lambda r: r.soil)),
         ("ปีที่มีผล", f"{min(parsed)}–{max(parsed)} ({len(parsed)} ปี)"),
         ("วันปลูกที่มีผลทั้งหมด", f"{len(all_results):,}"),
+        *notes.extra_meta,
     ]
     for row_idx, (k, v) in enumerate(meta, start=3):
         ws.cell(row=row_idx, column=1, value=k).font = _BOLD

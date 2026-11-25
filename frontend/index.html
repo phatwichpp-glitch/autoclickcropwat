@@ -150,6 +150,7 @@
         </summary>
         <div class="card-body">
           <p class="plan-running-note">กำลังประมวลผลอยู่ — แก้แผนตอนนี้ได้ แต่จะมีผลกับการประมวลผลครั้งถัดไป</p>
+          <p class="cwopt-summary" id="cwopt-summary" hidden></p>
           <div class="bulk-bar" id="bulk-bar">
             <div class="bulk-group" role="group" aria-label="ตั้งวันปลูกพร้อมกันทุกเดือน">
               <span class="bulk-lbl">ตั้งวันปลูกทุกเดือน</span>
@@ -354,6 +355,32 @@
             </span>
             <input type="number" id="manual-per-candidate" step="0.5" min="0" class="tabular" />
           </label>
+        </div>
+      </div>
+
+      <!-- v1.2.0 — ตั้งค่าหน้า Options ของ CropWat (เขียน Cropwat.ini) ดู app.js: renderCropwatOptions -->
+      <div class="card cwopt-card" id="cwopt-card">
+        <div class="card-head step-head">
+          <div class="step-title">
+            <h2>ค่าตั้งของ CropWat (Options)</h2>
+            <span class="note">เหมือนกด "Save as default" ในหน้า Settings → Options ของ CropWat — บันทึกลงเครื่องนี้ และมีผลทุกครั้งที่ CropWat เปิดใหม่</span>
+          </div>
+          <span class="badge neutral" id="cwopt-badge">กำลังโหลด</span>
+        </div>
+        <div class="card-body stack">
+          <div class="cwopt-warn" id="cwopt-warn" hidden></div>
+          <div class="seg" id="cwopt-tabs" role="tablist"><!-- filled by JS --></div>
+          <p class="note" id="cwopt-desc"></p>
+          <div class="cwopt-fields" id="cwopt-fields"><!-- filled by JS --></div>
+          <div class="cwopt-actions">
+            <button id="btn-cwopt-save" class="btn btn-primary sm" type="button" disabled>บันทึกค่าลง CropWat</button>
+            <button id="btn-cwopt-reset" class="btn btn-ghost sm" type="button" disabled>ยกเลิกการแก้</button>
+            <button id="btn-cwopt-restore" class="btn btn-ghost sm" type="button" hidden title="สลับกลับไปใช้ค่าก่อนบันทึกครั้งล่าสุด (กดซ้ำเพื่อสลับกลับ)">ย้อนกลับค่าก่อนบันทึกล่าสุด</button>
+            <span class="spacer"></span>
+            <button id="btn-cwopt-export" class="btn btn-ghost sm" type="button" title="บันทึกค่าทั้งหมดเป็นไฟล์ไว้ส่งให้เครื่องอื่นใช้ค่าเดียวกัน">ส่งออกโปรไฟล์...</button>
+            <button id="btn-cwopt-import" class="btn btn-ghost sm" type="button" title="ใช้ค่าจากไฟล์โปรไฟล์ (เช่น ที่ส่งออกจากอีกเครื่อง)">นำเข้าโปรไฟล์...</button>
+          </div>
+          <span class="note" id="cwopt-path"></span>
         </div>
       </div>
 

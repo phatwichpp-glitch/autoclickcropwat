@@ -117,6 +117,7 @@ async def update_config(settings: Settings) -> Settings:
 
 class BrowseFolderRequest(BaseModel):
     initial_dir: str = ""
+    kind: str = "exe"  # ตัวกรองไฟล์ของ browse-file: "exe" | "ini"
 
 
 @app.post("/api/browse-folder")
@@ -140,7 +141,7 @@ async def open_folder(req: OpenFolderRequest) -> dict:
 
 @app.post("/api/browse-file")
 async def browse_file(req: BrowseFolderRequest) -> dict:
-    path = await asyncio.to_thread(os_dialogs.pick_file, req.initial_dir)
+    path = await asyncio.to_thread(os_dialogs.pick_file, req.initial_dir, "เลือกไฟล์", req.kind)
     return {"path": path}
 
 
@@ -421,6 +422,70 @@ async def cropwat_exe_status() -> dict:
         "path": str(path),
         "source": "configured" if configured_valid else "auto",
     }
+
+
+# ---------------------------------------------------------------------------
+# v1.2.0 — ตั้งค่าหน้า "CROPWAT options" (เขียน %ProgramData%\CROPWAT\Cropwat.ini)
+# ดูรายละเอียด/ที่มาของรหัสตัวเลือกใน cropwat_options.py
+# ---------------------------------------------------------------------------
+
+class CropwatOptionsRequest(BaseModel):
+    values: dict
+
+
+def _options_guard() -> None:
+    """ห้ามเขียนค่าระหว่างประมวลผล — CropWat ที่กำลังรันใช้ค่าตอนเปิดไปแล้ว แก้กลางคัน
+    ทำให้ผลชุดเดียวกันใช้ค่าไม่เหมือนกัน"""
+    if runner.is_run_active():
+        raise HTTPException(409, "กำลังประมวลผลอยู่ — หยุดหรือรอให้เสร็จก่อนค่อยเปลี่ยนค่าตั้งของ CropWat")
+
+
+def _options_call(fn, *args):
+    import cropwat_options
+
+    try:
+        return fn(*args)
+    except cropwat_options.OptionsError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/cropwat-options")
+async def cropwat_options_get() -> dict:
+    import cropwat_options
+
+    return await asyncio.to_thread(cropwat_options.read_options)
+
+
+@app.put("/api/cropwat-options")
+async def cropwat_options_put(req: CropwatOptionsRequest) -> dict:
+    import cropwat_options
+
+    _options_guard()
+    return await asyncio.to_thread(_options_call, cropwat_options.save_options, req.values)
+
+
+@app.post("/api/cropwat-options/restore")
+async def cropwat_options_restore() -> dict:
+    import cropwat_options
+
+    _options_guard()
+    return await asyncio.to_thread(_options_call, cropwat_options.restore_backup)
+
+
+@app.post("/api/cropwat-options/export")
+async def cropwat_options_export(req: OpenFolderRequest) -> dict:
+    import cropwat_options
+
+    path = await asyncio.to_thread(_options_call, cropwat_options.export_profile, req.path)
+    return {"path": path}
+
+
+@app.post("/api/cropwat-options/import")
+async def cropwat_options_import(req: OpenFolderRequest) -> dict:
+    import cropwat_options
+
+    _options_guard()
+    return await asyncio.to_thread(_options_call, cropwat_options.import_profile, req.path)
 
 
 @app.post("/api/window/minimize")

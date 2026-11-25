@@ -45,7 +45,7 @@ def pick_folder(initial_dir: str = "", title: str = "เลือกโฟลเ
         return None
 
 
-def pick_file(initial_dir: str = "", title: str = "เลือกไฟล์") -> str | None:
+def pick_file(initial_dir: str = "", title: str = "เลือกไฟล์", kind: str = "exe") -> str | None:
     """เปิด native file picker ของ Windows (win32gui.GetOpenFileNameW — Win32
     common dialog ดั้งเดิม กรองเฉพาะ .exe) คืน path ที่เลือก หรือ None ถ้ากด
     ยกเลิก (GetOpenFileNameW โยน exception ตอนยกเลิก ไม่ใช่คืนค่าว่าง)"""
@@ -53,7 +53,10 @@ def pick_file(initial_dir: str = "", title: str = "เลือกไฟล์")
     try:
         filename, _, _ = win32gui.GetOpenFileNameW(
             InitialDir=start,
-            Filter="Program (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0",
+            Filter=(
+                "CropWat options profile (*.ini)\0*.ini\0All files (*.*)\0*.*\0\0" if kind == "ini"
+                else "Program (*.exe)\0*.exe\0All files (*.*)\0*.*\0\0"
+            ),
             Title=title,
             Flags=win32con.OFN_FILEMUSTEXIST | win32con.OFN_PATHMUSTEXIST | win32con.OFN_EXPLORER,
         )

@@ -1162,6 +1162,215 @@ function updateSaveBar() {
 document.getElementById("view-setup").addEventListener("input", updateSaveBar);
 document.getElementById("view-setup").addEventListener("change", updateSaveBar);
 
+// ---------------------------------------------------------------------------
+// v1.2.0 — ค่าตั้งของ CropWat (หน้า Settings → Options) — backend เขียน Cropwat.ini
+// ตาราง/ป้าย/เงื่อนไขการแสดงช่อง มาจาก backend (cropwat_options.SECTIONS) ทั้งหมด
+// ---------------------------------------------------------------------------
+let cwopt = null;      // ผลล่าสุดจาก GET /api/cropwat-options
+let cwoptDraft = {};   // ค่าที่กำลังแก้ (key -> value)
+let cwoptTab = "rain";
+
+const cwoptField = (key) => {
+  for (const s of cwopt.sections) for (const f of s.fields) if (f.key === key) return f;
+  return null;
+};
+const cwoptVisible = (f) =>
+  !f.when || Object.entries(f.when).every(([k, vals]) => vals.includes(Number(cwoptDraft[k])));
+const cwoptDirtyKeys = () =>
+  cwopt ? Object.keys(cwoptDraft).filter((k) => String(cwoptDraft[k]) !== String(cwopt.values[k])) : [];
+
+function cwoptChoiceLabel(key) {
+  const f = cwoptField(key);
+  const c = f && f.choices.find((x) => x[0] === Number(cwopt.values[key]));
+  return c ? c[1] : "-";
+}
+
+async function loadCropwatOptions() {
+  try {
+    const res = await fetch("/api/cropwat-options");
+    cwopt = await res.json();
+  } catch {
+    cwopt = null;
+  }
+  cwoptDraft = cwopt ? { ...cwopt.values } : {};
+  renderCropwatOptions();
+}
+
+function renderCropwatOptions() {
+  const badge = document.getElementById("cwopt-badge");
+  const warn = document.getElementById("cwopt-warn");
+  const fieldsEl = document.getElementById("cwopt-fields");
+  const summaryEl = document.getElementById("cwopt-summary");
+  if (!cwopt) {
+    badge.textContent = "อ่านค่าไม่ได้";
+    badge.className = "badge warn";
+    fieldsEl.innerHTML = "";
+    summaryEl.hidden = true;
+    return;
+  }
+  const dirty = cwoptDirtyKeys().length > 0;
+  badge.textContent = !cwopt.exists ? "ไม่พบไฟล์" : dirty ? "ยังไม่บันทึก" : "ตรงกับ CropWat";
+  badge.className = `badge ${!cwopt.exists ? "warn" : dirty ? "running" : "ok"}`;
+  const warnings = [];
+  if (!cwopt.exists) warnings.push("ไม่พบไฟล์ค่าตั้งของ CropWat — เปิดโปรแกรม CropWat 8.0 สักครั้งก่อน แล้วกลับมาที่หน้านี้");
+  if (cwopt.cropwat_running) warnings.push("มี CropWat เปิดอยู่ — ค่าที่บันทึกจะมีผลเมื่อปิดแล้วเปิด CropWat ใหม่ (และอย่ากด Save as default ใน CropWat ตัวนั้น ไม่งั้นจะทับค่าจากหน้านี้)");
+  warn.hidden = warnings.length === 0;
+  warn.textContent = warnings.join(" · ");
+  document.getElementById("cwopt-path").textContent = cwopt.path;
+  document.getElementById("btn-cwopt-save").disabled = !dirty || !cwopt.exists;
+  document.getElementById("btn-cwopt-reset").disabled = !dirty;
+  document.getElementById("btn-cwopt-restore").hidden = !cwopt.has_backup;
+
+  // แท็บตามหน้า Options ของ CropWat
+  document.getElementById("cwopt-tabs").innerHTML = cwopt.sections
+    .map((s) => `<button type="button" role="tab" class="seg-btn${s.id === cwoptTab ? " active" : ""}" data-sec="${s.id}">${s.title}</button>`)
+    .join("");
+  const sec = cwopt.sections.find((s) => s.id === cwoptTab) || cwopt.sections[0];
+  document.getElementById("cwopt-desc").textContent = sec.desc;
+
+  fieldsEl.innerHTML = "";
+  for (const f of sec.fields) {
+    if (!cwoptVisible(f)) continue;
+    const row = document.createElement("label");
+    row.className = "cwopt-row" + (String(cwoptDraft[f.key]) !== String(cwopt.values[f.key]) ? " changed" : "");
+    const lbl = document.createElement("span");
+    lbl.className = "cwopt-lbl";
+    lbl.textContent = f.label;
+    if (f.note) {
+      const n = document.createElement("small");
+      n.textContent = f.note;
+      lbl.appendChild(n);
+    }
+    let ctl;
+    if (f.type === "choice") {
+      ctl = document.createElement("select");
+      for (const [code, text] of f.choices) {
+        const o = document.createElement("option");
+        o.value = code;
+        o.textContent = text;
+        ctl.appendChild(o);
+      }
+    } else {
+      ctl = document.createElement("input");
+      ctl.type = "number";
+      ctl.step = f.type === "float" ? "0.1" : "1";
+      if (f.min != null) ctl.min = f.min;
+      if (f.max != null) ctl.max = f.max;
+      ctl.className = "tabular";
+    }
+    ctl.dataset.key = f.key;
+    ctl.value = cwoptDraft[f.key] ?? "";
+    const unit = document.createElement("span");
+    unit.className = "cwopt-unit";
+    unit.textContent = f.unit || "";
+    row.append(lbl, ctl, unit);
+    fieldsEl.appendChild(row);
+  }
+
+  // บรรทัดสรุปในการ์ดแผนวันปลูก — เห็นก่อนกดเริ่มว่ารอบนี้จะใช้ค่าอะไร
+  summaryEl.hidden = !cwopt.exists;
+  summaryEl.textContent =
+    `ค่าตั้ง CropWat ที่จะใช้: Effective rainfall = ${cwoptChoiceLabel("ermethod")} · ` +
+    `พืชทั่วไป = ${cwoptChoiceLabel("timopt")} (efficiency ${cwopt.values.appleff ?? "-"}%) · แก้ได้ที่แท็บตั้งค่า`;
+}
+
+document.getElementById("cwopt-tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-sec]");
+  if (!b) return;
+  cwoptTab = b.dataset.sec;
+  renderCropwatOptions();
+});
+
+const cwoptFieldsEl = document.getElementById("cwopt-fields");
+cwoptFieldsEl.addEventListener("change", (e) => {
+  const key = e.target.dataset.key;
+  if (!key) return;
+  cwoptDraft[key] = e.target.tagName === "SELECT" ? Number(e.target.value) : e.target.value;
+  renderCropwatOptions(); // ตัวเลือกเปลี่ยน → ช่องที่เกี่ยวข้องเปลี่ยนตาม
+});
+cwoptFieldsEl.addEventListener("input", (e) => {
+  const key = e.target.dataset.key;
+  if (!key || e.target.tagName === "SELECT") return;
+  cwoptDraft[key] = e.target.value;
+  // ไม่ render ใหม่ทั้งหมด (เคอร์เซอร์จะหลุด) — อัปเดตแค่ป้ายสถานะ/ปุ่ม
+  e.target.closest(".cwopt-row").classList.toggle("changed", String(e.target.value) !== String(cwopt.values[key]));
+  const dirty = cwoptDirtyKeys().length > 0;
+  document.getElementById("btn-cwopt-save").disabled = !dirty || !cwopt.exists;
+  document.getElementById("btn-cwopt-reset").disabled = !dirty;
+  const badge = document.getElementById("cwopt-badge");
+  badge.textContent = dirty ? "ยังไม่บันทึก" : "ตรงกับ CropWat";
+  badge.className = `badge ${dirty ? "running" : "ok"}`;
+});
+
+async function cwoptApply(res, okMsg) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    showToast(data.detail || "บันทึกค่าตั้ง CropWat ไม่สำเร็จ", true);
+    return;
+  }
+  cwopt = data;
+  cwoptDraft = { ...cwopt.values };
+  renderCropwatOptions();
+  showToast(cwopt.cropwat_running ? `${okMsg} — ปิดแล้วเปิด CropWat ใหม่เพื่อใช้ค่านี้` : okMsg);
+}
+
+document.getElementById("btn-cwopt-save").addEventListener("click", async () => {
+  const values = {};
+  for (const k of cwoptDirtyKeys()) values[k] = cwoptDraft[k];
+  const res = await fetch("/api/cropwat-options", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ values }),
+  });
+  await cwoptApply(res, "บันทึกค่าลง CropWat แล้ว");
+});
+
+document.getElementById("btn-cwopt-reset").addEventListener("click", () => {
+  cwoptDraft = { ...cwopt.values };
+  renderCropwatOptions();
+});
+
+document.getElementById("btn-cwopt-restore").addEventListener("click", async () => {
+  if (!confirm("สลับกลับไปใช้ค่าตั้ง CropWat ก่อนบันทึกครั้งล่าสุดหรือไม่? (กดซ้ำเพื่อสลับกลับมาได้)")) return;
+  const res = await fetch("/api/cropwat-options/restore", { method: "POST" });
+  await cwoptApply(res, "ย้อนกลับค่าตั้ง CropWat แล้ว");
+});
+
+document.getElementById("btn-cwopt-export").addEventListener("click", async () => {
+  const pick = await fetch("/api/browse-folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ initial_dir: (settings && settings.output_dir) || "" }),
+  });
+  const { path } = await pick.json();
+  if (!path) return;
+  const res = await fetch("/api/cropwat-options/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) showToast(data.detail || "ส่งออกไม่สำเร็จ", true);
+  else showToast(`ส่งออกแล้ว: ${data.path}`);
+});
+
+document.getElementById("btn-cwopt-import").addEventListener("click", async () => {
+  const pick = await fetch("/api/browse-file", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ initial_dir: (settings && settings.output_dir) || "", kind: "ini" }),
+  });
+  const { path } = await pick.json();
+  if (!path) return;
+  if (!confirm(`ใช้ค่าตั้ง CropWat จากไฟล์นี้แทนค่าปัจจุบันหรือไม่?\n\n${path}\n\n(ค่าเดิมสำรองไว้ — ย้อนกลับได้)`)) return;
+  const res = await fetch("/api/cropwat-options/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  await cwoptApply(res, "นำเข้าค่าตั้ง CropWat แล้ว");
+});
+
 const MONTH_ABBR_TH = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
 // v0.5.24 — บังคับสแกนตรวจไฟล์ climate/rain ก่อนเริ่มรันทุกครั้ง (ตามคำขอผู้ใช้):
@@ -1591,5 +1800,6 @@ fetchStatus();
 fetchOutputProgress();
 refreshLatestShot(); // แสดงภาพหน้าจอล่าสุดทันทีที่เปิดหน้า (ถ้ามีจากรอบก่อน)
 refreshCropwatExeStatus(); // สถานะ "หา CropWat เจอไหม" ในหน้าตั้งค่า
+loadCropwatOptions(); // v1.2.0 — ค่าตั้งของ CropWat (การ์ดในหน้าตั้งค่า + สรุปในแผนวันปลูก)
 connectWebSocket();
 checkUpdate();
