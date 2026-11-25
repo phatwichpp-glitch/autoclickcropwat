@@ -583,13 +583,23 @@ def _finish_run(years: list[int], settings: Settings) -> None:
     error_years = sum(1 for y in snap.years if y.status == YearRunStatus.ERROR)
     stopped = run_state.is_stop_requested()
 
+    # v0.12.0 — สร้างไฟล์ให้แม้บางปีมีปัญหา (เดิมสร้างเฉพาะตอนผ่านครบทุกปี): ข้อมูล
+    # จริงของผู้ใช้มีปีที่ climate ขาดเป็นปกติ (spec: "ขาดข้อมูล Sun เดือน 4") ถ้า
+    # รอให้ไม่มี error เลย Excel จะไม่ถูกสร้างอัตโนมัติแทบทุกครั้ง — ปีที่มีปัญหา
+    # ถูกบันทึกไว้ใน sheet "หมายเหตุ" แทน
     built_note = ""
-    if not stopped and error_years == 0 and settings.auto_build_outputs and settings.output_dir:
+    built = False
+    if not stopped and settings.auto_build_outputs and settings.output_dir:
         try:
             build_excel(settings)
-            build_word(settings)
-            built_note = " — สร้าง Excel + Word ให้แล้ว เปิดโฟลเดอร์ผลลัพธ์ได้เลย"
-            logger.info("auto-build: สร้าง Result.xlsx + Screenshots.docx หลังรันเสร็จแล้ว")
+            built = True
+            try:
+                build_word(settings)
+                built_note = " — สร้าง Excel + Word ให้แล้ว เปิดโฟลเดอร์ผลลัพธ์ได้เลย"
+            except FileNotFoundError:
+                # ไม่ได้เลือกวันถ่ายภาพไว้เลย = ไม่มีภาพให้ทำ Word — ไม่ใช่ความล้มเหลว
+                built_note = " — สร้าง Excel ให้แล้ว เปิดโฟลเดอร์ผลลัพธ์ได้เลย"
+            logger.info("auto-build: สร้างไฟล์ผลลัพธ์หลังรันเสร็จแล้ว")
         except Exception:  # noqa: BLE001 -- auto-build เป็นของเสริม พังแล้วห้ามล้มการรันที่เสร็จแล้ว
             logger.exception("auto-build ไฟล์ผลลัพธ์ไม่สำเร็จ (กดสร้างเองจากหน้าเว็บได้)")
             built_note = " — สร้างไฟล์อัตโนมัติไม่สำเร็จ กดสร้างเองจากหน้าเว็บได้"
@@ -606,8 +616,9 @@ def _finish_run(years: list[int], settings: Settings) -> None:
         elif error_years:
             overlay.notify(
                 "รันเสร็จ แต่มีปัญหาบางปี",
-                f"สำเร็จ {done_years} ปี มีปัญหา {error_years} ปี — เปิดโปรแกรมเพื่อดู"
-                " รายละเอียดและกดรันปีที่มีปัญหาซ้ำ",
+                f"สำเร็จ {done_years} ปี มีปัญหา {error_years} ปี"
+                + (" — สร้าง Excel แล้ว (ปีที่มีปัญหาอยู่ใน sheet หมายเหตุ)" if built else
+                   " — เปิดโปรแกรมเพื่อดูรายละเอียดและกดรันปีที่มีปัญหาซ้ำ"),
             )
         else:
             overlay.notify(
@@ -625,7 +636,34 @@ def build_excel(settings: Settings) -> int:
     เขียนสำเร็จ (import แบบ local กัน circular import ตอน backend startup)"""
     from file_engine.excel_writer import build_result_sheet
 
-    return build_result_sheet(txt_dir(settings), excel_path(settings))
+    return build_result_sheet(txt_dir(settings), excel_path(settings), _collect_run_notes(settings))
+
+
+# ชื่อภาพ error ที่ engine เซฟ: "{ปี}_{MMDD}_{HHMMSS}[_n].png" (ดู _unique_error_shot_path)
+_ERROR_SHOT_RE = re.compile(r"^(?P<year>\d{4})_\d{4}_\d{6}(?:_\d+)?\.png$")
+
+
+def _collect_run_notes(settings: Settings):
+    """รวบรวมข้อมูลประกอบ sheet "หมายเหตุ" (v0.12.0): วันปลูกตามแผนของช่วงปีที่
+    ตั้งไว้, ข้อความ error ของรอบล่าสุด (อยู่ใน memory — หายเมื่อปิดโปรแกรม) และ
+    ภาพ error บนดิสก์ (ถาวร จึงยังโยงปีที่มีปัญหาได้แม้เปิดโปรแกรมใหม่)"""
+    from file_engine.excel_writer import RunNotes
+
+    notes = RunNotes()
+    for y in range(settings.default_start_year, settings.default_end_year + 1):
+        planned = [f"{d:%m%d}" for d, _ in planting_dates_for_year(settings, y)]
+        if planned:
+            notes.planned[y] = planned
+    for ys in run_state.snapshot().years:
+        if ys.status == YearRunStatus.ERROR and ys.error_message:
+            notes.year_errors[ys.year] = ys.error_message
+    shots_dir = Path(settings.output_dir) / "_error_dialogs"
+    if shots_dir.is_dir():
+        for p in sorted(shots_dir.glob("*.png")):
+            m = _ERROR_SHOT_RE.match(p.name)
+            if m:
+                notes.error_shots.setdefault(int(m.group("year")), []).append(p.name)
+    return notes
 
 
 def build_word(settings: Settings) -> int:

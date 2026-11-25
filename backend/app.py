@@ -510,6 +510,26 @@ async def download_word_doc() -> FileResponse:
     return FileResponse(path, filename=path.name)
 
 
+@app.post("/api/open-output/{kind}")
+async def open_output_file(kind: str) -> dict:
+    """v0.12.0 — เปิด Result.xlsx / Screenshots.docx ด้วยโปรแกรมของ Windows ตรงๆ
+    (หน้าต่าง WebView2 โหลดไฟล์ผ่าน /api/download ได้ไม่สะดวก) — เปิดได้เฉพาะ 2
+    ไฟล์นี้เท่านั้น ไม่รับ path จากหน้าเว็บ"""
+    settings = load_settings()
+    if not settings.output_dir:
+        raise HTTPException(400, "ยังไม่ได้ตั้งค่าโฟลเดอร์ผลลัพธ์")
+    if kind == "excel":
+        path, hint = excel_path(settings), "กด \"สร้าง Excel\" ก่อน"
+    elif kind == "word":
+        path, hint = word_path(settings), "กด \"สร้าง Word\" ก่อน"
+    else:
+        raise HTTPException(404, "ไม่รู้จักไฟล์นี้")
+    if not path.is_file():
+        raise HTTPException(404, f"ยังไม่มีไฟล์ {path.name} — {hint}")
+    await asyncio.to_thread(os_dialogs.open_file, str(path))
+    return {"ok": True, "path": str(path)}
+
+
 # ---------------------------------------------------------------------------
 # เช็คอัปเดต + อัปเดตตัวเองจาก GitHub Releases (ดูรายละเอียดใน updater.py)
 # ---------------------------------------------------------------------------

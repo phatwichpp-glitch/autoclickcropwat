@@ -71,6 +71,15 @@ def open_in_explorer(path: str) -> None:
     os.startfile(str(p))  # type: ignore[attr-defined]  # Windows-only API
 
 
+def open_file(path: str) -> None:
+    """เปิดไฟล์ด้วยโปรแกรมที่ Windows ผูกไว้ (เช่น .xlsx → Excel) — โยน
+    FileNotFoundError ถ้าไม่ใช่ไฟล์จริง"""
+    p = Path(path)
+    if not p.is_file():
+        raise FileNotFoundError(f"ไม่พบไฟล์: {path}")
+    os.startfile(str(p))  # type: ignore[attr-defined]  # Windows-only API
+
+
 def launch_exe(path: str) -> None:
     """เปิดโปรแกรม (เช่น CropWat 8.0) จาก path ที่ตั้งค่าไว้ — โยน
     FileNotFoundError ถ้า path ไม่ใช่ไฟล์จริง"""

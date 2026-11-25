@@ -956,37 +956,37 @@ document.getElementById("btn-retry").addEventListener("click", async () => {
   renderStatus(await res.json());
 });
 
-document.getElementById("btn-build-excel").addEventListener("click", async (e) => {
-  const btn = e.currentTarget;
+// v0.12.0 — ปุ่ม "เปิด Excel/Word": สร้างไฟล์ใหม่จากผลล่าสุดเสมอแล้วเปิดให้ทันที
+// (ผู้ใช้ต้องการ "ดูผล" ไม่ใช่แค่ "สร้างไฟล์" แล้วต้องไปหาเองในโฟลเดอร์) — ถ้าไฟล์
+// เปิดค้างอยู่ใน Excel/Word (เขียนทับไม่ได้ 409) ก็เปิดฉบับเดิมให้ พร้อมบอกวิธีอัปเดต
+async function buildAndOpen(btn, kind) {
+  const label = kind === "excel" ? "Excel" : "Word";
   btn.disabled = true;
   try {
-    const res = await fetch("/api/build-excel", { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.detail || "สร้าง Excel ไม่สำเร็จ");
+    const res = await fetch(`/api/build-${kind}`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    let stale = false;
+    if (res.status === 409) {
+      stale = true;
+    } else if (!res.ok) {
+      showToast(data.detail || `สร้างไฟล์ ${label} ไม่สำเร็จ`, true);
       return;
     }
-    showToast(`สร้าง Excel แล้ว (${data.years_written} ปี)`);
+    const open = await fetch(`/api/open-output/${kind}`, { method: "POST" });
+    if (!open.ok) {
+      const err = await open.json().catch(() => ({}));
+      showToast(err.detail || `เปิดไฟล์ ${label} ไม่สำเร็จ`, true);
+      return;
+    }
+    if (stale) showToast(`ไฟล์ ${label} เปิดค้างอยู่ จึงอัปเดตไม่ได้ — ปิดไฟล์แล้วกดใหม่เพื่อดูผลล่าสุด`, true);
+    else showToast(kind === "excel" ? `เปิด Excel (${data.years_written} ปี)` : `เปิด Word (${data.candidates_written} วันปลูก)`);
   } finally {
     btn.disabled = false;
   }
-});
+}
 
-document.getElementById("btn-build-word").addEventListener("click", async (e) => {
-  const btn = e.currentTarget;
-  btn.disabled = true;
-  try {
-    const res = await fetch("/api/build-word", { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.detail || "สร้างไฟล์ Word ไม่สำเร็จ");
-      return;
-    }
-    showToast(`สร้างไฟล์ Word แล้ว (${data.candidates_written} วันปลูก)`);
-  } finally {
-    btn.disabled = false;
-  }
-});
+document.getElementById("btn-build-excel").addEventListener("click", (e) => buildAndOpen(e.currentTarget, "excel"));
+document.getElementById("btn-build-word").addEventListener("click", (e) => buildAndOpen(e.currentTarget, "word"));
 
 // ---------------------------------------------------------------------------
 // WebSocket connection indicator

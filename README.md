@@ -29,8 +29,9 @@ CropWat installation and their own data.
    (handles the real-world messy folder structure — decade-range
    sub-folders, inconsistent nesting — by parsing year/month straight out of
    filenames), resolves the correct climate/rain file per the shift-year
-   rule, parses the `.txt` output, and builds/rebuilds an Excel "Result"
-   sheet from whatever `.txt` files exist.
+   rule, parses the `.txt` output, and builds/rebuilds `Result.xlsx` (sheets "Result", "สรุป" = per-planting-date
+   stats across years, "หมายเหตุ" = metadata + per-year missing dates/errors)
+   from whatever `.txt` files exist.
 3. **Dashboard** (`frontend/`) — a local web UI for configuring the input/
    output folders, picking which planting dates to test via a calendar, and
    watching progress in real time over WebSocket.
@@ -54,7 +55,7 @@ backend/
   file_engine/
     paths.py                Folder scanning + shift-year file resolution
     txt_parser.py           Parses CropWat's printed .txt output
-    excel_writer.py         Builds the Result sheet from parsed .txt files
+    excel_writer.py         Builds Result / สรุป / หมายเหตุ sheets from parsed .txt files
   tests/                     Unit tests for the pure-logic pieces (no CropWat needed)
 frontend/
   index.html / app.js / style.css   Dashboard + Setup UI
@@ -103,7 +104,9 @@ cd backend
 
 These cover the pure-logic pieces that don't need a live CropWat instance:
 shift-year file resolution (`file_engine/paths.py`), `.txt` output parsing
-(`file_engine/txt_parser.py`), and the ETA estimation math (`state.py`). They
+(`file_engine/txt_parser.py`), the Excel workbook layout
+(`file_engine/excel_writer.py`), error-screenshot composition, and the ETA
+estimation math (`state.py`). They
 do **not** cover the pywinauto automation steps themselves (`automation/`) —
 those can only be verified against a real running CropWat 8.0 installation,
 by hand.
@@ -115,7 +118,9 @@ by hand.
   installation/build, but hasn't been tested against other versions.
 - The `ERROR_DIALOG` message text can't be read from a dedicated control
   (CropWat draws it directly on the dialog) — errors are detected and
-  dismissed, but the specific message text isn't always captured.
+  dismissed, but the specific message text isn't always captured — since
+  v0.11.0 a screenshot of the dialog is saved to `output/_error_dialogs/`
+  instead, and since v0.12.0 it is listed in the "หมายเหตุ" sheet.
 - `_reveal_stuck_windows()` (v0.5.25, in `start_background_watcher()`) is a
   safety net for background-mode's window-hiding watcher: if a dialog that
   automation doesn't recognize gets hidden off-screen and never dismissed

@@ -115,8 +115,8 @@
           <div class="row">
             <button id="btn-retry" class="btn btn-ghost sm" title="ประมวลผลซ้ำเฉพาะปีที่มีปัญหา" hidden>ประมวลผลซ้ำปีที่มีปัญหา</button>
             <button id="btn-copy-all-errors" class="btn btn-ghost sm" type="button" title="คัดลอกรายละเอียดข้อผิดพลาดทั้งหมด" hidden>คัดลอกข้อผิดพลาด</button>
-            <button id="btn-build-excel" class="btn btn-ghost sm" title="ระบบสร้างให้อัตโนมัติเมื่อเสร็จ — กดเพื่อสร้างซ้ำ">สร้าง Excel</button>
-            <button id="btn-build-word" class="btn btn-ghost sm" title="รวมภาพบันทึกเป็นไฟล์ Word — ระบบสร้างให้อัตโนมัติเมื่อเสร็จ">สร้าง Word</button>
+            <button id="btn-build-excel" class="btn btn-ghost sm" title="สร้าง Result.xlsx จากผลล่าสุดแล้วเปิดใน Excel (มี sheet Result, สรุป, หมายเหตุ)">เปิด Excel</button>
+            <button id="btn-build-word" class="btn btn-ghost sm" title="รวมภาพบันทึกเป็น Screenshots.docx แล้วเปิดใน Word">เปิด Word</button>
             <button id="btn-open-output" class="btn btn-ghost sm" type="button" title="เปิดโฟลเดอร์ผลลัพธ์ใน Explorer"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>เปิดโฟลเดอร์</button>
           </div>
         </div>
@@ -284,7 +284,7 @@
         </li>
         <li>
           <b>รับผลลัพธ์</b>
-          <div>เสร็จแล้วได้ <b>Result.xlsx</b> และ <b>Screenshots.docx</b> อัตโนมัติ กด <b>เปิดโฟลเดอร์</b> เพื่อดูไฟล์</div>
+          <div>เสร็จแล้วได้ <b>Result.xlsx</b> และ <b>Screenshots.docx</b> อัตโนมัติ กด <b>เปิด Excel</b> เพื่อดูผล — sheet <b>สรุป</b> บอกวันปลูกที่ดีที่สุด, <b>หมายเหตุ</b> บอกปีที่มีปัญหา</div>
         </li>
       </ol>
       <div class="modal-foot">
