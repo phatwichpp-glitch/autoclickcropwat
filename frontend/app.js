@@ -15,6 +15,18 @@ let settings = null;
 // calendarState[month(1-12)] = { days: Set<number>, shotDays: Set<number> }
 let calendarState = {};
 
+// v1.0 — สถานะสำหรับแผงหลัก/แบนเนอร์นำทาง ใช้แสดงผลอย่างเดียว: อ่านจากผลของการเรียก
+// API เดิม (ช่วงเวลา/จำนวนครั้งที่เรียกเหมือน v0.12 ทุกประการ — ปุ่ม "เปิด Excel ดูผล"
+// ในแผงหลักแค่เรียกฟังก์ชัน buildAndOpen เดิมจากอีกปุ่มหนึ่ง)
+let lastSnapshot = null;  // สถานะรันล่าสุดจาก /api/status หรือ WebSocket
+let lastOutput = null;    // ผลตรวจไฟล์ในเครื่องล่าสุดจาก /api/output-progress
+// แผน/ช่วงปี/โฟลเดอร์ผลลัพธ์เปลี่ยนหลังตรวจไฟล์ครั้งล่าสุด → ตัวเลขใน lastOutput เก่าแล้ว
+let outputStale = false;
+let exeState = "pending"; // "pending" | "found" | "missing" | "unknown" จาก /api/cropwat-exe
+let exePath = "";
+const fmtNum = (n) => Number(n || 0).toLocaleString("en-US");
+const planCard = document.getElementById("plan-card");
+
 // inline SVG สไตล์ lucide (เส้น outline 2px มุมมน) — ฝังตรงๆ ไม่พึ่ง CDN เพราะ
 // โปรแกรมต้องใช้ได้แบบ offline สมบูรณ์
 const IC = (paths, cls = "ic-xs") =>
@@ -78,6 +90,8 @@ async function loadConfig() {
     calendarState[m] = { days: new Set(src.days), shotDays: new Set(src.shot_days) };
   }
   renderMonthGrid();
+  updateReadiness();
+  updateSaveBar();
 }
 
 // ปุ่ม "เปิด CropWat" มีประโยชน์เฉพาะโหมดคลาสสิก (ผู้ใช้ต้องเปิด CropWat เอง) —
@@ -157,9 +171,14 @@ function scheduleCalendarAutoSave() {
     });
     if (ok) showToast("บันทึกปฏิทินแล้ว");
   }, 700);
+  // แผน/ช่วงปีเปลี่ยน → ตัวเลข "เสร็จแล้ว X จาก Y" จากการตรวจไฟล์ครั้งก่อนใช้ไม่ได้แล้ว
+  // (ไม่ยิงตรวจไฟล์ใหม่เอง — การเรียก API คงเดิมทุกประการ ผู้ใช้กด "ตรวจไฟล์ใหม่" ได้)
+  outputStale = true;
+  updateRunHero();
 }
 
 document.getElementById("btn-save-setup").addEventListener("click", async () => {
+  const prevOutputDir = settings && settings.output_dir;
   const ok = await saveConfig({
     input_dir: document.getElementById("input-dir").value,
     output_dir: document.getElementById("output-dir").value,
@@ -179,6 +198,9 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
     document.getElementById("brand-sub").textContent = settings.input_dir || "ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง";
     applyModeVisibility();
     refreshCropwatExeStatus(); // path CropWat อาจเพิ่งเปลี่ยน — อัปเดตสถานะทันที
+    if (settings.output_dir !== prevOutputDir) outputStale = true; // ผลตรวจไฟล์เดิมเป็นของโฟลเดอร์เก่า
+    updateReadiness();
+    updateSaveBar();
     showToast("บันทึกการตั้งค่าแล้ว");
   }
 });
@@ -187,23 +209,49 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
 // สถานะการค้นหาโปรแกรม CropWat 8.0 (v0.10.2) — ตอบคำถาม "ต้องตั้ง path เองไหม"
 // ตรงๆ ในหน้าตั้งค่า: ติดตั้งที่ตำแหน่งมาตรฐาน ระบบหาเจอเอง ไม่ต้องตั้งอะไรเลย
 // ---------------------------------------------------------------------------
+let exeSource = null;
+let exeDetailsAutoOpened = false;
+
 async function refreshCropwatExeStatus() {
-  const el = document.getElementById("cropwat-exe-status");
   try {
     const res = await fetch("/api/cropwat-exe");
     const data = await res.json();
-    if (data.found && data.source === "auto") {
-      el.textContent = `✓ พบอัตโนมัติ: ${data.path}`;
-      el.style.color = "var(--done)";
-    } else if (data.found) {
-      el.textContent = `✓ ใช้ไฟล์ที่ระบุ: ${data.path}`;
-      el.style.color = "var(--done)";
-    } else {
-      el.textContent = "✗ ไม่พบ CropWat 8.0 — ถ้าติดตั้งไว้แล้ว กด \"เลือก...\" แล้วชี้ไปที่ CROPWAT.exe";
-      el.style.color = "var(--error)";
-    }
+    exeState = data.found ? "found" : "missing";
+    exePath = data.path || "";
+    exeSource = data.source;
   } catch {
-    el.textContent = "";
+    exeState = "unknown";
+  }
+  updateReadiness(); // วาดกล่องสถานะ (renderExeStatus) + เช็คลิสต์ + แผงหลัก
+}
+
+// กล่องสถานะในขั้นที่ 3 — แยกจากการ fetch เพราะต้องรู้โหมด (settings) ด้วย ซึ่งอาจ
+// โหลดเสร็จทีหลัง: โหมดคลาสสิกไม่จำเป็นต้องรู้ตำแหน่งโปรแกรม (ผู้ใช้เปิด CropWat เอง)
+function renderExeStatus() {
+  const el = document.getElementById("cropwat-exe-status");
+  const classic = !!settings && settings.hidden_desktop_mode === false;
+  if (exeState === "found") {
+    el.className = "exe-status ok";
+    el.textContent = exeSource === "auto"
+      ? `✓ พบโปรแกรมอัตโนมัติ: ${exePath} — ไม่ต้องตั้งค่าเพิ่ม`
+      : `✓ ใช้ไฟล์ที่ระบุ: ${exePath}`;
+  } else if (exeState === "missing" && classic) {
+    el.className = "exe-status";
+    el.textContent = "ไม่พบ CropWat 8.0 — โหมดคลาสสิกไม่จำเป็นต้องใช้ (ใช้เฉพาะปุ่ม \"เปิด CropWat\" ในหน้าภาพรวม)";
+  } else if (exeState === "missing") {
+    el.className = "exe-status missing";
+    el.textContent = "✗ ไม่พบ CropWat 8.0 ในเครื่อง — ถ้าติดตั้งไว้แล้ว ให้ระบุตำแหน่ง CROPWAT.exe ด้านล่าง";
+    // ช่องระบุตำแหน่งเองซ่อนไว้ไม่ให้รกตา — กางให้อัตโนมัติเฉพาะตอนหาไม่เจอ (ครั้งเดียว)
+    if (!exeDetailsAutoOpened) {
+      document.getElementById("exe-details").open = true;
+      exeDetailsAutoOpened = true;
+    }
+  } else if (exeState === "unknown") {
+    el.className = "exe-status";
+    el.textContent = "ตรวจหาโปรแกรมไม่ได้ในตอนนี้ — ถ้าติดตั้งไว้นอกตำแหน่งมาตรฐาน ให้ระบุตำแหน่งเองด้านล่าง";
+  } else {
+    el.className = "exe-status";
+    el.textContent = "กำลังตรวจสอบ...";
   }
 }
 
@@ -258,25 +306,29 @@ function renderMonthGrid() {
     card.className = "month-card" + (skipped ? " skipped" : "");
     card.dataset.month = m;
 
+    // v0.13 — แถวเดือนแนวนอนกะทัดรัด: .month-inner เป็นกริดของแถว (ชื่อเดือน | ชิปวันปลูก
+    // | ชิปถ่ายภาพ | ข้าม) ตารางรายวันกางเต็มความกว้างแถวเฉพาะเดือนที่กด "กำหนดเอง"
     card.innerHTML = `
-      <div class="month-head">
-        <span class="month-name">${MONTH_NAMES[m - 1]}<span class="cnt-wrap"><span class="cnt">${s.days.size}</span> วัน</span></span>
-        <label class="skip-toggle">
-          <input type="checkbox" class="skipbox" ${skipped ? "checked" : ""} />
-          ข้าม
-        </label>
-      </div>
-      <div class="preset-chips">
-        ${CANDIDATE_PRESETS.map(
-          (p) => `<span class="chip" data-preset="${p}">${chipLabel(p)}</span>`
-        ).join("")}
-      </div>
-      <div class="day-grid"></div>
-      <div class="shot-row" title="วันที่จะถ่ายภาพบันทึกไว้ส่งงาน (จุดสีทองบนตารางรายวัน)">
-        <span class="shot-lbl">${ICONS.camera} ถ่ายภาพ</span>
-        ${SHOT_PRESETS.map(
-          (p) => `<span class="chip shot-chip" data-shot="${p}">${chipLabel(p)}</span>`
-        ).join("")}
+      <div class="month-inner">
+        <div class="month-head">
+          <span class="month-name">${MONTH_NAMES[m - 1]}<span class="cnt-wrap"><span class="cnt">${s.days.size}</span> วัน</span></span>
+          <label class="skip-toggle" title="ไม่ประมวลผลเดือนนี้">
+            <input type="checkbox" class="skipbox" ${skipped ? "checked" : ""} />
+            ข้าม
+          </label>
+        </div>
+        <div class="preset-chips">
+          ${CANDIDATE_PRESETS.map(
+            (p) => `<span class="chip" data-preset="${p}">${chipLabel(p)}</span>`
+          ).join("")}
+        </div>
+        <div class="shot-row" title="วันที่จะถ่ายภาพบันทึกไว้ส่งงาน (จุดสีทองบนตารางรายวัน)">
+          <span class="shot-lbl">${ICONS.camera} ถ่ายภาพ</span>
+          ${SHOT_PRESETS.map(
+            (p) => `<span class="chip shot-chip" data-shot="${p}">${chipLabel(p)}</span>`
+          ).join("")}
+        </div>
+        <div class="day-grid"></div>
       </div>
     `;
     monthGrid.appendChild(card);
@@ -375,6 +427,82 @@ monthGrid.addEventListener("change", (e) => {
   scheduleCalendarAutoSave();
 });
 
+// ---------------------------------------------------------------------------
+// v0.13 — แถบปุ่มลัด "ตั้งพร้อมกันทุกเดือน" เหนือแถวเดือน
+// ใช้กับเฉพาะเดือนที่ไม่ได้ติ๊ก "ข้าม": ผู้ใช้มักข้ามบางเดือนโดยตั้งใจ ถ้าตั้งทับทั้ง 12
+// เดือน เดือนที่ข้ามไว้จะกลับมารันเงียบๆ (เพิ่มงานหลายร้อยรอบโดยไม่รู้ตัว) —
+// ยกเว้นตอนข้ามอยู่ทุกเดือน ให้ใช้กับทั้ง 12 เดือน (ทางเดียวที่จะเริ่มแผนใหม่ได้เร็ว)
+// ---------------------------------------------------------------------------
+const ALL_MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const activeMonthList = () => ALL_MONTHS.filter((m) => calendarState[m].days.size > 0);
+
+document.getElementById("bulk-bar").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-bulk-days], button[data-bulk-shot]");
+  if (!btn || !settings) return;
+  const active = activeMonthList();
+
+  if (btn.dataset.bulkDays) {
+    const preset = btn.dataset.bulkDays;
+    if (preset === "skip") {
+      if (!active.length) return;
+      if (!confirm("ข้ามทุกเดือน = ล้างวันปลูกที่เลือกไว้ทั้ง 12 เดือน\n\nต้องการดำเนินการต่อหรือไม่?")) return;
+      for (const m of ALL_MONTHS) {
+        calendarState[m].days = new Set();
+        calendarState[m].shotDays = new Set();
+      }
+      openMonths.clear();
+    } else {
+      const targets = active.length ? active : ALL_MONTHS;
+      const custom = targets.filter(
+        (m) => detectCandidatePreset(calendarState[m].days, MONTH_DAYS[m - 1]) === "กำหนดเอง"
+      );
+      if (custom.length && !confirm(
+        `มี ${custom.length} เดือนที่เลือกวันปลูกเองไว้ (${custom.map((m) => MONTH_ABBR_TH[m]).join(", ")}) ` +
+        "— การตั้งพร้อมกันจะเขียนทับวันที่เลือกไว้\n\nต้องการดำเนินการต่อหรือไม่?"
+      )) return;
+      for (const m of targets) {
+        const s = calendarState[m];
+        // กติกาเดียวกับชิปรายเดือน: คงไว้เฉพาะวันถ่ายภาพเดิมที่ยังเป็นวันปลูกอยู่ — ห้าม
+        // ขยายวันถ่ายภาพตามวันปลูกชุดใหม่ (เช่น "ทุกวัน" จะกลายเป็นภาพหลายพันใบโดยไม่ตั้งใจ)
+        s.days = daysForPreset(preset, MONTH_DAYS[m - 1]);
+        s.shotDays = new Set([...s.shotDays].filter((d) => s.days.has(d)));
+        openMonths.delete(m);
+      }
+    }
+  } else {
+    if (!active.length) {
+      showToast("ยังไม่มีเดือนที่เลือกวันปลูก — ตั้งวันปลูกก่อน", true);
+      return;
+    }
+    for (const m of active) {
+      calendarState[m].shotDays = shotDaysForPreset(btn.dataset.bulkShot, calendarState[m].days);
+    }
+  }
+  renderMonthGrid();
+  scheduleCalendarAutoSave();
+});
+
+// ไฮไลต์ปุ่มลัดที่ตรงกับแผนตอนนี้: ปุ่มติดเมื่อ "ทุกเดือนที่ไม่ได้ข้าม" ตรงกับปุ่มนั้นพอดี
+// (เทียบชุดวันตรงๆ — แผนที่ตรงได้หลายแบบพร้อมกัน เช่นวันปลูก 1,15 ถ่ายภาพ 1,15 จะติดทั้ง
+// "1, 15" และ "ทั้งหมด" ซึ่งถูกทั้งคู่ ผู้ใช้กดปุ่มไหนก็เห็นปุ่มนั้นติด)
+const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
+function syncBulkBar() {
+  const active = activeMonthList();
+  document.querySelectorAll("#bulk-bar [data-bulk-days]").forEach((c) => {
+    const p = c.dataset.bulkDays;
+    const on = p === "skip"
+      ? active.length === 0
+      : active.length > 0 && active.every((m) => sameSet(calendarState[m].days, daysForPreset(p, MONTH_DAYS[m - 1])));
+    c.classList.toggle("selected", on);
+  });
+  document.querySelectorAll("#bulk-bar [data-bulk-shot]").forEach((c) => {
+    const p = c.dataset.bulkShot;
+    const on = active.length > 0 &&
+      active.every((m) => sameSet(calendarState[m].shotDays, shotDaysForPreset(p, calendarState[m].days)));
+    c.classList.toggle("selected", on);
+  });
+}
+
 function updateSummary() {
   let totalDays = 0;
   let totalShots = 0;
@@ -384,6 +512,12 @@ function updateSummary() {
   }
   document.getElementById("sum-days").textContent = totalDays;
   document.getElementById("sum-shots").textContent = totalShots;
+  // สรุปบนหัวการ์ด "แผนวันปลูก" — เห็นได้แม้ตอนพับการ์ดเก็บ
+  const activeMonths = Object.values(calendarState).filter((s) => s.days.size > 0).length;
+  document.getElementById("plan-days").textContent = totalDays;
+  document.getElementById("plan-shots").textContent = totalShots;
+  document.getElementById("plan-months").textContent = activeMonths ? `${activeMonths} เดือน` : "ยังไม่ได้เลือกเดือน";
+  syncBulkBar();
 
   const startYear = Number(document.getElementById("start-year").value) || 0;
   const endYear = Number(document.getElementById("end-year").value) || 0;
@@ -412,6 +546,10 @@ let lastScan = null;
 document.getElementById("btn-scan").addEventListener("click", async () => {
   const ok = await saveConfig({ input_dir: document.getElementById("input-dir").value });
   if (!ok) return;
+  // โฟลเดอร์ต้นทางเพิ่งถูกบันทึก — อัปเดตเช็คลิสต์/แถบบันทึก/ชื่อใต้โลโก้ทันที
+  document.getElementById("brand-sub").textContent = settings.input_dir || "ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง";
+  updateReadiness();
+  updateSaveBar();
   const res = await fetch("/api/scan");
   lastScan = await res.json();
   renderScanResults(lastScan);
@@ -426,6 +564,7 @@ async function browseFolder(inputEl) {
   const data = await res.json();
   if (data.path) {
     inputEl.value = data.path;
+    updateSaveBar(); // ตั้งค่าผ่านโค้ดไม่ยิง event "input" — แจ้งแถบบันทึกเอง
   }
 }
 
@@ -446,6 +585,7 @@ async function pickFile(inputEl) {
   const data = await res.json();
   if (data.path) {
     inputEl.value = data.path;
+    updateSaveBar();
   }
 }
 
@@ -501,7 +641,7 @@ function renderScanResults(scan) {
   const strip = document.getElementById("readiness-strip");
 
   if (!scan) {
-    badge.textContent = "ยังไม่ได้สแกน";
+    badge.textContent = "ยังไม่ได้ตรวจสอบ";
     badge.className = "badge neutral";
     container.innerHTML = "";
     strip.innerHTML = "";
@@ -516,7 +656,7 @@ function renderScanResults(scan) {
     return;
   }
 
-  badge.textContent = "สแกนแล้ว";
+  badge.textContent = "ตรวจสอบแล้ว";
   badge.className = "badge ok";
 
   const yearStrip = (s) => {
@@ -581,27 +721,37 @@ function formatEta(seconds) {
 
 function renderStatus(snapshot) {
   if (!snapshot) return;
+  lastSnapshot = snapshot;
   const years = snapshot.years || [];
   const doneCount = years.filter((y) => y.status === "done").length;
   const total = years.length;
 
-  const currentTxt = snapshot.current_year ? ` · กำลังดำเนินการปี ${snapshot.current_year}` : "";
-  const etaTxt = formatEta(snapshot.eta_seconds);
-  const etaSuffix = etaTxt ? ` · ${etaTxt}` : "";
   // ใช้ progress ระดับ "วันปลูก" ถ้ามี (ละเอียดกว่าระดับปีมาก — 1 ปีมีหลายวันปลูก
   // การนับแค่ปีทำให้ bar กระโดดทีละก้าวใหญ่ดูเหมือนค้าง) fallback เป็นระดับปี
+  // v0.13 — ปีที่กำลังทำ + เวลาที่เหลือย้ายไปเป็นหัวข้อ/ป้าย ETA ของแผงหลัก
+  // (updateRunHero) บรรทัดใต้แถบเหลือแค่ตัวเลขนับ อ่านได้ในแวบเดียว
+  let pct;
   if (snapshot.candidate_total > 0) {
-    const pct = (snapshot.candidate_done / snapshot.candidate_total) * 100;
-    document.getElementById("progress-fill").style.width = `${pct}%`;
+    pct = (snapshot.candidate_done / snapshot.candidate_total) * 100;
     document.getElementById("progress-txt").textContent =
-      `${snapshot.candidate_done} / ${snapshot.candidate_total} วันปลูก${currentTxt}${etaSuffix}`;
+      `${fmtNum(snapshot.candidate_done)} / ${fmtNum(snapshot.candidate_total)} วันปลูก · เสร็จ ${doneCount} / ${total} ปี`;
   } else {
-    document.getElementById("progress-fill").style.width = total ? `${(doneCount / total) * 100}%` : "0%";
-    document.getElementById("progress-txt").textContent = `${doneCount} / ${total} ปี${currentTxt}`;
+    pct = total ? (doneCount / total) * 100 : 0;
+    document.getElementById("progress-txt").textContent = `เสร็จ ${doneCount} / ${total} ปี`;
   }
+  document.getElementById("progress-fill").style.width = `${pct}%`;
+  document.getElementById("run-pct").textContent = `${Math.floor(pct)}%`;
+  // backend ส่ง eta = null ทั้งตอนยังประมาณไม่ได้ และตอนทำครบทุกวันปลูกแล้วแต่ยังสรุปผล/
+  // สร้าง Excel+Word อยู่ (สถานะยังเป็น running) — แยกข้อความให้ตรงกับสิ่งที่เกิดจริง
+  // (ตอน "กำลังหยุด" ป้ายนี้ถูกซ่อนด้วย CSS)
+  const wrappingUp = snapshot.candidate_total > 0 && snapshot.candidate_done >= snapshot.candidate_total;
+  document.getElementById("run-eta").textContent = wrappingUp
+    ? "ครบทุกวันปลูกแล้ว — กำลังสรุปผล..."
+    : formatEta(snapshot.eta_seconds) || "กำลังประมาณเวลาที่เหลือ...";
 
   const isRunning = snapshot.overall_state === "running";
-  document.getElementById("btn-start").disabled = isRunning;
+  // ระหว่าง "กำลังหยุด" ก็กดเริ่มไม่ได้ (backend ยังไม่ว่าง) — ถ้าค้างนาน ใช้ Force Close
+  document.getElementById("btn-start").disabled = isRunning || snapshot.overall_state === "stopping";
   document.getElementById("btn-stop").disabled = !isRunning;
 
   // v0.5.20 — เดิมปุ่ม "รันปีที่มีปัญหาซ้ำ" โชว์ตลอดแม้ไม่มีปีไหน error เลย ทำให้
@@ -611,11 +761,18 @@ function renderStatus(snapshot) {
   const errorCount = years.filter((y) => y.status === "error").length;
   const retryBtn = document.getElementById("btn-retry");
   retryBtn.hidden = errorCount === 0;
-  retryBtn.disabled = isRunning;
+  retryBtn.disabled = isRunning || snapshot.overall_state === "stopping";
   const errorBadge = document.getElementById("error-count-badge");
   errorBadge.hidden = errorCount === 0;
-  if (errorCount > 0) errorBadge.textContent = `⚠ ${errorCount} ปีมีปัญหา`;
+  if (errorCount > 0) errorBadge.textContent = `${errorCount} ปีมีปัญหา`;
   document.getElementById("btn-copy-all-errors").hidden = errorCount === 0;
+  // v0.13 — กล่องปีที่มีปัญหาอยู่บนสุดของการ์ดผลลัพธ์ แสดงเฉพาะตอนมีปัญหา
+  document.getElementById("error-zone").hidden = errorCount === 0;
+
+  // v1.0 — เริ่มรัน: พับแผนวันปลูกเก็บ ดันผลลัพธ์/ภาพหน้าจอขึ้นมาในจอแรก (พับครั้งเดียว
+  // ตอนเปลี่ยนเป็นกำลังรัน ผู้ใช้กดเปิดดูเองได้) — จงใจ "ไม่" กางคืนตอนรันจบ: ตอนนั้นคือ
+  // จังหวะที่ผู้ใช้ต้องเห็นปีที่มีปัญหา/ปุ่มเปิดไฟล์ ซึ่งการ์ดแผนที่กางจะดันลงไปใต้จอ
+  if (isRunning && !wasRunning && planCard.open) planCard.open = false;
 
   // พอรันจบ (idle) รีเฟรชความคืบหน้าไฟล์ output อัตโนมัติ ให้เห็นว่าทำต่อได้ถึงไหน
   // + ดึงภาพหน้าจอสุดท้ายมาแสดง (เผื่อภาพบันทึกใบสุดท้ายมาหลังรอบ poll ล่าสุด)
@@ -682,6 +839,8 @@ function renderStatus(snapshot) {
     item.append(yearEl, text, actions);
     errorList.appendChild(item);
   }
+
+  updateRunHero();
 }
 
 document.getElementById("btn-copy-all-errors").addEventListener("click", async () => {
@@ -729,9 +888,252 @@ async function fetchOutputProgress() {
       (y) => `<div class="os-cell ${y.status}"><div class="y">${y.year}</div><div class="f">${y.done}/${y.expected}</div></div>`
     )
     .join("");
+  lastOutput = data;
+  outputStale = false;
+  updateRunHero();
 }
 
 document.getElementById("btn-rescan").addEventListener("click", fetchOutputProgress);
+
+// ---------------------------------------------------------------------------
+// v1.0 — ความพร้อม (แบนเนอร์นำทาง + ขั้นตอนหน้าตั้งค่า) และแผงสถานะหลัก
+// ทั้งหมดเป็นการ "แสดงผล" จากข้อมูลที่โหลดมาแล้ว: settings, calendarState,
+// lastSnapshot, lastOutput, exeState — ไม่มีการเรียก API ในส่วนนี้
+// ---------------------------------------------------------------------------
+function readinessItems() {
+  const classic = !!settings && settings.hidden_desktop_mode === false;
+  return {
+    input: !!(settings && settings.input_dir),
+    output: !!(settings && settings.output_dir),
+    // โหมดคลาสสิกผู้ใช้เปิด CropWat เอง ไม่ต้องรู้ตำแหน่งโปรแกรม — และถ้ายังตรวจ
+    // ไม่เสร็จ/ตรวจไม่ได้ ก็ไม่ถือว่าขาด กันแบนเนอร์เด้งผิดๆ (backend แจ้งเองตอนเริ่มถ้าไม่เจอ)
+    exe: classic || exeState !== "missing",
+    classic,
+  };
+}
+
+function isReady() {
+  if (!settings) return true; // ยังโหลดไม่เสร็จ — อย่าเพิ่งฟ้องว่าไม่พร้อม
+  const r = readinessItems();
+  return r.input && r.output && r.exe;
+}
+
+function setChk(id, ok, detail) {
+  const li = document.getElementById(id);
+  li.classList.toggle("ok", ok);
+  const d = li.querySelector(".chk-detail");
+  d.textContent = detail;
+  d.title = detail;
+}
+
+function updateReadiness() {
+  renderExeStatus();
+  if (settings) {
+    const r = readinessItems();
+    setChk("chk-input", r.input, r.input ? settings.input_dir : "ยังไม่ได้เลือก — ขั้นที่ 1 ในหน้าตั้งค่า");
+    setChk("chk-output", r.output, r.output ? settings.output_dir : "ยังไม่ได้เลือก — ขั้นที่ 2 ในหน้าตั้งค่า");
+    // เครื่องหมายถูกเฉพาะตอนเจอจริง (หรือโหมดคลาสสิก) — ตรวจไม่ได้ขึ้นเป็นข้อที่ต้องดู
+    const exeOk = r.classic || exeState === "found";
+    setChk(
+      "chk-exe",
+      exeOk,
+      r.classic ? "โหมดคลาสสิก — เปิด CropWat เองก่อนเริ่ม"
+        : exeState === "found" ? exePath || "พบโปรแกรมแล้ว"
+        : exeState === "missing" ? "ไม่พบโปรแกรม — ระบุตำแหน่งในขั้นที่ 3"
+        : exeState === "unknown" ? "ตรวจหาโปรแกรมไม่ได้ — ดูขั้นที่ 3"
+        : "กำลังตรวจสอบ...",
+    );
+    document.getElementById("onboard-banner").hidden = isReady();
+    document.getElementById("step-1").dataset.done = String(r.input);
+    document.getElementById("step-2").dataset.done = String(r.output);
+    document.getElementById("step-3").dataset.done = String(exeOk);
+  }
+  updateRunHero();
+}
+
+// สถานะของแผงหลัก (เรียงตามลำดับความสำคัญ):
+//   running/stopping → ยังโหลดไม่เสร็จ → ยังตั้งค่าไม่ครบ → แผนว่าง (ไม่มีวันปลูก)
+//   → หยุดกลางคันโดยมีปีที่มีปัญหา (ยังเหลือปีรอคิว) → จบแล้วมีปีที่มีปัญหา
+//   → เสร็จครบ → พร้อม
+// "เสร็จครบ" ยึดไฟล์จริงในเครื่องเป็นหลัก (สถานะในหน่วยความจำหายเมื่อปิดโปรแกรม และอาจ
+// เป็นของแผนเก่า) และไม่เชื่อผลตรวจไฟล์ที่เก่ากว่าแผนปัจจุบัน (outputStale)
+function deriveRunState() {
+  const overall = lastSnapshot ? lastSnapshot.overall_state : "idle";
+  if (overall === "running") return "running";
+  if (overall === "stopping") return "stopping";
+  if (!settings) return "loading";
+  if (!isReady()) return "setup";
+  if (!ALL_MONTHS.some((m) => calendarState[m] && calendarState[m].days.size > 0)) return "noplan";
+  const years = lastSnapshot ? lastSnapshot.years || [] : [];
+  if (years.some((y) => y.status === "error")) {
+    return years.some((y) => y.status === "queued") ? "stopped" : "error";
+  }
+  if (!outputStale) {
+    const doneOnDisk = !!lastOutput && lastOutput.total_expected > 0 && lastOutput.total_done >= lastOutput.total_expected;
+    const doneInRun = years.length > 0 && years.every((y) => y.status === "done");
+    if (lastOutput ? doneOnDisk : doneInRun) return "done";
+  }
+  return "ready";
+}
+
+function updateRunHero() {
+  const card = document.getElementById("run-card");
+  const state = deriveRunState();
+  const snap = lastSnapshot;
+  const years = snap ? snap.years || [] : [];
+  const doneYears = years.filter((y) => y.status === "done").length;
+  const errorYears = years.filter((y) => y.status === "error").length;
+  const queuedYears = years.filter((y) => y.status === "queued").length;
+  card.dataset.state = state === "loading" ? "ready" : state;
+  card.dataset.progress = snap && (snap.candidate_total > 0 || doneYears || errorYears) ? "1" : "0";
+  document.getElementById("view-dash").dataset.run = state;
+
+  let badge;
+  let title;
+  let sub;
+  switch (state) {
+    case "loading":
+      badge = "กำลังโหลด";
+      title = "กำลังโหลดสถานะ...";
+      sub = " ";
+      break;
+    case "setup": {
+      const r = readinessItems();
+      const missing = [r.input, r.output, r.exe].filter((ok) => !ok).length;
+      badge = "ยังไม่พร้อม";
+      title = "ตั้งค่าให้ครบก่อนเริ่มประมวลผล";
+      sub = `ยังขาดอีก ${missing} ขั้น — ดูรายการด้านบน แล้วกด "ไปที่หน้าตั้งค่า"`;
+      break;
+    }
+    case "noplan":
+      badge = "ยังไม่พร้อม";
+      title = "ยังไม่ได้เลือกวันปลูก";
+      sub = "ข้ามอยู่ทุกเดือน — เลือกวันปลูกในการ์ด \"แผนวันปลูก\" ด้านล่างก่อนเริ่มประมวลผล";
+      break;
+    case "running": {
+      const wrappingUp = snap.candidate_total > 0 && snap.candidate_done >= snap.candidate_total;
+      badge = "กำลังประมวลผล";
+      title = wrappingUp
+        ? "กำลังสรุปผล..."
+        : snap.current_year ? `กำลังคำนวณปี ${snap.current_year}` : "กำลังเตรียมงาน...";
+      sub = wrappingUp
+        ? "ประมวลผลครบทุกวันปลูกแล้ว — รอสักครู่ ระบบกำลังเก็บงานและสร้างไฟล์ผลลัพธ์"
+        : settings && settings.hidden_desktop_mode === false
+          ? "CropWat ทำงานบนหน้าจอจริง — อย่าใช้เมาส์หรือคีย์บอร์ดจนกว่าจะเสร็จ"
+          : "CropWat ทำงานบนเดสก์ท็อปเบื้องหลัง — ใช้เครื่องทำงานอื่นได้ตามปกติ";
+      break;
+    }
+    case "stopping":
+      badge = "กำลังหยุด";
+      title = "กำลังหยุดการประมวลผล...";
+      sub = "รอให้วันปลูกที่ทำอยู่เสร็จก่อน งานที่เสร็จแล้วไม่หาย — ถ้าค้างนานผิดปกติ ใช้ Force Close";
+      break;
+    case "stopped":
+      badge = "หยุดอยู่";
+      title = `หยุดการประมวลผลแล้ว — ยังเหลือ ${queuedYears} ปี`;
+      sub = `กด "เริ่มประมวลผล" เพื่อทำต่อ (ระบบข้ามส่วนที่เสร็จแล้ว) · มี ${errorYears} ปีที่มีปัญหา — ` +
+        "\"ประมวลผลซ้ำปีที่มีปัญหา\" ทำเฉพาะปีที่มีปัญหาเท่านั้น";
+      break;
+    case "done":
+      badge = "เสร็จสมบูรณ์";
+      title = "ประมวลผลเสร็จครบแล้ว";
+      sub = (lastOutput
+        ? `${fmtNum(lastOutput.total_done)} วันปลูก · ${lastOutput.years.length} ปี`
+        : `${doneYears} ปี`) + " — กด \"เปิด Excel ดูผล\" (sheet สรุป บอกวันปลูกที่ดีที่สุด)";
+      break;
+    case "error":
+      badge = "มีปัญหา";
+      title = `ประมวลผลจบแล้ว แต่มี ${errorYears} ปีที่มีปัญหา`;
+      sub = "ดูสาเหตุได้ที่การ์ดผลลัพธ์ — แก้ไขข้อมูลแล้วกด \"ประมวลผลซ้ำปีที่มีปัญหา\" ส่วนผลของปีอื่นเปิดดูใน Excel ได้เลย";
+      break;
+    default: {
+      const resumable = !outputStale && !!lastOutput &&
+        lastOutput.total_done > 0 && lastOutput.total_done < lastOutput.total_expected;
+      badge = "พร้อม";
+      title = resumable ? "พร้อมทำต่อจากเดิม" : "พร้อมเริ่มประมวลผล";
+      sub = resumable
+        ? `เสร็จแล้ว ${fmtNum(lastOutput.total_done)} จาก ${fmtNum(lastOutput.total_expected)} วันปลูก — กด "เริ่มประมวลผล" ระบบจะทำเฉพาะส่วนที่เหลือ`
+        : outputStale
+          ? "แผนเปลี่ยนแล้ว — กด \"เริ่มประมวลผล\" ได้เลย (ระบบข้ามส่วนที่เสร็จแล้วให้เอง) หรือกด \"ตรวจไฟล์ใหม่\" ในการ์ดผลลัพธ์เพื่อนับงานที่เสร็จใหม่"
+          : "ตรวจช่วงปีและแผนวันปลูกด้านล่าง แล้วกด \"เริ่มประมวลผล\"";
+    }
+  }
+  document.getElementById("run-state-badge").textContent = badge;
+  document.getElementById("run-state-title").textContent = title;
+  document.getElementById("run-state-sub").textContent = sub;
+}
+
+// ไปหน้าตั้งค่า → โฟกัสช่องของขั้นแรกที่ยังไม่เสร็จ (คีย์บอร์ด/โปรแกรมอ่านหน้าจอไม่หลง)
+document.getElementById("btn-onboard-setup").addEventListener("click", () => {
+  showTab("setup");
+  window.scrollTo({ top: 0 });
+  const r = readinessItems();
+  const target = !r.input ? "input-dir" : !r.output ? "output-dir" : null;
+  if (target) document.getElementById(target).focus({ preventScroll: true });
+  else if (!r.exe) document.getElementById("exe-details").scrollIntoView({ block: "center" });
+});
+
+// ปุ่ม Excel มี 2 จุด (แผงหลัก + การ์ดผลลัพธ์) เรียก buildAndOpen เดิม — ปิดทั้งคู่ระหว่าง
+// สร้างไฟล์ กันกดซ้อนแล้วสร้าง Result.xlsx พร้อมกัน 2 รอบ (เดิมมีปุ่มเดียวที่ปิดตัวเองอยู่แล้ว)
+const excelBtns = ["btn-hero-excel", "btn-build-excel"].map((id) => document.getElementById(id));
+async function openExcel(btn) {
+  if (excelBtns.some((b) => b.disabled)) return;
+  excelBtns.forEach((b) => { b.disabled = true; });
+  try {
+    await buildAndOpen(btn, "excel");
+  } finally {
+    excelBtns.forEach((b) => { b.disabled = false; });
+  }
+}
+excelBtns.forEach((b) => b.addEventListener("click", (e) => openExcel(e.currentTarget)));
+
+document.getElementById("btn-hero-errors").addEventListener("click", () => {
+  const zone = document.getElementById("error-zone");
+  zone.scrollIntoView({ behavior: "smooth", block: "start" });
+  zone.focus({ preventScroll: true });
+});
+
+// ---------------------------------------------------------------------------
+// v0.13 — แถบบันทึกหน้าตั้งค่า: บอกเมื่อมีการแก้ไขที่ยังไม่ได้กดบันทึก
+// (เทียบค่าในฟอร์มกับ settings ที่บันทึกแล้ว + จุดเตือนบนแท็บ "ตั้งค่า")
+// ---------------------------------------------------------------------------
+const SETUP_FIELDS = [
+  ["input-dir", "input_dir", "text"],
+  ["output-dir", "output_dir", "text"],
+  ["cropwat-exe-path", "cropwat_exe_path", "text"],
+  ["climate-station-dir", "climate_station_dir", "text"],
+  ["rain-station-dir", "rain_station_dir", "text"],
+  ["crop-file", "crop_file", "text"],
+  ["soil-file", "soil_file", "text"],
+  ["manual-per-candidate", "manual_minutes_per_candidate", "number"],
+  ["hidden-desktop-mode", "hidden_desktop_mode", "bool"],
+  ["auto-build-outputs", "auto_build_outputs", "bool"],
+  ["speed-preset", "speed_preset", "select"],
+  ["shift-year-per-candidate", "shift_year_per_candidate", "bool"],
+];
+
+function isSetupDirty() {
+  if (!settings) return false;
+  return SETUP_FIELDS.some(([id, key, kind]) => {
+    const el = document.getElementById(id);
+    if (kind === "bool") return el.checked !== (settings[key] !== false);
+    if (kind === "number") return (Number(el.value) || 0) !== (Number(settings[key]) || 0);
+    if (kind === "select") return el.value !== (settings[key] || "normal");
+    return el.value !== (settings[key] || "");
+  });
+}
+
+function updateSaveBar() {
+  const dirty = isSetupDirty();
+  document.getElementById("save-bar").classList.toggle("dirty", dirty);
+  document.getElementById("save-state").textContent = dirty
+    ? "มีการแก้ไขที่ยังไม่ได้บันทึก — กด \"บันทึกการตั้งค่า\" เพื่อใช้ค่าใหม่"
+    : "บันทึกแล้ว — การตั้งค่าเป็นปัจจุบัน";
+  document.querySelector('.tab-btn[data-tab="setup"]').classList.toggle("dirty", dirty);
+}
+
+document.getElementById("view-setup").addEventListener("input", updateSaveBar);
+document.getElementById("view-setup").addEventListener("change", updateSaveBar);
 
 const MONTH_ABBR_TH = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
@@ -985,7 +1387,6 @@ async function buildAndOpen(btn, kind) {
   }
 }
 
-document.getElementById("btn-build-excel").addEventListener("click", (e) => buildAndOpen(e.currentTarget, "excel"));
 document.getElementById("btn-build-word").addEventListener("click", (e) => buildAndOpen(e.currentTarget, "word"));
 
 // ---------------------------------------------------------------------------
