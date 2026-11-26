@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -44,7 +45,17 @@ logger = logging.getLogger("desktop_session")
 _user32 = ctypes.windll.user32
 _GENERIC_ALL = 0x10000000
 _DESKTOP_SWITCHDESKTOP = 0x0100
-_DESKTOP_NAME = "CropWatAutoRunnerDesktop"
+# v1.3.0 — รันหลายหน้าต่างพร้อมกัน: แต่ละหน้าต่าง (worker) ใช้เดสก์ท็อปซ่อนของตัวเอง
+# (หน้าต่างที่ 1 = ชื่อเดิม, หน้าต่างที่ 2 ขึ้นไป = "<ชื่อเดิม>-2", "-3", ...) — แยกกันเพื่อ
+# ให้ _sweep_leftover_cropwat ของแต่ละ worker กวาดได้แค่ CropWat ค้างบนเดสก์ท็อปของตัวเอง
+# ไม่ไปปิด CropWat ของ worker อื่นที่กำลังทำงานอยู่ — env CROPWAT_AUTORUNNER_DESKTOP
+# เปลี่ยนชื่อฐานได้ (ใช้ตอนทดสอบ ไม่ให้ชนกับเดสก์ท็อปของโปรแกรมตัวจริงที่ผู้ใช้รันอยู่)
+_DESKTOP_NAME = os.environ.get("CROPWAT_AUTORUNNER_DESKTOP") or "CropWatAutoRunnerDesktop"
+
+
+def desktop_name_for(worker_index: int) -> str:
+    """ชื่อเดสก์ท็อปซ่อนของ worker ลำดับที่ worker_index (เริ่มที่ 0)"""
+    return _DESKTOP_NAME if worker_index <= 0 else f"{_DESKTOP_NAME}-{worker_index + 1}"
 
 # path มาตรฐานที่ตัวติดตั้ง CropWat 8.0 ใช้ — ลองหาให้เองถ้าผู้ใช้ยังไม่ได้ตั้งค่า
 _DEFAULT_EXE_CANDIDATES = [
@@ -96,6 +107,9 @@ def hidden_desktop_exists() -> bool:
 # --------------------------------------------------------------------------
 
 _screenshot_request = threading.Event()
+# v1.3.0 — มีหลาย worker คอยบริการคำขอพร้อมกันได้ ล็อกช่วง "เช็ค+เคลียร์คำขอ" ให้มีแค่
+# worker เดียวที่ได้ถ่าย (ไม่งั้นสองตัวอาจเขียน latest.png ทับกันพร้อมกัน)
+_screenshot_claim_lock = threading.Lock()
 _screenshot_ready = threading.Event()
 _screenshot_path: Optional[Path] = None
 _screenshot_error: Optional[str] = None
@@ -131,7 +145,10 @@ def service_peek_request(engine, output_dir: str) -> None:
     global _screenshot_path, _screenshot_error
     if not _screenshot_request.is_set():
         return
-    _screenshot_request.clear()
+    with _screenshot_claim_lock:
+        if not _screenshot_request.is_set():
+            return  # worker อื่นรับคำขอนี้ไปแล้ว
+        _screenshot_request.clear()
     try:
         peek_dir = Path(output_dir) / PEEK_SCREENSHOT_DIR_NAME
         peek_dir.mkdir(parents=True, exist_ok=True)
@@ -153,8 +170,9 @@ class HiddenDesktopSession:
     เรียกเท่านั้น — pywinauto/win32 หลังจากนั้นจะ enumerate หน้าต่างบนเดสก์ท็อป
     ซ่อนโดยอัตโนมัติ ปกติเรียกจาก runner background thread (_run_years)"""
 
-    def __init__(self, cropwat_exe_path: str) -> None:
+    def __init__(self, cropwat_exe_path: str, desktop_name: Optional[str] = None) -> None:
         self.exe_path = cropwat_exe_path
+        self.desktop_name = desktop_name or _DESKTOP_NAME
         self._hdesk: Optional[int] = None
         self._orig_desktop: Optional[int] = None
         self._proc_handle = None
@@ -180,7 +198,7 @@ class HiddenDesktopSession:
         )
 
         self._hdesk = _user32.CreateDesktopW(
-            _DESKTOP_NAME, None, None, 0, _GENERIC_ALL, None
+            self.desktop_name, None, None, 0, _GENERIC_ALL, None
         )
         if not self._hdesk:
             raise DesktopSessionError(
@@ -210,7 +228,7 @@ class HiddenDesktopSession:
 
         # เปิด CropWat บนเดสก์ท็อปซ่อน
         startup = win32process.STARTUPINFO()
-        startup.lpDesktop = _DESKTOP_NAME
+        startup.lpDesktop = self.desktop_name
         try:
             self._proc_handle, _thr, self.pid, _tid = win32process.CreateProcess(
                 str(exe), None, None, None, False, 0, None, str(exe.parent), startup
@@ -219,7 +237,7 @@ class HiddenDesktopSession:
             self.stop()
             raise DesktopSessionError(f"เปิด CropWat ในเดสก์ท็อปซ่อนไม่สำเร็จ: {exc}") from exc
 
-        logger.info("เปิด CropWat (pid=%s) บนเดสก์ท็อปซ่อนแล้ว", self.pid)
+        logger.info("เปิด CropWat (pid=%s) บนเดสก์ท็อปซ่อน %s แล้ว", self.pid, self.desktop_name)
         self._wait_ready_and_dismiss_welcome()
         return self.pid
 

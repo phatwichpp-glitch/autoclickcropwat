@@ -11,9 +11,13 @@ asyncio event loop ของ FastAPI เพราะ pywinauto เป็น bloc
 from __future__ import annotations
 
 import logging
+import queue
 import re
 import threading
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 from automation.cropwat_engine import CropWatEngine, PlantingDateTask, force_close_cropwat
 from automation.exceptions import CropWatAutomationError
@@ -225,8 +229,9 @@ def force_reset() -> int:
     v0.7.0: ปิด CropWat บนเดสก์ท็อปซ่อนด้วย (find_windows มองไม่เห็นข้ามเดสก์ท็อป
     ต้องปิดผ่าน process handle ของ session ตรงๆ)"""
     killed = force_close_cropwat()
-    session = _active_hidden_session
-    if session is not None:
+    with _sessions_lock:
+        sessions = list(_active_hidden_sessions)
+    for session in sessions:  # v1.3.0: ปิดทุกหน้าต่างที่รันขนานกันอยู่
         try:
             session.stop()
             killed += 1
@@ -393,74 +398,72 @@ def _run_years(years: list[int], settings: Settings) -> None:
 
 # session เดสก์ท็อปซ่อนที่กำลังรันอยู่ — เก็บไว้ให้ force_reset ปิดได้ (CropWat บน
 # เดสก์ท็อปซ่อนมองไม่เห็นจาก find_windows ของ thread บนเดสก์ท็อปปกติ จึงต้องปิด
-# ผ่าน process handle ของ session ตรงๆ) และให้ปุ่ม "ดูเดสก์ท็อปซ่อน" เช็คว่ามีอยู่
-_active_hidden_session = None
+# ผ่าน process handle ของ session ตรงๆ) — v1.3.0: มีได้หลายตัวพร้อมกัน (1 ตัวต่อ 1
+# หน้าต่าง CropWat ที่รันขนานกัน)
+_active_hidden_sessions: list = []
+_sessions_lock = threading.Lock()
+
+# v1.3.0 — เว้นระยะเปิด CropWat แต่ละหน้าต่าง (วินาที) ไม่ให้เปิดพร้อมกันทีเดียว (ตัวคุม
+# ใน _run_years_hidden_desktop เปิดทีละบาน):
+# ตอนเปิด CropWat อ่าน Cropwat.ini + โหลดหน้าต่างหนักสุด เปิดชนกันหลายตัวเครื่องช้าๆ
+# อาจหน่วงจน Welcome dialog/หน้าต่างหลักโผล่ช้าเกิน timeout
+_WORKER_STAGGER_SECONDS = 2.5
 
 
-def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
-    """รันทั้ง batch บนเดสก์ท็อปซ่อน — เปิด CropWat เองในนั้น
-    ต้องผูก thread + launch ก่อน connect เสมอ และปิด CropWat + เดสก์ท็อปตอนจบทุกกรณี"""
-    global _active_hidden_session
-    from desktop_session import DesktopSessionError, HiddenDesktopSession
+@dataclass
+class _Batch:
+    """ของที่ "คงที่ตลอด batch" — เตรียมครั้งเดียวก่อนเริ่ม แชร์ให้ทุกหน้าต่างใช้ร่วม"""
 
-    session = HiddenDesktopSession(settings.cropwat_exe_path)
+    crop_file: Path
+    soil_file: Path
+    climate_index: object
+    rain_index: object
+    txt_ok: set
+    shots_ok: set
+    total: int
+    done: int
+    lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def candidate_done(self) -> None:
+        # หลายหน้าต่างเรียกพร้อมกันได้ — นับ + ส่ง progress ในล็อกเดียวกัน กันเลขถอยหลัง
+        # (min กับ total: วันปลูกที่ล้มเหลวแล้วถูกย้ายไปทำต่ออีกหน้าต่างตอนลดจำนวนหน้าต่าง
+        # จะถูกนับซ้ำ — ไม่ให้ตัวเลขเกิน 100%)
+        with self.lock:
+            self.done = min(self.done + 1, self.total)
+            run_state.set_candidate_progress(self.done, self.total)
+
+
+@dataclass
+class _YearPlan:
+    year: int
+    tasks: list
+    climate_file_for: object
+    rain_file_for: object
+
+
+def _fail_all_years(years: list[int], message: str) -> None:
+    for year in years:
+        run_state.set_year_status(year, YearRunStatus.ERROR, error_message=message)
+
+
+def _notify_safe(title: str, message: str) -> None:
     try:
-        session.bind_and_launch()
-    except DesktopSessionError as exc:
-        logger.error("เปิดเดสก์ท็อปซ่อนไม่สำเร็จ หยุดการรันทั้งหมด: %s", exc)
-        for year in years:
-            run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
-        run_state.end_run()
-        return
+        import overlay
 
-    _active_hidden_session = session
-    speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)
-    # background_mode=True = สั่งเมนูแบบ message ล้วน (เหมาะกับเดสก์ท็อปที่ไม่มี
-    # input จริง) — ไม่มี watcher/shield ในระบบอีกต่อไป (ถอดออกทั้งหมดใน v0.7.0)
-    engine = CropWatEngine(background_mode=True, speed_multiplier=speed_multiplier)
-    # v0.8.0 — pause_check เดิมใช้ park automation ตอนสลับจอไปดูสด (v0.7.x) แต่
-    # ฟีเจอร์นั้นถูกถอดออกทั้งหมดแล้ว (ยังชนกับ "Cannot make a visible window
-    # modal" ซ้ำๆ ไม่มีทางป้องกันได้ 100%) — ตอนนี้ผูก hook เดียวกัน (เช็คก่อน
-    # "ทุกคำสั่งเมนู" ใน _invoke_menu) ให้บริการคำขอ "ถ่ายภาพหน้าจอตอนนี้" แทน
-    # (PrintWindow ล้วนๆ ไม่สลับจอเลย ปลอดภัยกว่ามาก)
-    import desktop_session
-
-    def _service_peek() -> None:
-        desktop_session.service_peek_request(engine, settings.output_dir)
-
-    engine.pause_check = _service_peek
-    engine.error_shots_dir = Path(settings.output_dir) / "_error_dialogs"
-    try:
-        try:
-            # ล็อกเป้าที่ pid ที่เราเพิ่งเปิดเองตรงๆ (v0.10.1) — กัน
-            # ElementAmbiguousError กรณีมี CropWat ค้างจาก session เก่า
-            engine.connect(process=session.pid)
-        except CropWatAutomationError as exc:
-            logger.error("connect() เดสก์ท็อปซ่อนล้มเหลว หยุดการรัน: %s", exc)
-            for year in years:
-                run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
-            run_state.end_run()
-            return
-        # _run_years_inner จัดการสถานะรายปี + end_run() เองครบทุกกรณี
-        _run_years_inner(years, settings, engine)
-    finally:
-        # ปิด CropWat + เดสก์ท็อปซ่อนเสมอ ไม่ว่าจะจบปกติหรือ error
-        _active_hidden_session = None
-        session.stop()
+        overlay.notify(title, message)
+    except Exception:  # noqa: BLE001
+        pass
 
 
-def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine) -> None:
+def _prepare_batch(years: list[int], settings: Settings) -> Optional[_Batch]:
+    """เตรียมทุกอย่างที่ "คงที่ตลอด batch" ครั้งเดียวก่อนเริ่มวนหลายปี: resolve ไฟล์
+    crop/soil + โฟลเดอร์สถานี + index ไฟล์ climate/rain ทั้งสถานี (เดิม index ใหม่ทุก
+    ปีในลูป — สแกนโฟลเดอร์ทั้งต้นไม้ recursive ซ้ำ 45 รอบ ทั้งที่ผลเหมือนเดิมทุกรอบ)
+    + ตรวจไฟล์ผลลัพธ์เดิม (resume) — ถ้าขั้นนี้พังถือว่าทั้ง batch error หมด คืน None"""
     input_root = Path(settings.input_dir)
-
-    # เตรียมทุกอย่างที่ "คงที่ตลอด batch" ครั้งเดียวก่อนเริ่มวนหลายปี: เช็ค crop/
-    # soil เปิดอยู่ + resolve โฟลเดอร์สถานี + index ไฟล์ climate/rain ทั้งสถานี
-    # (เดิม index ใหม่ทุกปีในลูป — สแกนโฟลเดอร์ทั้งต้นไม้ recursive ซ้ำ 45 รอบ
-    # ทั้งที่ผลเหมือนเดิมทุกรอบ) — ถ้าขั้นนี้พังถือว่าทั้ง batch error หมดเลย
     try:
         crop_file = _resolve_single_file(input_root, ".cro", settings.crop_file)
         soil_file = _resolve_single_file(input_root, ".soi", settings.soil_file)
-        engine.ensure_crop_soil_open(crop_file, soil_file)
-
         climate_station = _resolve_single_station(
             input_root, "Clim_", settings.climate_station_dir
         )
@@ -471,18 +474,9 @@ def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine
         rain_index = file_paths.index_rain_station(rain_station)
     except Exception as exc:  # noqa: BLE001 -- ต้องแจ้งทุกปีว่า error เพราะเหตุนี้
         logger.error("เตรียมไฟล์/สถานีก่อนรันไม่สำเร็จ หยุดการรันทั้งหมด: %s", exc)
-        for year in years:
-            run_state.set_year_status(
-                year, YearRunStatus.ERROR, error_message=f"เตรียมไฟล์/สถานีไม่สำเร็จ: {exc}"
-            )
-        try:
-            import overlay
-
-            overlay.notify("การรันล้มเหลวตั้งแต่เริ่ม", f"เตรียมไฟล์/สถานีไม่สำเร็จ: {str(exc)[:120]}")
-        except Exception:  # noqa: BLE001
-            pass
-        run_state.end_run()
-        return
+        _fail_all_years(years, f"เตรียมไฟล์/สถานีไม่สำเร็จ: {exc}")
+        _notify_safe("การรันล้มเหลวตั้งแต่เริ่ม", f"เตรียมไฟล์/สถานีไม่สำเร็จ: {str(exc)[:120]}")
+        return None
 
     # resume: ตรวจไฟล์ output "แบบอ่านเนื้อไฟล์จริง" (parse ทุก .txt + เช็คภาพครบคู่)
     # เพื่อ "ทำต่อจากจุดที่ค้าง" — เฉพาะวันปลูกที่เสร็จสมบูรณ์จริงเท่านั้นที่ถูกข้าม
@@ -493,100 +487,364 @@ def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine
 
     # progress ระดับ "วันปลูก" (ละเอียดกว่าระดับปี) ให้ bar เดินสม่ำเสมอไม่ดูค้าง —
     # นับรวมทุกปีก่อนเริ่ม โดยเริ่มนับจากที่ทำเสร็จไปแล้ว (resume) ไม่ใช่ 0
-    total_candidates = sum(len(planting_dates_for_year(settings, y)) for y in years)
-    completed = {"n": _count_done_in_plan(settings, years, txt_ok, shots_ok)}
-    run_state.set_candidate_progress(completed["n"], total_candidates)
+    total = sum(len(planting_dates_for_year(settings, y)) for y in years)
+    done = _count_done_in_plan(settings, years, txt_ok, shots_ok)
+    run_state.set_candidate_progress(done, total)
     # v0.5.17: บอก state ว่ามีกี่วันปลูก "เสร็จไปแล้วจากรอบก่อนหน้า" (resume) —
     # กัน ETA คำนวณความเร็วจากของเก่าที่ไม่ได้ทำอะไรในรอบนี้เลย (ดู
     # RunState._estimate_eta_seconds)
-    run_state.set_baseline_done(completed["n"])
+    run_state.set_baseline_done(done)
+    return _Batch(
+        crop_file=crop_file, soil_file=soil_file,
+        climate_index=climate_index, rain_index=rain_index,
+        txt_ok=txt_ok, shots_ok=shots_ok, total=total, done=done,
+    )
+
+
+def _plan_year(year: int, settings: Settings, batch: _Batch) -> Optional[_YearPlan]:
+    """สร้างรายการวันปลูกที่ยังต้องรันของปีนี้ — คืน None ถ้าไม่ต้องรัน (ครบแล้ว =
+    ตั้งสถานะ DONE, ไฟล์/ปฏิทินมีปัญหา = ตั้งสถานะ ERROR ให้เรียบร้อยแล้ว)"""
+    try:
+        date_flags = planting_dates_for_year(settings, year)
+        if not date_flags:
+            raise ValueError(
+                "ไม่มีวันปลูกที่ทดลองตั้งไว้เลย (ตั้งค่าปฏิทินในหน้า Dashboard ก่อน)"
+            )
+        # ข้ามเฉพาะวันปลูกที่ "เสร็จสมบูรณ์จริง" (.txt parse ผ่าน + ภาพครบถ้าต้องมี)
+        remaining = [
+            (d, shot) for d, shot in date_flags
+            if not _candidate_complete(year, f"{d:%m%d}", shot, batch.txt_ok, batch.shots_ok)
+        ]
+        if not remaining:
+            # ปีนี้ครบแล้ว — ข้ามทั้งปี ไม่ต้องเปิด CropWat/climate/rain เลย
+            run_state.set_year_status(year, YearRunStatus.DONE)
+            return None
+
+        tasks = [
+            PlantingDateTask(planting_date=d, capture_screenshot=shot)
+            for d, shot in remaining
+        ]
+
+        # v0.5.21 — ตามคำขอผู้ใช้ (ค่า default ใหม่): resolve ไฟล์ climate/rain
+        # ใหม่ตามเดือนจริงของ "แต่ละวันปลูก" (climate_file_for/rain_file_for
+        # ถูกเรียกใหม่ใน engine.run_year ก่อนทุกวันปลูก) กติกา shift-year เดิม
+        # (เลือกไฟล์เดือน <= เดือนปลูก มากที่สุด ถ้าไม่มีเลยในปีถอยไปปีก่อนหน้า)
+        # อยู่ใน StationIndex.resolve() อยู่แล้ว แค่ต้องเรียกให้ตรงเดือนจริง
+        # ไม่ใช่ครั้งเดียวจากเดือนแรกสุดของปีแบบเดิม (ปิดสวิตช์นี้เพื่อกลับไป
+        # พฤติกรรมเดิม — ทั้งปีใช้ไฟล์เดือนแรกสุดไฟล์เดียว ยืนยันแล้วว่าไฟล์
+        # climate/rain เป็นชุดข้อมูลต่อเนื่อง 12 เดือน ครอบคลุมทุกวันปลูกในปี
+        # นั้นได้อยู่แล้ว แค่ไม่ตรงเดือนที่สุดเท่านั้น)
+        climate_index = batch.climate_index
+        rain_index = batch.rain_index
+        if settings.shift_year_per_candidate:
+            climate_file_for = lambda m, _y=year: climate_index.resolve(_y, m)  # noqa: E731
+            rain_file_for = lambda m, _y=year: rain_index.resolve(_y, m)  # noqa: E731
+        else:
+            earliest_month = min(d.month for d, _ in date_flags)
+            climate_file_fixed = climate_index.resolve(year, earliest_month)
+            rain_file_fixed = rain_index.resolve(year, earliest_month)
+            climate_file_for = lambda _m, _f=climate_file_fixed: _f  # noqa: E731
+            rain_file_for = lambda _m, _f=rain_file_fixed: _f  # noqa: E731
+    except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
+        run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
+        return None
+    return _YearPlan(year, tasks, climate_file_for, rain_file_for)
+
+
+def _execute_year(
+    plan: _YearPlan,
+    settings: Settings,
+    engine: CropWatEngine,
+    batch: _Batch,
+    should_stop=None,
+):
+    """รันวันปลูกที่เหลือของ 1 ปีบน engine (หน้าต่าง CropWat) ที่ให้มา + ตั้งสถานะปี
+    คืน YearRunResult — should_stop (ถ้าไม่ระบุ = คำสั่งหยุดของผู้ใช้) ถูกเช็คก่อนทุก
+    วันปลูก ใช้ให้หน้าต่างที่ถูก "ลดจำนวน" ระหว่างรันวางงานกลางปีได้ (ดู _hidden_worker)"""
+    year = plan.year
+    run_state.set_current_year(year)
+    run_state.set_year_status(year, YearRunStatus.RUNNING)
+
+    result = engine.run_year(
+        year=year,
+        tasks=plan.tasks,
+        climate_file_for=plan.climate_file_for,
+        rain_file_for=plan.rain_file_for,
+        export_dir=txt_dir(settings),
+        screenshot_dir=screenshot_dir(settings),
+        on_candidate_done=lambda _result: batch.candidate_done(),
+        should_stop=should_stop or run_state.is_stop_requested,
+    )
+
+    if result.stopped:
+        # ถูกสั่งหยุดกลางปี — คืนสถานะเป็น "รอคิว" ให้กด "รันปีที่ค้างใหม่"/
+        # เริ่มใหม่ได้ (ไฟล์ .txt ของวันปลูกที่ทำเสร็จไปแล้วอยู่ครบ ไม่หายไปไหน
+        # รันซ้ำก็แค่เขียนทับไฟล์เดิมด้วยผลเดียวกัน)
+        run_state.set_year_status(year, YearRunStatus.QUEUED)
+        return result
+
+    if result.ok:
+        # เก็บ path โฟลเดอร์ export ไว้ (มีหลายไฟล์ต่อปี — 1 ไฟล์ต่อ 1 วันปลูก
+        # ที่ทดลอง — ไม่ใช่ไฟล์เดียวอีกต่อไป)
+        exported_files = [str(c.exported_file) for c in result.candidates if c.exported_file]
+        run_state.set_year_status(
+            year,
+            YearRunStatus.DONE,
+            exported_file="; ".join(exported_files) if exported_files else None,
+        )
+    else:
+        run_state.set_year_status(
+            year, YearRunStatus.ERROR, error_message=result.error_message
+        )
+    return result
+
+
+# v1.3.0 — หน้าต่างที่ทำงานอยู่ (เลขลำดับ worker → ใช้ตั้งชื่อเดสก์ท็อปซ่อน) แชร์ระหว่าง
+# ตัวคุม (_run_years_hidden_desktop) กับ worker ทุกตัว
+_worker_indices: set[int] = set()
+_workers_lock = threading.Lock()
+# เปิดหน้าต่างไม่สำเร็จเกินกี่ครั้งต่อการรัน 1 รอบ แล้วเลิกพยายามเปิดเพิ่ม (กันวนเปิด-พังไม่จบ)
+_MAX_LAUNCH_FAILURES = 3
+
+
+def _worker_should_retire(index: int) -> bool:
+    """หน้าต่างนี้ควรปิดตัวเองไหม — เมื่อผู้ใช้ลดจำนวนหน้าต่างระหว่างรัน หน้าต่างที่ลำดับ
+    สูงสุดจะถูกปิดก่อน (เทียบลำดับในกลุ่มที่ทำงานอยู่ ไม่ใช่เลข index ตรงๆ เผื่อมีช่องว่าง
+    จากหน้าต่างที่เปิดไม่ขึ้น)"""
+    target = run_state.windows_target()
+    with _workers_lock:
+        active = sorted(_worker_indices)
+    if index not in active:
+        return False
+    return active.index(index) >= max(1, target)
+
+
+def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
+    """รันทั้ง batch บนเดสก์ท็อปซ่อน — โปรแกรมเปิด CropWat เองในนั้น
+
+    v1.3.0 — รันหลายหน้าต่างพร้อมกันได้: เตรียมแผนทุกปีครั้งเดียว ใส่คิว แล้ว "ตัวคุม"
+    (ลูปในฟังก์ชันนี้) คอยเปิด worker thread ละ 1 หน้าต่าง CropWat (เดสก์ท็อปซ่อนแยกของ
+    ใครของมัน) ให้ครบตามจำนวนที่ตั้งไว้ — จำนวนนั้นเริ่มจาก settings.parallel_windows
+    (0 = อัตโนมัติตามกำลังเครื่อง ดู system_capacity) และผู้ใช้ปรับเพิ่ม/ลดได้ระหว่างรัน
+    (run_state.set_windows_target ผ่าน POST /api/run/windows):
+    - เพิ่ม: ตัวคุมเปิดหน้าต่างใหม่ทีละบาน เว้นระยะ _WORKER_STAGGER_SECONDS
+    - ลด: หน้าต่างลำดับท้ายวางงานหลังวันปลูกที่ทำอยู่เสร็จ (ไม่ต้องรอจบปี) คืนวันปลูกที่
+      เหลือของปีนั้นเข้าคิวให้หน้าต่างอื่นทำต่อ แล้วปิด CropWat ของตัวเอง
+    1 ปีทำบนหน้าต่างเดียวตามลำดับเดิมเสมอ (ยกเว้นถูกลดจำนวนกลางปี ส่วนที่เหลือย้ายไปทำต่อ
+    อีกหน้าต่างทีละวันปลูกเหมือนเดิม) ผลจึงเหมือนรันทีละหน้าต่าง — thread ใหม่ทุกหน้าต่าง
+    ตรงกติกา SetThreadDesktop ที่ต้องเรียกบน thread ที่ยังไม่มีหน้าต่าง"""
+    batch = _prepare_batch(years, settings)
+    if batch is None:
+        run_state.end_run()
+        return
+
+    plans: list[_YearPlan] = []
+    for year in years:
+        if run_state.is_stop_requested():
+            run_state.set_year_status(year, YearRunStatus.QUEUED)
+            continue
+        plan = _plan_year(year, settings, batch)
+        if plan is not None:
+            plans.append(plan)
+
+    if plans:
+        work: queue.Queue = queue.Queue()
+        for plan in plans:
+            work.put(plan)
+        if settings.parallel_windows > 0:
+            target = settings.parallel_windows
+        else:
+            import system_capacity
+
+            target = system_capacity.recommend_windows()
+        run_state.set_windows_target(target)
+        failures: list[str] = []
+        logger.info("เริ่มรัน %s ปี ด้วย CropWat %s หน้าต่างพร้อมกัน", len(plans), target)
+
+        threads: list[threading.Thread] = []
+        last_spawn = -1e9
+        while True:
+            with _workers_lock:
+                active = set(_worker_indices)
+            run_state.set_windows_active(len(active))
+            stop = run_state.is_stop_requested()
+            if not active and (work.empty() or stop or len(failures) >= _MAX_LAUNCH_FAILURES):
+                break
+            want = max(1, run_state.windows_target())
+            need_more = (
+                not stop
+                and not work.empty()
+                and len(active) < want
+                and len(failures) < _MAX_LAUNCH_FAILURES
+            )
+            wait_left = _WORKER_STAGGER_SECONDS - (time.monotonic() - last_spawn)
+            if need_more and wait_left <= 0:
+                index = next(i for i in range(len(active) + 1) if i not in active)
+                with _workers_lock:
+                    _worker_indices.add(index)
+                t = threading.Thread(
+                    target=_hidden_worker,
+                    args=(index, settings, batch, work, failures),
+                    name=f"cropwat-window-{index + 1}",
+                    daemon=True,
+                )
+                t.start()
+                threads.append(t)
+                last_spawn = time.monotonic()
+                continue
+            time.sleep(min(0.2, wait_left) if need_more else 0.2)
+        for t in threads:
+            t.join()
+        run_state.set_windows_active(0)
+
+        # ปีที่ยังค้างในคิว = ไม่มีหน้าต่างไหนได้ทำ (สั่งหยุด หรือเปิด CropWat ไม่ขึ้นเลย)
+        reason = failures[0] if failures else "ไม่มีหน้าต่าง CropWat ที่พร้อมทำงาน"
+        while True:
+            try:
+                plan = work.get_nowait()
+            except queue.Empty:
+                break
+            if run_state.is_stop_requested():
+                run_state.set_year_status(plan.year, YearRunStatus.QUEUED)
+            else:
+                run_state.set_year_status(plan.year, YearRunStatus.ERROR, error_message=reason)
+
+    _finish_run(years, settings)
+    run_state.end_run()
+
+
+def _hidden_worker(
+    index: int,
+    settings: Settings,
+    batch: _Batch,
+    work: queue.Queue,
+    failures: list[str],
+) -> None:
+    """1 หน้าต่าง CropWat: เปิดเดสก์ท็อปซ่อนของตัวเอง → เปิด CropWat → เปิด crop/soil
+    → หยิบปีจากคิวมาทำจนหมด (หรือจนถูกลดจำนวนหน้าต่าง) → ปิด CropWat + เดสก์ท็อปเสมอ
+    ไม่ว่าจบแบบไหน — ตัวคุมใส่ index ไว้ใน _worker_indices ก่อนเริ่ม thread แล้ว"""
+    import desktop_session
+    from desktop_session import DesktopSessionError, HiddenDesktopSession
+
+    def _fail(message: str) -> None:
+        failures.append(f"หน้าต่าง CropWat ที่ {index + 1}: {message}")
+
+    def _retire_or_stop() -> bool:
+        return run_state.is_stop_requested() or _worker_should_retire(index)
+
+    session = None
+    try:
+        if _retire_or_stop() or work.empty():
+            return
+        session = HiddenDesktopSession(
+            settings.cropwat_exe_path, desktop_name=desktop_session.desktop_name_for(index)
+        )
+        try:
+            session.bind_and_launch()
+        except DesktopSessionError as exc:
+            logger.error("หน้าต่างที่ %s: เปิดเดสก์ท็อปซ่อนไม่สำเร็จ: %s", index + 1, exc)
+            _fail(str(exc))
+            return
+        with _sessions_lock:
+            _active_hidden_sessions.append(session)
+
+        speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)
+        # background_mode=True = สั่งเมนูแบบ message ล้วน (เหมาะกับเดสก์ท็อปที่ไม่มี
+        # input จริง) — ไม่มี watcher/shield ในระบบอีกต่อไป (ถอดออกทั้งหมดใน v0.7.0)
+        engine = CropWatEngine(background_mode=True, speed_multiplier=speed_multiplier)
+        # pause_check ถูกเรียกก่อน "ทุกคำสั่งเมนู" ใน _invoke_menu — ใช้บริการคำขอ
+        # "ถ่ายภาพหน้าจอตอนนี้" (PrintWindow ล้วนๆ ไม่สลับจอเลย) หลายหน้าต่างก็มีแค่
+        # ตัวแรกที่เห็นคำขอเป็นคนถ่าย (ดู desktop_session.service_peek_request)
+        engine.pause_check = lambda: desktop_session.service_peek_request(
+            engine, settings.output_dir
+        )
+        engine.error_shots_dir = Path(settings.output_dir) / "_error_dialogs"
+        try:
+            # ล็อกเป้าที่ pid ที่เราเพิ่งเปิดเองตรงๆ (v0.10.1) — กัน
+            # ElementAmbiguousError กรณีมี CropWat ค้างจาก session เก่า
+            engine.connect(process=session.pid)
+        except CropWatAutomationError as exc:
+            logger.error("หน้าต่างที่ %s: connect() ล้มเหลว: %s", index + 1, exc)
+            _fail(str(exc))
+            return
+        try:
+            engine.ensure_crop_soil_open(batch.crop_file, batch.soil_file)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("หน้าต่างที่ %s: เปิดไฟล์ crop/soil ไม่สำเร็จ: %s", index + 1, exc)
+            _fail(f"เตรียมไฟล์/สถานีไม่สำเร็จ: {exc}")
+            return
+
+        while not _retire_or_stop():
+            try:
+                plan = work.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                result = _execute_year(plan, settings, engine, batch, should_stop=_retire_or_stop)
+            except Exception as exc:  # noqa: BLE001 -- ปีเดียวพังห้ามล้มทั้งหน้าต่าง
+                logger.exception("หน้าต่างที่ %s: ปี %s ล้มเหลวโดยไม่คาดคิด", index + 1, plan.year)
+                run_state.set_year_status(plan.year, YearRunStatus.ERROR, error_message=str(exc))
+                continue
+            if result.stopped and not run_state.is_stop_requested():
+                # ถูกลดจำนวนหน้าต่างกลางปี — คืนวันปลูกที่ยังไม่สำเร็จเข้าคิวให้หน้าต่างอื่น
+                done_ok = {c.planting_date for c in result.candidates if c.ok}
+                rest = [t for t in plan.tasks if t.planting_date not in done_ok]
+                if rest:
+                    work.put(_YearPlan(plan.year, rest, plan.climate_file_for, plan.rain_file_for))
+                    logger.info(
+                        "หน้าต่างที่ %s: ลดจำนวนหน้าต่าง — ส่งปี %s ที่เหลือ %s วันปลูกให้หน้าต่างอื่น",
+                        index + 1, plan.year, len(rest),
+                    )
+                else:
+                    run_state.set_year_status(plan.year, YearRunStatus.DONE)
+        if _worker_should_retire(index) and not run_state.is_stop_requested():
+            logger.info("หน้าต่างที่ %s: ปิดตามจำนวนหน้าต่างที่ลดลง", index + 1)
+    except Exception as exc:  # noqa: BLE001 -- กันทุกอย่าง ไม่ให้ worker ตายเงียบ
+        logger.exception("หน้าต่างที่ %s ล้มเหลวโดยไม่คาดคิด", index + 1)
+        _fail(str(exc))
+    finally:
+        if session is not None:
+            with _sessions_lock:
+                if session in _active_hidden_sessions:
+                    _active_hidden_sessions.remove(session)
+            session.stop()
+        with _workers_lock:
+            _worker_indices.discard(index)
+
+
+def set_windows_target(n: int) -> int:
+    """v1.3.0 — ผู้ใช้ปรับจำนวนหน้าต่างระหว่างรัน (POST /api/run/windows) คืนค่าที่ใช้จริง"""
+    from config import MAX_PARALLEL_WINDOWS
+
+    n = max(1, min(MAX_PARALLEL_WINDOWS, int(n)))
+    run_state.set_windows_target(n)
+    logger.info("ผู้ใช้ปรับจำนวนหน้าต่าง CropWat เป็น %s", n)
+    return n
+
+
+def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine) -> None:
+    """โหมดคลาสสิก (หน้าต่าง CropWat เดียวที่ผู้ใช้เปิดเองบนจอ) — ทำทีละปีตามลำดับ"""
+    batch = _prepare_batch(years, settings)
+    if batch is None:
+        run_state.end_run()
+        return
+    try:
+        engine.ensure_crop_soil_open(batch.crop_file, batch.soil_file)
+    except Exception as exc:  # noqa: BLE001 -- ต้องแจ้งทุกปีว่า error เพราะเหตุนี้
+        logger.error("เปิดไฟล์ crop/soil ไม่สำเร็จ หยุดการรันทั้งหมด: %s", exc)
+        _fail_all_years(years, f"เตรียมไฟล์/สถานีไม่สำเร็จ: {exc}")
+        _notify_safe("การรันล้มเหลวตั้งแต่เริ่ม", f"เตรียมไฟล์/สถานีไม่สำเร็จ: {str(exc)[:120]}")
+        run_state.end_run()
+        return
 
     for year in years:
         if run_state.is_stop_requested():
             run_state.set_year_status(year, YearRunStatus.QUEUED)
             continue
-
-        try:
-            date_flags = planting_dates_for_year(settings, year)
-            if not date_flags:
-                raise ValueError(
-                    "ไม่มีวันปลูกที่ทดลองตั้งไว้เลย (ตั้งค่าปฏิทินในหน้า Dashboard ก่อน)"
-                )
-            # ข้ามเฉพาะวันปลูกที่ "เสร็จสมบูรณ์จริง" (.txt parse ผ่าน + ภาพครบถ้าต้องมี)
-            remaining = [
-                (d, shot) for d, shot in date_flags
-                if not _candidate_complete(year, f"{d:%m%d}", shot, txt_ok, shots_ok)
-            ]
-            if not remaining:
-                # ปีนี้ครบแล้ว — ข้ามทั้งปี ไม่ต้องเปิด CropWat/climate/rain เลย
-                run_state.set_year_status(year, YearRunStatus.DONE)
-                continue
-
-            tasks = [
-                PlantingDateTask(planting_date=d, capture_screenshot=shot)
-                for d, shot in remaining
-            ]
-
-            # v0.5.21 — ตามคำขอผู้ใช้ (ค่า default ใหม่): resolve ไฟล์ climate/rain
-            # ใหม่ตามเดือนจริงของ "แต่ละวันปลูก" (climate_file_for/rain_file_for
-            # ถูกเรียกใหม่ใน engine.run_year ก่อนทุกวันปลูก) กติกา shift-year เดิม
-            # (เลือกไฟล์เดือน <= เดือนปลูก มากที่สุด ถ้าไม่มีเลยในปีถอยไปปีก่อนหน้า)
-            # อยู่ใน StationIndex.resolve() อยู่แล้ว แค่ต้องเรียกให้ตรงเดือนจริง
-            # ไม่ใช่ครั้งเดียวจากเดือนแรกสุดของปีแบบเดิม (ปิดสวิตช์นี้เพื่อกลับไป
-            # พฤติกรรมเดิม — ทั้งปีใช้ไฟล์เดือนแรกสุดไฟล์เดียว ยืนยันแล้วว่าไฟล์
-            # climate/rain เป็นชุดข้อมูลต่อเนื่อง 12 เดือน ครอบคลุมทุกวันปลูกในปี
-            # นั้นได้อยู่แล้ว แค่ไม่ตรงเดือนที่สุดเท่านั้น)
-            if settings.shift_year_per_candidate:
-                climate_file_for = lambda m, _y=year: climate_index.resolve(_y, m)  # noqa: E731
-                rain_file_for = lambda m, _y=year: rain_index.resolve(_y, m)  # noqa: E731
-            else:
-                earliest_month = min(d.month for d, _ in date_flags)
-                climate_file_fixed = climate_index.resolve(year, earliest_month)
-                rain_file_fixed = rain_index.resolve(year, earliest_month)
-                climate_file_for = lambda _m, _f=climate_file_fixed: _f  # noqa: E731
-                rain_file_for = lambda _m, _f=rain_file_fixed: _f  # noqa: E731
-        except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
-            run_state.set_year_status(year, YearRunStatus.ERROR, error_message=str(exc))
+        plan = _plan_year(year, settings, batch)
+        if plan is None:
             continue
-
-        run_state.set_current_year(year)
-        run_state.set_year_status(year, YearRunStatus.RUNNING)
-
-        def _on_candidate_done(_result, _c=completed):
-            _c["n"] += 1
-            run_state.set_candidate_progress(_c["n"], total_candidates)
-
-        result = engine.run_year(
-            year=year,
-            tasks=tasks,
-            climate_file_for=climate_file_for,
-            rain_file_for=rain_file_for,
-            export_dir=txt_dir(settings),
-            screenshot_dir=screenshot_dir(settings),
-            on_candidate_done=_on_candidate_done,
-            should_stop=run_state.is_stop_requested,
-        )
-
-        if result.stopped:
-            # ถูกสั่งหยุดกลางปี — คืนสถานะเป็น "รอคิว" ให้กด "รันปีที่ค้างใหม่"/
-            # เริ่มใหม่ได้ (ไฟล์ .txt ของวันปลูกที่ทำเสร็จไปแล้วอยู่ครบ ไม่หายไปไหน
-            # รันซ้ำก็แค่เขียนทับไฟล์เดิมด้วยผลเดียวกัน)
-            run_state.set_year_status(year, YearRunStatus.QUEUED)
-            continue
-
-        if result.ok:
-            # เก็บ path โฟลเดอร์ export ไว้ (มีหลายไฟล์ต่อปี — 1 ไฟล์ต่อ 1 วันปลูก
-            # ที่ทดลอง — ไม่ใช่ไฟล์เดียวอีกต่อไป)
-            exported_files = [str(c.exported_file) for c in result.candidates if c.exported_file]
-            run_state.set_year_status(
-                year,
-                YearRunStatus.DONE,
-                exported_file="; ".join(exported_files) if exported_files else None,
-            )
-        else:
-            run_state.set_year_status(
-                year, YearRunStatus.ERROR, error_message=result.error_message
-            )
+        _execute_year(plan, settings, engine, batch)
 
     _finish_run(years, settings)
     run_state.end_run()

@@ -46,7 +46,7 @@ whatever data already exists.
 ```
 backend/
   app.py                    FastAPI: REST API + WebSocket + serves frontend
-  runner.py                 Background-thread orchestrator (year × candidate loop)
+  runner.py                 Background-thread orchestrator (year × candidate loop; hidden-desktop mode can run N CropWat windows in parallel, one year per window)
   state.py                  In-memory run state + pub/sub for WebSocket
   config.py                 Settings model (single input/output folder, planting calendar)
   cropwat_controls.py       All CropWat control identifiers (see note below)

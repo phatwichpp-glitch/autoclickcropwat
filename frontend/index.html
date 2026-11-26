@@ -134,6 +134,16 @@
           <div class="run-actions-main">
             <button id="btn-start" class="btn btn-primary lg" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>เริ่มประมวลผล</button>
             <button id="btn-stop" class="btn btn-danger lg" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>หยุด</button>
+            <!-- v1.3.0 — ปรับจำนวนหน้าต่าง CropWat ระหว่างรัน (เฉพาะโหมดเดสก์ท็อปเบื้องหลัง) ดู app.js: updateWinCtl -->
+            <div class="win-ctl" id="win-ctl" role="group" aria-label="จำนวนหน้าต่าง CropWat ที่รันพร้อมกัน" hidden>
+              <span class="win-lbl"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="11" rx="2"/><path d="M8 19h12a2 2 0 0 0 2-2V8"/></svg>หน้าต่าง CropWat</span>
+              <span class="stepper">
+                <button type="button" class="step-btn" id="btn-win-minus" aria-label="ลดจำนวนหน้าต่าง" title="ลดจำนวนหน้าต่าง — ใช้เมื่อจะใช้คอมทำงานอื่นไปด้วย"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+                <b class="tabular" id="win-count" aria-live="polite">1</b>
+                <button type="button" class="step-btn" id="btn-win-plus" aria-label="เพิ่มจำนวนหน้าต่าง" title="เพิ่มจำนวนหน้าต่าง — เสร็จไวขึ้น แต่เครื่องทำงานหนักขึ้น"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+              </span>
+              <span class="win-note" id="win-note"></span>
+            </div>
             <button id="btn-hero-excel" class="btn btn-success lg" type="button" title="สร้าง Result.xlsx จากผลล่าสุดแล้วเปิดใน Excel"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/></svg>เปิด Excel ดูผล</button>
             <button id="btn-hero-errors" class="btn btn-ghost lg" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>ดูปีที่มีปัญหา</button>
             <button id="btn-launch-cropwat" class="btn btn-ghost" type="button" title="เปิดโปรแกรม CropWat 8.0 (โหมดคลาสสิก — ต้องเปิดค้างไว้ก่อนเริ่ม)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>เปิด CropWat</button>
@@ -346,6 +356,20 @@
               <option value="fast">เร็ว</option>
               <option value="normal">ปกติ</option>
               <option value="slow">ช้า</option>
+            </select>
+          </label>
+          <label class="opt">
+            <span class="opt-txt">
+              <span class="opt-title">จำนวนหน้าต่าง CropWat พร้อมกัน <span class="tag">ใหม่</span></span>
+              <span class="note">เปิด CropWat หลายหน้าต่างแบ่งกันทำคนละปี — เสร็จไวขึ้น ผลลัพธ์เหมือนเดิมทุกตัวเลข · "อัตโนมัติ" เลือกให้ตามกำลังเครื่องทุกครั้งที่เริ่ม · ระหว่างรันกด − / + ในหน้าภาพรวมได้ (เช่น ลดลงตอนจะใช้คอมทำงานอื่น) · ใช้ได้เฉพาะเมื่อเปิด "รันบนเดสก์ท็อปเบื้องหลัง"</span>
+              <span class="note cap-note" id="capacity-note" hidden></span>
+            </span>
+            <select id="parallel-windows">
+              <option value="0" id="parallel-auto-opt">อัตโนมัติ (แนะนำ)</option>
+              <option value="1">1 (ทีละหน้าต่าง)</option>
+              <option value="2">2 หน้าต่าง</option>
+              <option value="3">3 หน้าต่าง</option>
+              <option value="4">4 หน้าต่าง</option>
             </select>
           </label>
           <label class="opt">

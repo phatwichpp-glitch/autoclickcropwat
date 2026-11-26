@@ -27,13 +27,16 @@ import threading
 from datetime import date
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ตัวคูณเวลาหน่วง (settle time) ทุกจุดที่ automation รอ CropWat ประมวลผลคำสั่ง —
 # "normal" (1.0) คือค่าที่ทดสอบยืนยันมาตลอดในเครื่องพัฒนา ไม่เปลี่ยนพฤติกรรมของ
 # ใครก็ตามที่ไม่ได้แตะการตั้งค่านี้ "ช้า" ไว้สำหรับคอมรุ่นเก่าที่ประมวลผลคำสั่งช้า
 # (แฮงค์ถ้ารอไม่พอ) "เร็ว" สำหรับคอมแรงๆ ที่อยากลดเวลารันลงอีกหน่อย
 SPEED_MULTIPLIERS: dict[str, float] = {"fast": 0.7, "normal": 1.0, "slow": 2.0}
+
+# v1.3.0 — จำนวนหน้าต่าง CropWat ที่รันพร้อมกันได้ (เฉพาะโหมดเดสก์ท็อปซ่อน)
+MAX_PARALLEL_WINDOWS = 4
 
 
 def _app_base_dir() -> Path:
@@ -144,6 +147,22 @@ class Settings(BaseModel):
     # ค่า default True = resolve ใหม่ตามเดือนจริงของทุกวันปลูก (แม่นกว่า) เปิดสวิตช์
     # ปิดได้เพื่อกลับไปพฤติกรรมเดิม (ทั้งปีใช้ไฟล์เดือนแรกสุดไฟล์เดียว)
     shift_year_per_candidate: bool = True
+
+    # v1.3.0 — รันหลายหน้าต่าง CropWat พร้อมกัน (เฉพาะโหมดเดสก์ท็อปซ่อน): แต่ละหน้าต่าง
+    # ได้เดสก์ท็อปซ่อน + CropWat ของตัวเอง แล้วแบ่งกันหยิบ "ทีละปี" จากคิวเดียวกัน — 1 =
+    # ทีละหน้าต่างแบบเดิม · 0 = อัตโนมัติตามกำลังเครื่อง (ค่าเริ่มต้น ดู system_capacity)
+    # โหมดคลาสสิกใช้ได้แค่ 1 หน้าต่างเสมอ — ระหว่างรันปรับเพิ่ม/ลดได้จากหน้าภาพรวม
+    # (ค่านั้นใช้เฉพาะรอบที่รันอยู่ ไม่บันทึกทับค่านี้)
+    parallel_windows: int = 0
+
+    @field_validator("parallel_windows", mode="before")
+    @classmethod
+    def _clamp_parallel_windows(cls, v):
+        try:
+            n = int(v)
+        except (TypeError, ValueError):
+            return 0
+        return max(0, min(MAX_PARALLEL_WINDOWS, n))
 
 
 def _ensure_data_dir() -> None:

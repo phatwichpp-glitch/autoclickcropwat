@@ -65,6 +65,10 @@ class StateSnapshot(BaseModel):
     # None = ยังประมาณไม่ได้ (ยังไม่เริ่ม/ยังไม่มีวันปลูกไหนเสร็จเลย) ดู
     # RunState._estimate_eta_seconds()
     eta_seconds: Optional[float] = None
+    # v1.3.0 — รันหลายหน้าต่าง: จำนวนหน้าต่าง CropWat ที่ "ตั้งไว้" (ปรับได้ระหว่างรัน)
+    # กับที่ "ทำงานอยู่จริง" ตอนนี้ — 0 = ไม่ได้รันแบบเดสก์ท็อปซ่อน (ไม่ต้องโชว์ปุ่มปรับ)
+    windows_target: int = 0
+    windows_active: int = 0
 
 
 class StationScan(BaseModel):

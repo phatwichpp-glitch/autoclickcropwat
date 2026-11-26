@@ -43,6 +43,9 @@ class RunState:
         # มาก) เริ่มเสร็จ — เก็บ "จำนวนที่เสร็จไปแล้วก่อนรอบนี้จะเริ่ม" (baseline)
         # ไว้แยก แล้วคำนวณความเร็วจากเฉพาะวันปลูกที่ "เสร็จจริงในรอบรันนี้" เท่านั้น
         self._baseline_done = 0
+        # v1.3.0 — จำนวนหน้าต่าง CropWat (ตั้งไว้ / ทำงานอยู่จริง) ดู runner._run_years_hidden_desktop
+        self._windows_target = 0
+        self._windows_active = 0
 
         # websocket subscribers ต้องถูกแตะจาก asyncio loop เท่านั้น
         self._subscribers: set[asyncio.Queue] = set()
@@ -72,6 +75,8 @@ class RunState:
             self._candidate_total = 0
             self._run_started_at = time.monotonic()
             self._baseline_done = 0
+            self._windows_target = 0
+            self._windows_active = 0
         self._notify()
 
     def set_baseline_done(self, done: int) -> None:
@@ -94,6 +99,25 @@ class RunState:
         with self._lock:
             self._overall_state = OverallRunState.IDLE
             self._current_year = None
+            self._windows_target = 0
+            self._windows_active = 0
+        self._notify()
+
+    # --- v1.3.0: จำนวนหน้าต่าง CropWat ที่รันพร้อมกัน ---
+    def set_windows_target(self, n: int) -> None:
+        with self._lock:
+            self._windows_target = n
+        self._notify()
+
+    def windows_target(self) -> int:
+        with self._lock:
+            return self._windows_target
+
+    def set_windows_active(self, n: int) -> None:
+        with self._lock:
+            if self._windows_active == n:
+                return
+            self._windows_active = n
         self._notify()
 
     def request_stop(self) -> None:
@@ -155,6 +179,8 @@ class RunState:
                 candidate_done=self._candidate_done,
                 candidate_total=self._candidate_total,
                 eta_seconds=eta_seconds,
+                windows_target=self._windows_target,
+                windows_active=self._windows_active,
             )
 
     # ต้องมีวันปลูกที่ "เสร็จจริงในรอบรันนี้" อย่างน้อยกี่อันก่อนจะกล้าประมาณ ETA

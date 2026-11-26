@@ -112,6 +112,7 @@ async function loadConfig() {
   document.getElementById("auto-build-outputs").checked = settings.auto_build_outputs !== false;
   applyModeVisibility();
   document.getElementById("speed-preset").value = settings.speed_preset || "normal";
+  document.getElementById("parallel-windows").value = String(settings.parallel_windows ?? 0);
   document.getElementById("shift-year-per-candidate").checked = settings.shift_year_per_candidate !== false;
   document.getElementById("brand-sub").textContent = settings.input_dir
     ? settings.input_dir
@@ -224,6 +225,7 @@ document.getElementById("btn-save-setup").addEventListener("click", async () => 
     hidden_desktop_mode: document.getElementById("hidden-desktop-mode").checked,
     auto_build_outputs: document.getElementById("auto-build-outputs").checked,
     speed_preset: document.getElementById("speed-preset").value,
+    parallel_windows: Number(document.getElementById("parallel-windows").value) || 0,
     shift_year_per_candidate: document.getElementById("shift-year-per-candidate").checked,
   });
   updateSummary();
@@ -1045,15 +1047,23 @@ function updateRunHero() {
       break;
     case "running": {
       const wrappingUp = snap.candidate_total > 0 && snap.candidate_done >= snap.candidate_total;
+      // v1.3.0 — รันหลายหน้าต่างพร้อมกัน: มีหลายปีสถานะ running ได้ในเวลาเดียวกัน
+      const runningYears = (snap.years || []).filter((y) => y.status === "running").map((y) => y.year);
       badge = "กำลังประมวลผล";
       title = wrappingUp
         ? "กำลังสรุปผล..."
-        : snap.current_year ? `กำลังคำนวณปี ${snap.current_year}` : "กำลังเตรียมงาน...";
+        : runningYears.length > 1
+          ? `กำลังคำนวณปี ${runningYears.join(", ")} พร้อมกัน`
+          : runningYears.length === 1 || snap.current_year
+            ? `กำลังคำนวณปี ${runningYears[0] || snap.current_year}`
+            : "กำลังเตรียมงาน...";
       sub = wrappingUp
         ? "ประมวลผลครบทุกวันปลูกแล้ว — รอสักครู่ ระบบกำลังเก็บงานและสร้างไฟล์ผลลัพธ์"
         : settings && settings.hidden_desktop_mode === false
           ? "CropWat ทำงานบนหน้าจอจริง — อย่าใช้เมาส์หรือคีย์บอร์ดจนกว่าจะเสร็จ"
-          : "CropWat ทำงานบนเดสก์ท็อปเบื้องหลัง — ใช้เครื่องทำงานอื่นได้ตามปกติ";
+          : (snap.windows_active || runningYears.length) > 1
+            ? `CropWat ${snap.windows_active || runningYears.length} หน้าต่างทำงานบนเดสก์ท็อปเบื้องหลัง — ใช้เครื่องทำงานอื่นได้ตามปกติ`
+            : "CropWat ทำงานบนเดสก์ท็อปเบื้องหลัง — ใช้เครื่องทำงานอื่นได้ตามปกติ";
       break;
     }
     case "stopping":
@@ -1094,6 +1104,81 @@ function updateRunHero() {
   document.getElementById("run-state-badge").textContent = badge;
   document.getElementById("run-state-title").textContent = title;
   document.getElementById("run-state-sub").textContent = sub;
+  updateWinCtl(state);
+}
+
+// ---------------------------------------------------------------------------
+// v1.3.0 — จำนวนหน้าต่าง CropWat ที่รันพร้อมกัน: ปุ่ม − / + ระหว่างรัน (มีผลทันที
+// เฉพาะรอบที่รันอยู่ ไม่บันทึกทับค่าในหน้าตั้งค่า) + ข้อความ "อัตโนมัติ" ในหน้าตั้งค่า
+// ---------------------------------------------------------------------------
+let maxWindows = 4;
+let winBusy = false;
+
+function updateWinCtl(state) {
+  const snap = lastSnapshot;
+  const ctl = document.getElementById("win-ctl");
+  const target = snap ? snap.windows_target || 0 : 0;
+  const show = state === "running" && target > 0;
+  ctl.hidden = !show;
+  if (!show) return;
+  const active = snap.windows_active || 0;
+  document.getElementById("win-count").textContent = String(target);
+  document.getElementById("btn-win-minus").disabled = winBusy || target <= 1;
+  document.getElementById("btn-win-plus").disabled = winBusy || target >= maxWindows;
+  let note;
+  if (active > target) note = `กำลังปิด ${active - target} หน้าต่าง หลังวันปลูกที่ทำอยู่เสร็จ`;
+  else if (active < target) note = `กำลังเปิดเพิ่ม... (ทำงานอยู่ ${active})`;
+  else if (target <= 1) note = "เครื่องทำงานเบาที่สุดแล้ว";
+  else note = "จะใช้คอมทำงานอื่นไปด้วย? กด − ลดภาระเครื่อง";
+  document.getElementById("win-note").textContent = note;
+}
+
+async function changeWindows(delta) {
+  const snap = lastSnapshot;
+  if (!snap || winBusy) return;
+  const next = Math.max(1, Math.min(maxWindows, (snap.windows_target || 1) + delta));
+  if (next === snap.windows_target) return;
+  winBusy = true;
+  updateRunHero();
+  try {
+    const res = await fetch("/api/run/windows", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ windows: next }),
+    });
+    if (res.ok) {
+      renderStatus(await res.json());
+      showToast(delta < 0
+        ? `ลดเหลือ ${next} หน้าต่าง — หน้าต่างที่เกินจะปิดหลังวันปลูกที่ทำอยู่เสร็จ งานไม่หาย`
+        : `เพิ่มเป็น ${next} หน้าต่าง — กำลังเปิด CropWat เพิ่ม`);
+    } else {
+      showToast("ปรับจำนวนหน้าต่างไม่สำเร็จ — การประมวลผลอาจจบไปแล้ว", true);
+    }
+  } catch {
+    showToast("ปรับจำนวนหน้าต่างไม่สำเร็จ — ติดต่อโปรแกรมไม่ได้", true);
+  } finally {
+    winBusy = false;
+    updateRunHero();
+  }
+}
+
+document.getElementById("btn-win-minus").addEventListener("click", () => changeWindows(-1));
+document.getElementById("btn-win-plus").addEventListener("click", () => changeWindows(1));
+
+async function loadCapacity() {
+  try {
+    const res = await fetch("/api/system/capacity");
+    if (!res.ok) return;
+    const cap = await res.json();
+    maxWindows = cap.max || maxWindows;
+    document.getElementById("parallel-auto-opt").textContent =
+      `อัตโนมัติ (เครื่องนี้ ${cap.recommended} หน้าต่าง)`;
+    const note = document.getElementById("capacity-note");
+    note.textContent = `ตรวจเครื่องนี้: ${cap.reason}`;
+    note.hidden = false;
+  } catch {
+    /* ไม่มีข้อมูลเครื่อง = แสดงแค่ "อัตโนมัติ (แนะนำ)" */
+  }
 }
 
 // ไปหน้าตั้งค่า → โฟกัสช่องของขั้นแรกที่ยังไม่เสร็จ (คีย์บอร์ด/โปรแกรมอ่านหน้าจอไม่หลง)
@@ -1142,6 +1227,7 @@ const SETUP_FIELDS = [
   ["hidden-desktop-mode", "hidden_desktop_mode", "bool"],
   ["auto-build-outputs", "auto_build_outputs", "bool"],
   ["speed-preset", "speed_preset", "select"],
+  ["parallel-windows", "parallel_windows", "int0"],
   ["shift-year-per-candidate", "shift_year_per_candidate", "bool"],
 ];
 
@@ -1152,6 +1238,7 @@ function isSetupDirty() {
     if (kind === "bool") return el.checked !== (settings[key] !== false);
     if (kind === "number") return (Number(el.value) || 0) !== (Number(settings[key]) || 0);
     if (kind === "select") return el.value !== (settings[key] || "normal");
+    if (kind === "int0") return (Number(el.value) || 0) !== (Number(settings[key]) || 0);
     return el.value !== (settings[key] || "");
   });
 }
@@ -1806,6 +1893,7 @@ fetchStatus();
 fetchOutputProgress();
 refreshLatestShot(); // แสดงภาพหน้าจอล่าสุดทันทีที่เปิดหน้า (ถ้ามีจากรอบก่อน)
 refreshCropwatExeStatus(); // สถานะ "หา CropWat เจอไหม" ในหน้าตั้งค่า
+loadCapacity(); // v1.3.0 — จำนวนหน้าต่างที่โหมดอัตโนมัติจะใช้
 loadCropwatOptions(); // v1.2.0 — ค่าตั้งของ CropWat (การ์ดในหน้าตั้งค่า + สรุปในแผนวันปลูก)
 connectWebSocket();
 checkUpdate();

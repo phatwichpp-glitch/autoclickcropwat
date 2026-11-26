@@ -288,6 +288,29 @@ async def stop_run() -> StateSnapshot:
     return run_state.snapshot()
 
 
+class RunWindowsRequest(BaseModel):
+    windows: int
+
+
+@app.post("/api/run/windows", response_model=StateSnapshot)
+async def run_windows(req: RunWindowsRequest) -> StateSnapshot:
+    """v1.3.0 — ปรับจำนวนหน้าต่าง CropWat ที่รันพร้อมกัน "ระหว่างรัน" (เช่น ลดลงตอนจะใช้
+    เครื่องทำงานอื่น) มีผลเฉพาะรอบที่รันอยู่ ไม่บันทึกทับค่าในหน้าตั้งค่า"""
+    snap = run_state.snapshot()
+    if snap.overall_state == "idle" or snap.windows_target <= 0:
+        raise HTTPException(status_code=409, detail="ไม่ได้รันแบบเดสก์ท็อปเบื้องหลังอยู่ตอนนี้")
+    runner.set_windows_target(req.windows)
+    return run_state.snapshot()
+
+
+@app.get("/api/system/capacity")
+async def system_capacity_info() -> dict:
+    """v1.3.0 — กำลังเครื่อง + จำนวนหน้าต่างที่แนะนำ (โหมดอัตโนมัติ) ให้หน้าตั้งค่าแสดง"""
+    import system_capacity
+
+    return await asyncio.to_thread(system_capacity.recommend)
+
+
 @app.post("/api/run/force-close-cropwat")
 async def force_close_cropwat() -> dict:
     """ทางออกฉุกเฉิน (v1.0): "หยุด" ปกติเป็นการขอความร่วมมือ (thread เช็ค flag

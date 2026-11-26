@@ -14,6 +14,8 @@ REM run from inside backend/  ("cd backend" then "build.bat")
     --hidden-import comtypes ^
     --hidden-import comtypes.stream ^
     --hidden-import docx ^
+    --hidden-import cropwat_options ^
+    --hidden-import system_capacity ^
     --hidden-import pystray ^
     --hidden-import pystray._win32 ^
     --collect-all webview ^
