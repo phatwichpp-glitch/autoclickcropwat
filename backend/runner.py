@@ -423,6 +423,9 @@ class _Batch:
     total: int
     done: int
     lock: threading.Lock = field(default_factory=threading.Lock)
+    # v1.3.1 — วันปลูกที่ "ข้ามไป" เพราะหน้าต่างค้างจน watchdog ต้องปิด CropWat (ปี → ข้อความ)
+    # ส่วนที่เหลือของปีนั้นย้ายไปทำต่ออีกหน้าต่าง — ตอนปีนั้นจบต้องยังขึ้นว่ามีปัญหา
+    year_failures: dict = field(default_factory=dict)
 
     def candidate_done(self) -> None:
         # หลายหน้าต่างเรียกพร้อมกันได้ — นับ + ส่ง progress ในล็อกเดียวกัน กันเลขถอยหลัง
@@ -557,13 +560,20 @@ def _execute_year(
     engine: CropWatEngine,
     batch: _Batch,
     should_stop=None,
+    on_progress=None,
 ):
     """รันวันปลูกที่เหลือของ 1 ปีบน engine (หน้าต่าง CropWat) ที่ให้มา + ตั้งสถานะปี
     คืน YearRunResult — should_stop (ถ้าไม่ระบุ = คำสั่งหยุดของผู้ใช้) ถูกเช็คก่อนทุก
-    วันปลูก ใช้ให้หน้าต่างที่ถูก "ลดจำนวน" ระหว่างรันวางงานกลางปีได้ (ดู _hidden_worker)"""
+    วันปลูก ใช้ให้หน้าต่างที่ถูก "ลดจำนวน" ระหว่างรันวางงานกลางปีได้ (ดู _hidden_worker)
+    on_progress ถูกเรียกทุกครั้งที่จบ 1 วันปลูก (heartbeat ของ watchdog)"""
     year = plan.year
     run_state.set_current_year(year)
     run_state.set_year_status(year, YearRunStatus.RUNNING)
+
+    def _done(_result) -> None:
+        batch.candidate_done()
+        if on_progress is not None:
+            on_progress()
 
     result = engine.run_year(
         year=year,
@@ -572,7 +582,7 @@ def _execute_year(
         rain_file_for=plan.rain_file_for,
         export_dir=txt_dir(settings),
         screenshot_dir=screenshot_dir(settings),
-        on_candidate_done=lambda _result: batch.candidate_done(),
+        on_candidate_done=_done,
         should_stop=should_stop or run_state.is_stop_requested,
     )
 
@@ -583,7 +593,8 @@ def _execute_year(
         run_state.set_year_status(year, YearRunStatus.QUEUED)
         return result
 
-    if result.ok:
+    skipped = batch.year_failures.get(year) or []
+    if result.ok and not skipped:
         # เก็บ path โฟลเดอร์ export ไว้ (มีหลายไฟล์ต่อปี — 1 ไฟล์ต่อ 1 วันปลูก
         # ที่ทดลอง — ไม่ใช่ไฟล์เดียวอีกต่อไป)
         exported_files = [str(c.exported_file) for c in result.candidates if c.exported_file]
@@ -593,8 +604,9 @@ def _execute_year(
             exported_file="; ".join(exported_files) if exported_files else None,
         )
     else:
+        msgs = ([result.error_message] if result.error_message else []) + list(skipped)
         run_state.set_year_status(
-            year, YearRunStatus.ERROR, error_message=result.error_message
+            year, YearRunStatus.ERROR, error_message=" · ".join(msgs) or "มีวันปลูกที่ทำไม่สำเร็จ"
         )
     return result
 
@@ -605,6 +617,53 @@ _worker_indices: set[int] = set()
 _workers_lock = threading.Lock()
 # เปิดหน้าต่างไม่สำเร็จเกินกี่ครั้งต่อการรัน 1 รอบ แล้วเลิกพยายามเปิดเพิ่ม (กันวนเปิด-พังไม่จบ)
 _MAX_LAUNCH_FAILURES = 3
+
+# v1.3.1 — watchdog กันค้าง (ผู้ใช้: "เหมือนมันไม่ยอมข้ามก็เลยค้าง"): ทุกหน้าต่างอัปเดต
+# heartbeat ทุกครั้งที่จบ 1 วันปลูก/เริ่มปีใหม่ ถ้าเงียบเกิน _WATCHDOG_SECONDS (ปกติ
+# วันปลูกละ ~10-30 วิ รวมลองใหม่ทุกขั้นแล้วไม่เกิน ~2 นาที) ตัวคุมจะปิด CropWat ของหน้าต่าง
+# นั้นทิ้ง → คำสั่งที่ค้างอยู่ error หลุดออกมา → วันปลูกที่ค้างถูกบันทึกว่ามีปัญหา (ข้ามไป
+# เหมือนเวอร์ชันก่อนๆ) → วันที่เหลือของปีนั้นกลับเข้าคิว → ตัวคุมเปิด CropWat ใหม่มาทำต่อ
+_WATCHDOG_SECONDS = 300.0
+_worker_heartbeat: dict[int, float] = {}
+_worker_sessions: dict[int, object] = {}
+_worker_hung: set[int] = set()
+
+
+def _beat(index: int) -> None:
+    with _workers_lock:
+        _worker_heartbeat[index] = time.monotonic()
+
+
+def _is_hung(index: int) -> bool:
+    with _workers_lock:
+        return index in _worker_hung
+
+
+def _watchdog_check(active: set[int], auto: bool = False) -> None:
+    """เรียกจากลูปตัวคุม — ปิด CropWat ของหน้าต่างที่เงียบนานเกินกำหนด
+    auto=True (โหมดอัตโนมัติ): หน้าต่างค้าง = สัญญาณว่าเครื่องรับไม่ไหว → ลดจำนวนหน้าต่าง
+    ที่ตั้งไว้ลง 1 ทันที (ไม่ต่ำกว่า 1) แทนที่จะเปิดใหม่เท่าเดิมแล้วค้างซ้ำ"""
+    now = time.monotonic()
+    with _workers_lock:
+        hung = [
+            i for i in active
+            if i not in _worker_hung and now - _worker_heartbeat.get(i, now) > _WATCHDOG_SECONDS
+        ]
+        for i in hung:
+            _worker_hung.add(i)
+        targets = [(i, _worker_sessions.get(i)) for i in hung]
+    for i, session in targets:
+        logger.warning(
+            "หน้าต่างที่ %s ไม่มีความคืบหน้านานเกิน %.0f วินาที — ปิด CropWat ที่ค้างแล้วเปิดใหม่",
+            i + 1, _WATCHDOG_SECONDS,
+        )
+        if session is not None:
+            session.kill_process()
+    if targets and auto:
+        cur = run_state.windows_target()
+        if cur > 1:
+            run_state.set_windows_target(cur - 1)
+            logger.warning("โหมดอัตโนมัติ: ลดจำนวนหน้าต่าง CropWat จาก %s เหลือ %s เพราะมีหน้าต่างค้าง", cur, cur - 1)
 
 
 def _worker_should_retire(index: int) -> bool:
@@ -663,10 +722,15 @@ def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
 
         threads: list[threading.Thread] = []
         last_spawn = -1e9
+        with _workers_lock:
+            _worker_heartbeat.clear()
+            _worker_sessions.clear()
+            _worker_hung.clear()
         while True:
             with _workers_lock:
                 active = set(_worker_indices)
             run_state.set_windows_active(len(active))
+            _watchdog_check(active, auto=settings.parallel_windows == 0)
             stop = run_state.is_stop_requested()
             if not active and (work.empty() or stop or len(failures) >= _MAX_LAUNCH_FAILURES):
                 break
@@ -682,6 +746,7 @@ def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
                 index = next(i for i in range(len(active) + 1) if i not in active)
                 with _workers_lock:
                     _worker_indices.add(index)
+                    _worker_heartbeat[index] = time.monotonic()
                 t = threading.Thread(
                     target=_hidden_worker,
                     args=(index, settings, batch, work, failures),
@@ -730,7 +795,7 @@ def _hidden_worker(
         failures.append(f"หน้าต่าง CropWat ที่ {index + 1}: {message}")
 
     def _retire_or_stop() -> bool:
-        return run_state.is_stop_requested() or _worker_should_retire(index)
+        return run_state.is_stop_requested() or _worker_should_retire(index) or _is_hung(index)
 
     session = None
     try:
@@ -747,6 +812,9 @@ def _hidden_worker(
             return
         with _sessions_lock:
             _active_hidden_sessions.append(session)
+        with _workers_lock:
+            _worker_sessions[index] = session
+        _beat(index)
 
         speed_multiplier = SPEED_MULTIPLIERS.get(settings.speed_preset, 1.0)
         # background_mode=True = สั่งเมนูแบบ message ล้วน (เหมาะกับเดสก์ท็อปที่ไม่มี
@@ -779,12 +847,41 @@ def _hidden_worker(
                 plan = work.get_nowait()
             except queue.Empty:
                 break
+            _beat(index)
             try:
-                result = _execute_year(plan, settings, engine, batch, should_stop=_retire_or_stop)
+                result = _execute_year(
+                    plan, settings, engine, batch,
+                    should_stop=_retire_or_stop, on_progress=lambda: _beat(index),
+                )
             except Exception as exc:  # noqa: BLE001 -- ปีเดียวพังห้ามล้มทั้งหน้าต่าง
                 logger.exception("หน้าต่างที่ %s: ปี %s ล้มเหลวโดยไม่คาดคิด", index + 1, plan.year)
                 run_state.set_year_status(plan.year, YearRunStatus.ERROR, error_message=str(exc))
                 continue
+            if _is_hung(index):
+                # watchdog ปิด CropWat ของหน้าต่างนี้ไปแล้ว: วันปลูกที่ลงมือไปแล้วแต่ไม่สำเร็จ
+                # (ตัวที่ค้าง) = ข้ามไปพร้อมบันทึกว่ามีปัญหา ส่วนที่ยังไม่ได้เริ่มกลับเข้าคิว
+                # ให้ CropWat ตัวใหม่ทำต่อ แล้วหน้าต่างนี้จบตัวเอง (ตัวคุมเปิดตัวใหม่แทน)
+                attempted = {c.planting_date for c in result.candidates}
+                note = (
+                    f"CropWat ไม่ตอบสนองนานเกิน {_WATCHDOG_SECONDS / 60:.0f} นาที — "
+                    "ระบบปิดแล้วเปิดใหม่ให้อัตโนมัติ ข้ามวันนี้ไปก่อน (กด \"ประมวลผลซ้ำปีที่มีปัญหา\" ภายหลังได้)"
+                )
+                for c in result.candidates:
+                    if not c.ok:
+                        batch.year_failures.setdefault(plan.year, []).append(
+                            f"{c.planting_date:%d/%m}: {note}"
+                        )
+                rest = [t for t in plan.tasks if t.planting_date not in attempted]
+                if rest and not run_state.is_stop_requested():
+                    work.put(_YearPlan(plan.year, rest, plan.climate_file_for, plan.rain_file_for))
+                    run_state.set_year_status(plan.year, YearRunStatus.QUEUED)
+                elif result.stopped:
+                    skipped = batch.year_failures.get(plan.year)
+                    if skipped:
+                        run_state.set_year_status(
+                            plan.year, YearRunStatus.ERROR, error_message=" · ".join(skipped)
+                        )
+                break
             if result.stopped and not run_state.is_stop_requested():
                 # ถูกลดจำนวนหน้าต่างกลางปี — คืนวันปลูกที่ยังไม่สำเร็จเข้าคิวให้หน้าต่างอื่น
                 done_ok = {c.planting_date for c in result.candidates if c.ok}
@@ -810,6 +907,9 @@ def _hidden_worker(
             session.stop()
         with _workers_lock:
             _worker_indices.discard(index)
+            _worker_sessions.pop(index, None)
+            _worker_heartbeat.pop(index, None)
+            _worker_hung.discard(index)
 
 
 def set_windows_target(n: int) -> int:

@@ -29,6 +29,7 @@ from state import run_state
 class _FakeSession:
     instances: list = []
     fail_names: set = set()
+    by_pid: dict = {}
     lock = threading.Lock()
 
     def __init__(self, exe, desktop_name=None):
@@ -36,7 +37,9 @@ class _FakeSession:
         with _FakeSession.lock:
             self.pid = 1000 + len(_FakeSession.instances)
             _FakeSession.instances.append(self)
+            _FakeSession.by_pid[self.pid] = self
         self.stopped = False
+        self.killed = threading.Event()
 
     def bind_and_launch(self):
         if self.desktop_name in _FakeSession.fail_names:
@@ -45,6 +48,10 @@ class _FakeSession:
 
     def stop(self):
         self.stopped = True
+        self.killed.set()
+
+    def kill_process(self):
+        self.killed.set()
 
 
 class _FakeEngine:
@@ -52,6 +59,8 @@ class _FakeEngine:
     dates: list = []  # (year, planting_date) ที่ทำสำเร็จ
     lock = threading.Lock()
     task_seconds = 0.05
+    hang_on: set = set()  # {(year, day)} ที่ CropWat จะค้างจนกว่าถูกปิด (ครั้งแรกเท่านั้น)
+    hung_log: list = []
 
     def __init__(self, background_mode=False, speed_multiplier=1.0):
         self.pause_check = None
@@ -71,6 +80,16 @@ class _FakeEngine:
         for t in tasks:
             if should_stop():
                 return YearRunResult(year=year, ok=False, candidates=results, stopped=True)
+            key = (year, t.planting_date.day)
+            if key in _FakeEngine.hang_on:
+                _FakeEngine.hang_on.discard(key)
+                _FakeEngine.hung_log.append(key)
+                _FakeSession.by_pid[self.pid].killed.wait(30)  # ค้างจนถูกปิด
+                r = CandidateRunResult(year=year, planting_date=t.planting_date, ok=False,
+                                       error_message="window handle is not valid")
+                results.append(r)
+                on_candidate_done(r)
+                continue
             time.sleep(_FakeEngine.task_seconds)
             r = CandidateRunResult(year=year, planting_date=t.planting_date, ok=True)
             results.append(r)
@@ -87,6 +106,9 @@ def fake_env(monkeypatch, tmp_path):
     _FakeEngine.runs = []
     _FakeEngine.dates = []
     _FakeEngine.task_seconds = 0.05
+    _FakeEngine.hang_on = set()
+    _FakeEngine.hung_log = []
+    _FakeSession.by_pid = {}
     monkeypatch.setattr(desktop_session, "HiddenDesktopSession", _FakeSession)
     monkeypatch.setattr(runner, "CropWatEngine", _FakeEngine)
     monkeypatch.setattr(runner, "_WORKER_STAGGER_SECONDS", 0.02)
@@ -263,8 +285,9 @@ def test_desktop_name_for():
 
 
 @pytest.mark.parametrize("info,expected", [
-    ({"threads": 32, "ram_total_mb": 32768, "ram_free_mb": 16000, "cpu_busy": 0.05}, 4),
-    ({"threads": 8, "ram_total_mb": 8192, "ram_free_mb": 4000, "cpu_busy": 0.1}, 2),
+    ({"threads": 32, "ram_total_mb": 32768, "ram_free_mb": 16000, "cpu_busy": 0.05}, 3),  # เพดานโหมดอัตโนมัติ
+    ({"threads": 16, "ram_total_mb": 16384, "ram_free_mb": 8000, "cpu_busy": 0.1}, 2),
+    ({"threads": 8, "ram_total_mb": 8192, "ram_free_mb": 4000, "cpu_busy": 0.1}, 1),
     ({"threads": 4, "ram_total_mb": 4096, "ram_free_mb": 1500, "cpu_busy": 0.2}, 1),
     ({"threads": 32, "ram_total_mb": 32768, "ram_free_mb": 16000, "cpu_busy": 0.9}, 1),  # เครื่องยุ่งมาก
     ({"threads": 32, "ram_total_mb": 8192, "ram_free_mb": 1900, "cpu_busy": 0.0}, 2),  # แรมน้อย
@@ -274,3 +297,56 @@ def test_capacity_recommendation(info, expected):
     assert r["recommended"] == expected
     assert 1 <= r["recommended"] <= r["max"]
     assert r["reason"]
+
+
+def test_watchdog_skips_hung_date_and_finishes(fake_env, monkeypatch):
+    """v1.3.1 — CropWat ค้างในวันปลูก 10/04/1991: watchdog ปิด CropWat → วันนั้นถูกข้าม
+    (ปีนั้นขึ้นว่ามีปัญหา พร้อมเหตุผล) → วันที่เหลือของปีนั้นทำต่อบน CropWat ตัวใหม่ → งานจบ"""
+    monkeypatch.setattr(runner, "_WATCHDOG_SECONDS", 0.4)
+    _FakeEngine.task_seconds = 0.03
+    _FakeEngine.hang_on = {(1991, 10)}
+    years = [1990, 1991, 1992]
+    days = (1, 5, 10, 15, 20)
+    t = _start_async(years, _settings(fake_env, 2, days=days))
+    t.join(timeout=20)
+    assert not t.is_alive(), "ยังค้างอยู่ — watchdog ไม่ทำงาน"
+    assert _FakeEngine.hung_log == [(1991, 10)]
+    snap = {y.year: y for y in run_state.snapshot().years}
+    assert snap[1990].status == YearRunStatus.DONE
+    assert snap[1992].status == YearRunStatus.DONE
+    assert snap[1991].status == YearRunStatus.ERROR
+    assert "ไม่ตอบสนอง" in snap[1991].error_message and "10/04" in snap[1991].error_message
+    ok_1991 = {d.day for y, d in _FakeEngine.dates if y == 1991}
+    assert ok_1991 == {1, 5, 15, 20}  # วันที่เหลือได้ทำต่อครบ ไม่ทำซ้ำ
+    assert len(_FakeEngine.dates) == len(set(_FakeEngine.dates))
+    assert len(_FakeSession.instances) >= 3  # เปิด CropWat ใหม่แทนตัวที่ค้าง
+    s = run_state.snapshot()
+    assert s.candidate_done == s.candidate_total
+
+
+def test_watchdog_quiet_when_progressing(fake_env, monkeypatch):
+    """หน้าต่างที่ทำงานปกติ (มีวันปลูกเสร็จเรื่อยๆ) ต้องไม่โดน watchdog ปิด"""
+    monkeypatch.setattr(runner, "_WATCHDOG_SECONDS", 0.5)
+    _FakeEngine.task_seconds = 0.05
+    years = list(range(1990, 1996))
+    snap = _run(years, _settings(fake_env, 2, days=(1, 5, 10, 15, 20, 25)))
+    assert all(snap[y].status == YearRunStatus.DONE for y in years)
+    assert len(_FakeSession.instances) == 2
+
+
+def test_watchdog_auto_mode_backs_off(fake_env, monkeypatch):
+    """โหมดอัตโนมัติ: เจอหน้าต่างค้าง → ลดจำนวนหน้าต่างลง 1 (ตั้งเองไม่ลด)"""
+    monkeypatch.setattr(runner, "_WATCHDOG_SECONDS", 0.4)
+    monkeypatch.setattr(system_capacity, "recommend_windows", lambda: 3)
+    _FakeEngine.task_seconds = 0.03
+    _FakeEngine.hang_on = {(1990, 10)}
+    seen = []
+    orig = run_state.set_windows_target
+
+    def _spy(n):
+        seen.append(n)
+        orig(n)
+
+    monkeypatch.setattr(run_state, "set_windows_target", _spy)
+    _run([1990, 1991, 1992, 1993], _settings(fake_env, 0, days=(1, 5, 10, 15, 20)))
+    assert seen[:2] == [3, 2]

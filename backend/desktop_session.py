@@ -303,6 +303,17 @@ class HiddenDesktopSession:
             win32gui.PostMessage(h, win32con.WM_CLOSE, 0, 0)
             logger.info("ปิด Welcome dialog ของ CropWat อัตโนมัติ")
 
+    def kill_process(self) -> None:
+        """v1.3.1 — ปิดเฉพาะ CropWat (ไม่แตะเดสก์ท็อป) เรียกจาก thread อื่นได้ — ใช้ตอน
+        watchdog เจอหน้าต่างค้าง: CropWat ตายแล้วคำสั่งที่ automation thread รออยู่จะ error
+        หลุดออกมาเอง แล้ว thread นั้นค่อยเรียก stop() ปิดเดสก์ท็อปของตัวเองตามปกติ"""
+        if self._proc_handle is not None:
+            try:
+                win32api.TerminateProcess(self._proc_handle, 0)
+                logger.warning("ปิด CropWat (pid=%s) ที่ค้างอยู่บน %s แล้ว", self.pid, self.desktop_name)
+            except Exception:  # noqa: BLE001 -- ปิดไปเองแล้ว = ปกติ
+                pass
+
     def stop(self) -> None:
         """ปิด CropWat ที่เราเปิดในเดสก์ท็อปซ่อน + ปล่อย handle เดสก์ท็อป — เป็น
         process ที่โปรแกรมนี้เปิดเอง (ไม่ใช่ของผู้ใช้) จึง terminate ได้ปลอดภัย"""

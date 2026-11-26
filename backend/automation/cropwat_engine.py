@@ -289,7 +289,15 @@ class CropWatEngine:
             handles = self._resolve_duplicate_module_windows(class_name, handles)
 
         try:
-            window = self.app.window(class_name=class_name, top_level_only=False)
+            # v1.3.1 — ล็อกเป้าด้วย handle ทันทีที่รู้ว่าเหลือบานไหน (บานใหม่สุด) ไม่ค้นด้วย
+            # class_name ซ้ำ: spec แบบ class_name ถูก pywinauto ค้นใหม่ "ทุกครั้งที่ใช้" ถ้ามี
+            # บานที่ 2 โผล่แทรกระหว่างนั้น (เครื่องโหลดหนัก/หลายหน้าต่างพร้อมกัน CropWat ตั้ง
+            # ชื่อหน้าต่างช้า) จะโยน "There are 2 elements that match" ทันที — ทดสอบสด 4
+            # หน้าต่าง ปฏิทินค่าเริ่มต้น เจอที่ 1992 01/05 ตกครบ 3 รอบ
+            if handles:
+                window = self.app.window(handle=max(handles))
+            else:
+                window = self.app.window(class_name=class_name, top_level_only=False)
             self._wait_ready_checking_errors(window, timeout=10, context=f"_focus_mdi_child({class_name})")
         except ElementAmbiguousError:
             # v0.5.32 — ยืนยันจากผู้ใช้จริง: เช็คจำนวนหน้าต่างข้างบนแล้วผ่าน (เจอ
@@ -311,7 +319,7 @@ class CropWatEngine:
             # ของระบบเลย (สถานะ "MDI child ไหน active" เป็นเรื่องภายในโปรแกรม)
             WM_MDIACTIVATE = 0x0222
             mdiclient = self.main_window.child_window(class_name="MDIClient")
-            win32gui.SendMessage(mdiclient.handle, WM_MDIACTIVATE, window.handle, 0)
+            self._send_bounded(mdiclient.handle, WM_MDIACTIVATE, window.handle, 0)
         else:
             window.set_focus()
         # เผื่อเวลาให้ CropWat ประมวลผลการเปลี่ยนหน้าต่าง active ก่อน — เจอจริงว่าถ้า
@@ -589,7 +597,7 @@ class CropWatEngine:
                     retried = True
                     ok_btn = self._find_child_button(dialog_hwnd, r"&?Open$")
                     if ok_btn is not None:
-                        win32gui.SendMessage(ok_btn, self._BM_CLICK, 0, 0)
+                        self._send_bounded(ok_btn, self._BM_CLICK)
                     close_deadline = time.monotonic() + 3.0
                     continue
                 raise StepTimeoutError(
@@ -1120,6 +1128,28 @@ class CropWatEngine:
     # ------------------------------------------------------------------
     # ปุ่มบน dialog กดผ่าน message ตรงๆ (BM_CLICK) ไม่ต้องพึ่ง focus/เมาส์จริง
     _BM_CLICK = 0x00F5
+    # v1.3.1 — เพดานเวลารอ CropWat ตอบ message ที่ส่งแบบรอผล (มิลลิวินาที)
+    _SEND_TIMEOUT_MS = 4000
+
+    @classmethod
+    def _send_bounded(cls, hwnd: int, msg: int, wparam: int = 0, lparam: int = 0) -> bool:
+        """v1.3.1 — แทน win32gui.SendMessage ตรงๆ ทุกจุด: SendMessage "รอจน CropWat
+        ประมวลผลเสร็จ" ไม่มีเพดานเวลา ถ้าระหว่างนั้น CropWat เด้ง dialog ใหม่ (เช่น กด Open
+        แล้วเจอ "ไฟล์ไม่ถูกต้อง", กด OK แล้วมีกล่องถัดไป) dialog นั้นวนรอใน handler ของ
+        ปุ่ม → SendMessage ไม่คืนค่า → automation thread ค้างถาวร เพราะคนเดียวที่จะปิด
+        dialog นั้นได้คือ thread ที่กำลังค้างอยู่เอง (อาการผู้ใช้ v1.3.0: "ไม่ยอมข้ามก็เลย
+        ค้าง" — หลายหน้าต่างพร้อมกันเครื่องโหลดหนัก dialog ปิดช้า เลยเข้าทางกด Open ซ้ำ
+        บ่อยขึ้น) — ใช้ SendMessageTimeout: เกินเวลา = คืน False แล้วไปต่อ (โค้ดรอบนอก
+        เช็คผลซ้ำเองอยู่แล้วทุกจุด)"""
+        try:
+            win32gui.SendMessageTimeout(
+                hwnd, msg, wparam, lparam,
+                win32con.SMTO_ABORTIFHUNG | win32con.SMTO_NORMAL, cls._SEND_TIMEOUT_MS,
+            )
+            return True
+        except Exception:  # noqa: BLE001 -- timeout / หน้าต่างหายไปแล้ว
+            logger.warning("CropWat ไม่ตอบ message %#x ภายใน %s มิลลิวินาที — ข้ามไปทำต่อ", msg, cls._SEND_TIMEOUT_MS)
+            return False
 
     def _find_error_dialogs(self) -> list[int]:
         """หา "dialog จริง" ของ CropWat ที่เข้าข่าย error/warning ทั้งหมดตอนนี้ —
@@ -1281,7 +1311,7 @@ class CropWatEngine:
                 # ข้อมูลต้นทางของผู้ใช้
                 no_button = self._find_child_button(hwnd, r"&?No$")
                 if no_button is not None:
-                    win32gui.SendMessage(no_button, self._BM_CLICK, 0, 0)
+                    self._send_bounded(no_button, self._BM_CLICK)
                     logger.info("ตอบ No อัตโนมัติให้ prompt ถามบันทึกข้อมูล (ไม่ใช่ error)")
                     continue
 
@@ -1299,7 +1329,7 @@ class CropWatEngine:
 
                 ok_button = self._find_child_button(hwnd, r"&?OK$")
                 if ok_button is not None:
-                    win32gui.SendMessage(ok_button, self._BM_CLICK, 0, 0)
+                    self._send_bounded(ok_button, self._BM_CLICK)
                 else:
                     win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
             except Exception:  # noqa: BLE001 -- dialog ตายไปพอดีระหว่างจัดการ = ข้าม

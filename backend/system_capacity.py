@@ -4,7 +4,9 @@ system_capacity.py
 v1.3.0 — เลือกจำนวนหน้าต่าง CropWat ที่รันพร้อมกันให้อัตโนมัติตามกำลังเครื่อง
 
 ดูจาก 3 อย่าง (เอาค่าที่น้อยที่สุด = ปลอดภัยสุด) แล้วบีบให้อยู่ 1..MAX_PARALLEL_WINDOWS:
-- จำนวนเธรด CPU: ทุก 4 เธรด = 1 หน้าต่าง — แต่ละหน้าต่างใช้ CropWat 1 process + thread
+- จำนวนเธรด CPU: ทุก 6 เธรด = 1 หน้าต่าง (v1.3.1 จากเดิม 4 — งานจริงปฏิทินค่าเริ่มต้นบน
+  เครื่อง 32 เธรด 4 หน้าต่างยังเริ่มมีหน้าต่าง climate ซ้อน) และโหมดอัตโนมัติไม่เกิน AUTO_MAX
+  (ตั้งเองได้ถึง MAX_PARALLEL_WINDOWS) — — แต่ละหน้าต่างใช้ CropWat 1 process + thread
   automation ของเราอีก 1 + ระบบ Windows ต้องวาดหน้าต่างให้ (ทดสอบสดบนเครื่อง 32 เธรด:
   4 หน้าต่างผ่าน 36/36, 8 หน้าต่างตก 3/48 เพราะ CropWat ตั้งชื่อหน้าต่างไม่ทัน)
 - CPU ว่างตอนนี้: ถ้าผู้ใช้เปิดงานหนักอื่นอยู่ (CPU ถูกใช้ไปเยอะ) ลดลงตาม
@@ -21,6 +23,9 @@ import time
 from ctypes import wintypes
 
 from config import MAX_PARALLEL_WINDOWS
+
+# v1.3.1 — เพดานของโหมดอัตโนมัติ (ระวังไว้ก่อน ผู้ใช้เลือกเองได้ถึง MAX_PARALLEL_WINDOWS)
+AUTO_MAX = 3
 
 
 class _MEMORYSTATUSEX(ctypes.Structure):
@@ -82,17 +87,17 @@ def recommend(info: dict | None = None) -> dict:
     busy = float(info["cpu_busy"])
     free_mb = float(info["ram_free_mb"])
 
-    by_cpu = threads // 4
+    by_cpu = threads // 6
     by_load = int(threads * (1.0 - busy) // 3)
     by_ram = int((free_mb - 1024) // 400) if free_mb > 0 else MAX_PARALLEL_WINDOWS
-    n = max(1, min(MAX_PARALLEL_WINDOWS, by_cpu, by_load, by_ram))
+    n = max(1, min(AUTO_MAX, by_cpu, by_load, by_ram))
 
     limit = min(
         (by_cpu, "จำนวนเธรด CPU"), (by_load, "เครื่องกำลังทำงานอื่นอยู่"), (by_ram, "แรมว่างเหลือน้อย"),
         key=lambda t: t[0],
     )
-    if n >= MAX_PARALLEL_WINDOWS:
-        why = "เครื่องแรงพอ ใช้จำนวนสูงสุด"
+    if n >= AUTO_MAX:
+        why = "เครื่องแรงพอ ใช้จำนวนสูงสุดของโหมดอัตโนมัติ"
     else:
         why = f"จำกัดด้วย{limit[1]}"
     return {
