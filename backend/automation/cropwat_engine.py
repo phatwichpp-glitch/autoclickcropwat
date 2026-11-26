@@ -299,8 +299,12 @@ class CropWatEngine:
             handles = find_windows(
                 class_name=class_name, top_level_only=False, process=self.app.process
             )
-            self._resolve_duplicate_module_windows(class_name, handles)
-            window = self.app.window(class_name=class_name, top_level_only=False)
+            remaining = self._resolve_duplicate_module_windows(class_name, handles)
+            # v1.2.2 — ชี้เป้าด้วย handle ตรงๆ (บานที่ self-heal เลือกเก็บ = ใหม่สุด)
+            # แทน class_name: เดิมรอบนี้ยังค้นด้วย class อีกครั้ง ถ้าปิดบานซ้ำไม่ลง
+            # จะโยน "There are 2 elements that match ... TDayEToPMForm" ดิบๆ ออกไป
+            # (ยืนยันจาก screenshot ผู้ใช้ ปี 1982 — วันที่ 1 ของเดือนที่สลับไฟล์)
+            window = self.app.window(handle=max(remaining))
             self._wait_ready_checking_errors(window, timeout=10, context=f"_focus_mdi_child({class_name}) retry")
         if self.background_mode:
             # สั่ง MDI activate ผ่าน message ตรงไปที่ MDIClient — ไม่แตะ foreground
@@ -472,9 +476,32 @@ class CropWatEngine:
         # เก็บกวาดหลังเปิด: ถ้า File->Open สร้างบานใหม่ ฟอร์มเปล่าที่ใช้เบิกทาง
         # ยังค้างอยู่เป็นบานที่สอง — ปิดทิ้งโดยเก็บเฉพาะบานที่โหลดไฟล์เป้าหมาย
         # (close_all_if_no_match=False กันเผลอปิดบานที่เพิ่งเปิดถ้า title ไม่ตรงคาด)
-        self._close_stale_module_windows(
+        #
+        # v1.2.2 — ยืนยันว่าไฟล์ "โหลดเข้าหน้าต่างจริง" ก่อนไปต่อ: เดิมถ้า title ยัง
+        # ไม่ทันเปลี่ยน (Delphi ตั้ง caption หลังโหลดเสร็จ) ขั้นนี้ไม่เจอบานที่ตรง
+        # เลยไม่ปิดอะไร + ไม่แจ้งอะไร → ฟอร์มเปล่า "untitled" ค้างเป็นบานที่สอง →
+        # วันปลูกนั้น (วันแรกของเดือนที่สลับไฟล์ = วันที่ 1) พังที่ขั้นถัดไป ส่วน
+        # วันที่ 2 เก็บกวาดได้เองเพราะ title ทันแล้ว (ตรงกับอาการที่ผู้ใช้เจอ)
+        # ตอนนี้รอ title สูงสุด ~4 วิ ถ้ายังไม่เจอ = เปิดไม่สำเร็จจริง → raise ให้
+        # run_year ลองเปิดใหม่ทั้งชุด (ดู _open_climate_rain_with_retry)
+        deadline = time.monotonic() + 4.0
+        while not self._close_stale_module_windows(
             class_name, file_path.name, module_label, close_all_if_no_match=False
-        )
+        ):
+            if time.monotonic() > deadline:
+                titles = [
+                    win32gui.GetWindowText(h) or "(ไม่มีชื่อ)"
+                    for h in find_windows(
+                        class_name=class_name, top_level_only=False, process=self.app.process
+                    )
+                ]
+                raise StepTimeoutError(
+                    f"เปิดไฟล์ {module_label} {file_path.name} แล้วแต่ไม่พบหน้าต่างที่โหลดไฟล์นี้ "
+                    f"(หน้าต่างที่เห็น: {', '.join(titles) or 'ไม่มี'})"
+                )
+            self._poll_error_dialog()
+            self._answer_no_to_save_prompt()
+            self._sleep(0.2)
 
     def _open_file_via_dialog(self, file_path: Path, dialog_title_re, filename_field, open_button) -> None:
         """ทำ flow เปิดไฟล์ผ่าน Windows-style open dialog ที่เด้งขึ้นมาเป็น
@@ -1339,14 +1366,20 @@ class CropWatEngine:
                 return
             self._sleep(0.04)
 
-    @staticmethod
-    def _wait_for_file(path: Path, timeout: float) -> bool:
+    def _wait_for_file(self, path: Path, timeout: float) -> bool:
+        # v1.2.2 — เดิมเป็น @staticmethod แต่เรียก self._sleep (ตั้งแต่ v0.5.14) →
+        # NameError ทุกครั้งที่ไฟล์ยังไม่โผล่ในการเช็คครั้งแรก กินรอบลองใหม่ของวันปลูกฟรีๆ
+        # v1.2.2 — รอจน "ขนาดไฟล์นิ่ง" 2 ครั้งติด (ไม่ใช่แค่ > 0) กันอ่านไฟล์ที่ CropWat
+        # ยังเขียนไม่เสร็จ (ตัว parse ใน run_candidate_planting_date อ่านซ้ำเป็นชั้นสอง)
         deadline = time.monotonic() + timeout
+        last_size = -1
         while time.monotonic() < deadline:
-            if path.exists() and path.stat().st_size > 0:
+            size = path.stat().st_size if path.exists() else 0
+            if size > 0 and size == last_size:
                 return True
+            last_size = size
             self._sleep(0.1)  # v0.5.7 จาก 0.5 → 0.1: ไฟล์ print มักโผล่ใน ~0.1-0.3 วิ
-        return False
+        return last_size > 0
 
     # ------------------------------------------------------------------
     # Orchestrator ระดับ "1 วันปลูกที่ทดลอง" (1 คอลัมน์ใน Result sheet)
@@ -1389,12 +1422,29 @@ class CropWatEngine:
 
                 # ตาข่ายสุดท้ายกันบั๊กเงียบ: ตรวจจากไฟล์ .txt ที่ CropWat พิมพ์ออกมาเอง
                 # ว่าวันปลูกตรงกับ candidate ที่สั่งจริง (ยอมรับทั้ง dm/md กัน Region ต่าง)
-                try:
-                    parsed = parse_txt(exported_file)
-                except (TxtParseError, OSError) as exc:
-                    raise CropWatReportedError(
-                        f"ไฟล์ผลลัพธ์ {exported_file.name} อ่านค่า Planting date ไม่ได้: {exc}"
-                    ) from exc
+                #
+                # v1.2.2 — ยืนยันจากการรันสดข้ามเดือน: ไฟล์โผล่ (size > 0) ก่อน CropWat
+                # เขียนเสร็จ → parse เจอไฟล์ครึ่งเดียว ("หา pattern ... Reductions in
+                # ETc ไม่เจอ") → ต้องรันทั้งวันปลูกใหม่ (วันที่ 1 หลังสลับไฟล์โดน
+                # บ่อยสุด บางวันใช้ครบ 3 รอบพอดี) — อ่านซ้ำได้นานสุด ~5 วิก่อนถือว่าพัง
+                parse_deadline = time.monotonic() + 5.0
+                parse_tries = 0
+                while True:
+                    parse_tries += 1
+                    try:
+                        parsed = parse_txt(exported_file)
+                        break
+                    except (TxtParseError, OSError) as exc:
+                        if time.monotonic() > parse_deadline:
+                            raise CropWatReportedError(
+                                f"ไฟล์ผลลัพธ์ {exported_file.name} อ่านค่า Planting date ไม่ได้: {exc}"
+                            ) from exc
+                        self._sleep(0.25)
+                if parse_tries > 1:
+                    logger.info(
+                        "ปี %s วันปลูก %s: ไฟล์ผลลัพธ์ยังเขียนไม่เสร็จตอนอ่านครั้งแรก — อ่านผ่านในครั้งที่ %s",
+                        year, planting_date, parse_tries,
+                    )
 
                 pd_match = re.match(r"^\s*(\d{1,2})/(\d{1,2})\s*$", parsed.planting_date)
                 if not pd_match:
@@ -1443,6 +1493,65 @@ class CropWatEngine:
             year=year, planting_date=planting_date, ok=False, error_message=str(last_exc)
         )
 
+    # จำนวนครั้งสูงสุดที่ลอง "สลับไฟล์ climate/rain" ต่อ 1 วันปลูก
+    _MAX_OPEN_ATTEMPTS = 3
+
+    def _open_climate_rain_with_retry(
+        self, climate_file: Path, rain_file: Path, year: int, planting_date: date
+    ) -> None:
+        """v1.2.2 — ต้นเหตุ "วันที่ 1 ชอบรันไม่ติด ต้องกดตรวจ/รันซ้ำหลายรอบ" (รายงาน
+        ผู้ใช้ 2026-11-26): วันแรกของเดือนคือวันเดียวที่ต้องสลับไฟล์ climate/rain
+        (ปิดบานเดือนเก่า → File->New → File->Open → เก็บกวาด) ซึ่งเป็นขั้นที่
+        เปราะที่สุดของทั้ง flow แต่เดิม "ไม่มีการลองใหม่เลย" พลาดครั้งเดียววันนั้น
+        ตกทันที ขณะที่ขั้นคำนวณ (run_candidate_planting_date) ลองใหม่ได้ 3 รอบ
+        วันที่ 2 เป็นต้นไปไฟล์เปิดอยู่แล้วจึงข้ามขั้นนี้ → ผ่านเกือบทุกครั้ง
+
+        ลองใหม่สูงสุด 3 รอบ ระหว่างรอบเก็บกวาดสถานะให้สะอาด (ปิด error dialog/
+        dialog Open ค้าง + ปิดหน้าต่าง climate/rain ทุกบาน ให้รอบถัดไปเริ่มจาก
+        ศูนย์) — FileNotFoundError (ไม่มีไฟล์จริง) ไม่ลองซ้ำ เพราะผลจะเหมือนเดิม"""
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, self._MAX_OPEN_ATTEMPTS + 1):
+            try:
+                self.open_climate_file(climate_file)
+                self.open_rain_file(rain_file)
+                if attempt > 1:
+                    logger.info(
+                        "ปี %s วันปลูก %s เปิดไฟล์ climate/rain สำเร็จหลังลองใหม่ครั้งที่ %s",
+                        year, planting_date, attempt,
+                    )
+                return
+            except FileNotFoundError:
+                raise
+            except Exception as exc:  # noqa: BLE001 -- ทุกแบบของการสลับไฟล์ที่พังให้ลองใหม่
+                last_exc = exc
+                logger.warning(
+                    "ปี %s วันปลูก %s เปิดไฟล์ climate/rain ไม่สำเร็จ (ครั้งที่ %s/%s): %s",
+                    year, planting_date, attempt, self._MAX_OPEN_ATTEMPTS, exc,
+                )
+                if attempt < self._MAX_OPEN_ATTEMPTS:
+                    self._reset_climate_rain_windows()
+        assert last_exc is not None
+        raise last_exc
+
+    def _reset_climate_rain_windows(self) -> None:
+        """เก็บกวาดก่อนลองสลับไฟล์ใหม่: ปิด error dialog / prompt / dialog Open ที่
+        ค้าง แล้วปิดหน้าต่าง climate + rain "ทุกบาน" (รวมฟอร์มเปล่า untitled) —
+        รอบถัดไปจะสร้างใหม่ผ่าน File->New + File->Open ตามปกติ ห้าม raise เด็ดขาด
+        (เป็นขั้นช่วยกู้ ถ้าพังเองจะกลบ error ตัวจริง)"""
+        try:
+            self._poll_error_dialog()
+            self._answer_no_to_save_prompt()
+            for cfg in (controls.CLIMATE_SCREEN, controls.RAIN_SCREEN):
+                for hwnd in self._find_file_dialogs(cfg.file_dialog_title_re):
+                    win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+            self._sleep(0.3)
+            self._close_stale_module_windows(controls.CLIMATE_SCREEN.window_class_name, None, "climate")
+            self._close_stale_module_windows(controls.RAIN_SCREEN.window_class_name, None, "rain")
+            self._poll_error_dialog()
+            self._sleep(0.5)
+        except Exception:  # noqa: BLE001
+            logger.warning("เก็บกวาดหน้าต่าง climate/rain ก่อนลองใหม่ไม่สำเร็จ", exc_info=True)
+
     # ------------------------------------------------------------------
     # Orchestrator ระดับ "1 ปี": เปิดไฟล์ climate/rain ครั้งเดียว แล้ววนสั่งคำนวณ
     # ใหม่ทุกวันปลูกที่ทดลอง (planting_dates) — ยืนยันจากผู้ใช้แล้วว่านี่คือ flow
@@ -1489,8 +1598,7 @@ class CropWatEngine:
             try:
                 climate_file = climate_file_for(task.planting_date.month)
                 rain_file = rain_file_for(task.planting_date.month)
-                self.open_climate_file(climate_file)
-                self.open_rain_file(rain_file)
+                self._open_climate_rain_with_retry(climate_file, rain_file, year, task.planting_date)
             except Exception as exc:  # noqa: BLE001 -- กันไม่ให้ 1 วันปลูก error ล้มทั้งปี
                 logger.warning(
                     "ปี %s วันปลูก %s เปิดไฟล์ climate/rain ไม่สำเร็จ: %s",
