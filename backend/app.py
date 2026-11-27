@@ -19,24 +19,35 @@ import sys
 import time
 from pathlib import Path
 
+from urllib.parse import urlsplit
+
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import os_dialogs
 import runner
 from config import (
+    MAX_YEAR,
+    MIN_YEAR,
     Settings,
     excel_path,
     load_settings,
     save_settings,
     screenshot_dir,
     word_path,
+    year_range,
 )
-from file_engine import paths as file_paths
-from models import RunRequest, ScanResult, StateSnapshot, StationScan, YearRunStatus
+from models import (
+    RunRequest,
+    ScanResult,
+    SkippedFile,
+    StateSnapshot,
+    StationInfo,
+    StationScan,
+    YearRunStatus,
+)
 from state import run_state
 
 logging.basicConfig(level=logging.INFO)
@@ -56,12 +67,33 @@ FRONTEND_DIR = _frontend_dir()
 
 app = FastAPI(title="CropWat Auto-runner")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+# v1.3.2 — รับคำขอเฉพาะจากหน้าโปรแกรมของเราเอง: เดิมเปิด CORS "*" และไม่ตรวจที่มา หน้าเว็บ
+# ใดก็ตามที่ผู้ใช้เปิดอยู่ในเบราว์เซอร์สั่ง API ในเครื่องได้ (แก้ค่าตั้ง สั่งเปิดไฟล์ .exe
+# ตาม path ที่แก้ สั่งหยุด/ปิด CropWat สั่งอัปเดต) — หน้าเว็บของโปรแกรมถูกเสิร์ฟจาก
+# origin เดียวกันอยู่แล้ว จึงไม่ต้องใช้ CORS เลย
+_LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+
+def _local_request_allowed(headers) -> bool:
+    """Host ต้องเป็นเครื่องนี้ (กัน DNS rebinding) และถ้ามี Origin (คำขอจากเบราว์เซอร์)
+    ต้องเป็น origin เดียวกับ Host — ไม่มี Origin = ไม่ใช่หน้าเว็บอื่น (เช่น instance ที่สอง
+    ของโปรแกรมเรียก /api/window/show) ปล่อยผ่าน"""
+    host = (headers.get("host") or "").lower()
+    hostname = host.rsplit(":", 1)[0] if host.count(":") == 1 or host.startswith("[") else host
+    if hostname not in _LOCAL_HOSTS:
+        return False
+    origin = headers.get("origin")
+    if origin:
+        return urlsplit(origin).netloc.lower() == host
+    return True
+
+
+@app.middleware("http")
+async def _local_only(request, call_next):
+    if not _local_request_allowed(request.headers):
+        return JSONResponse({"detail": "คำขอนี้ไม่ได้มาจากหน้าโปรแกรม"}, status_code=403)
+    return await call_next(request)
 
 
 # v0.5.22 — บั๊กที่เจอจากผู้ใช้จริง: หลังอัปเดตหลายรอบในเครื่องเดียวกัน (browser
@@ -86,7 +118,9 @@ async def _no_cache_headers(request, call_next):
 async def on_startup() -> None:
     run_state.bind_loop(asyncio.get_running_loop())
     settings = load_settings()
-    run_state.init_years(settings.default_start_year, settings.default_end_year)
+    years = year_range(settings)
+    if years:
+        run_state.init_years(years[0], years[-1])
 
     # แถบ progress ลอย + global hotkeys (Ctrl+Alt+F9/F10) — daemon threads ที่
     # พังได้โดยไม่กระทบระบบหลัก (เช่น เครื่องที่ tkinter มีปัญหา ก็แค่ไม่มี overlay)
@@ -164,17 +198,67 @@ async def launch_cropwat() -> dict:
 # และรายงานว่าปีไหนมีไฟล์ครบ/ขาดบ้าง ก่อนเริ่มรันจริง
 # ---------------------------------------------------------------------------
 
-def _scan_station(root: Path, prefix: str, index_fn) -> tuple[list[str], StationScan | None, list[str]]:
-    folders = file_paths.find_station_folders(root, prefix)
-    names = [str(p) for p in folders]
-    if len(folders) != 1:
-        return names, None, []
-    index = index_fn(folders[0])
-    years = index.available_years()
-    if not years:
-        return names, StationScan(folder=str(folders[0]), years=[], missing_years=[]), []
-    missing = [y for y in range(years[0], years[-1] + 1) if y not in years]
-    return names, StationScan(folder=str(folders[0]), years=years, missing_years=missing), []
+def _scan_kind(found, kind: str, override: str):
+    """(รายชื่อสถานีสำหรับแสดง, StationInfo ทุกสถานี, StationScan ของสถานีที่ใช้ หรือ None, ข้อความที่ต้องเลือก)"""
+    stations = found.stations[kind]
+    selected: str | None = None
+    choice_msg: str | None = None
+    try:
+        selected = found.pick_station(kind, override)
+    except (FileNotFoundError, ValueError) as exc:
+        if stations:
+            choice_msg = str(exc)
+    folders = {sid: found.station_folder(kind, sid) for sid in stations}
+    infos = []
+    for sid in sorted(stations):
+        years = sorted({y for y, _m in stations[sid]})
+        infos.append(StationInfo(
+            id=sid, folder=str(folders[sid]), files=len(stations[sid]),
+            first_year=years[0] if years else None, last_year=years[-1] if years else None,
+            selected=sid == selected, choose_value=sid,
+        ))
+    scan = None
+    if selected is not None:
+        years = sorted({y for y, _m in stations[selected]})
+        missing = [y for y in range(years[0], years[-1] + 1) if y not in years] if years else []
+        scan = StationScan(folder=str(folders[selected]), years=years, missing_years=missing)
+    names = [f"{i.id} ({Path(i.folder).name})" for i in infos]
+    return names, infos, scan, choice_msg
+
+
+def _scan(settings: Settings) -> ScanResult:
+    root = Path(settings.input_dir)
+    found = runner.discover_inputs(settings)
+    climate_names, climate_infos, climate_scan, climate_choice = _scan_kind(
+        found, "climate", settings.climate_station_dir
+    )
+    rain_names, rain_infos, rain_scan, rain_choice = _scan_kind(found, "rain", settings.rain_station_dir)
+    needs_choice = [m for m in (climate_choice, rain_choice) if m]
+    for candidates, override, label, ext in (
+        (found.crops, settings.crop_file, "Crop", ".CRO"),
+        (found.soils, settings.soil_file, "Soil", ".SOI"),
+    ):
+        if len(candidates) > 1 or override:
+            try:
+                runner._pick_single_file(candidates, override, label, ext, root)  # noqa: SLF001
+            except (FileNotFoundError, ValueError) as exc:
+                needs_choice.append(str(exc))
+    return ScanResult(
+        climate_station_folders=climate_names,
+        rain_station_folders=rain_names,
+        crop_files=[str(p) for p in found.crops],
+        soil_files=[str(p) for p in found.soils],
+        climate=climate_scan,
+        rain=rain_scan,
+        climate_stations=climate_infos,
+        rain_stations=rain_infos,
+        needs_choice=needs_choice,
+        skipped=[SkippedFile(**u) for u in found.unreadable[:200]],
+        skipped_total=len(found.unreadable),
+        warnings=found.warnings[:200],
+        warnings_total=len(found.warnings),
+        duplicate_copies=found.duplicate_copies,
+    )
 
 
 @app.get("/api/scan", response_model=ScanResult)
@@ -182,24 +266,9 @@ async def scan_input_dir() -> ScanResult:
     settings = load_settings()
     if not settings.input_dir:
         return ScanResult(errors=["ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง"])
-
-    root = Path(settings.input_dir)
-    if not root.is_dir():
-        return ScanResult(errors=[f"ไม่พบโฟลเดอร์: {root}"])
-
-    climate_folders, climate_scan, _ = _scan_station(root, "Clim_", file_paths.index_climate_station)
-    rain_folders, rain_scan, _ = _scan_station(root, "Rain_", file_paths.index_rain_station)
-    crop_files = [str(p) for p in file_paths.find_files_by_extension(root, ".cro")]
-    soil_files = [str(p) for p in file_paths.find_files_by_extension(root, ".soi")]
-
-    return ScanResult(
-        climate_station_folders=climate_folders,
-        rain_station_folders=rain_folders,
-        crop_files=crop_files,
-        soil_files=soil_files,
-        climate=climate_scan,
-        rain=rain_scan,
-    )
+    if not Path(settings.input_dir).is_dir():
+        return ScanResult(errors=[f"ไม่พบโฟลเดอร์: {settings.input_dir}"])
+    return await asyncio.to_thread(_scan, settings)
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +286,14 @@ async def output_progress() -> dict:
     จริงเทียบกับแผนปัจจุบัน กดเริ่มรันอีกครั้งระบบจะทำต่อจากจุดที่ค้างให้เอง"""
     settings = load_settings()
     return await asyncio.to_thread(runner.scan_output_progress, settings)
+
+
+@app.get("/api/run/files")
+async def run_files() -> dict:
+    """v1.4.0 — แท็บ "ไฟล์ที่ใช้": วันปลูกที่กำลังทำอยู่ตอนนี้ใช้ไฟล์ climate/rain/crop/soil
+    ไฟล์ไหน + รายการที่ทำเสร็จแล้ว (อ่านอย่างเดียว)"""
+    settings = load_settings()
+    return await asyncio.to_thread(runner.files_status, settings)
 
 
 @app.get("/api/shift-year-check")
@@ -237,7 +314,9 @@ async def shift_year_check() -> dict:
 @app.post("/api/run/start", response_model=StateSnapshot)
 async def start_run(req: RunRequest) -> StateSnapshot:
     if req.start_year > req.end_year:
-        raise HTTPException(400, "start_year ต้องไม่มากกว่า end_year")
+        raise HTTPException(400, "ปีเริ่มต้นต้องไม่มากกว่าปีสิ้นสุด")
+    if req.start_year < MIN_YEAR or req.end_year > MAX_YEAR:
+        raise HTTPException(400, f"ช่วงปีต้องอยู่ระหว่าง {MIN_YEAR} ถึง {MAX_YEAR}")
     if runner.is_run_active():
         raise HTTPException(409, "มีการรันอยู่แล้ว กรุณารอให้เสร็จหรือกดหยุดก่อน")
 
@@ -274,6 +353,8 @@ async def retry_errors() -> StateSnapshot:
 
 @app.post("/api/run/year/{year}", response_model=StateSnapshot)
 async def run_one_year(year: int) -> StateSnapshot:
+    if not MIN_YEAR <= year <= MAX_YEAR:
+        raise HTTPException(400, f"ปีต้องอยู่ระหว่าง {MIN_YEAR} ถึง {MAX_YEAR}")
     if runner.is_run_active():
         raise HTTPException(409, "มีการรันอยู่แล้ว กรุณารอให้เสร็จหรือกดหยุดก่อน")
 
@@ -661,6 +742,9 @@ async def update_apply() -> dict:
 
 @app.websocket("/ws")
 async def ws_status(websocket: WebSocket) -> None:
+    if not _local_request_allowed(websocket.headers):
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     queue = run_state.subscribe()
     try:

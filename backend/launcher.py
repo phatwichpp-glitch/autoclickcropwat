@@ -241,8 +241,17 @@ def _run_server(open_browser: bool = True) -> None:
     # ไม่มี console ให้ดู log แล้ว — เขียนลงไฟล์ข้างตัว .exe แทน (เวลาผู้ใช้เจอ
     # ปัญหา ขอไฟล์ CropWatAutoRunner.log มาดูได้เลย)
     if getattr(sys, "frozen", False):
+        # v1.3.2 — เก็บ log ของการเปิดครั้งก่อนไว้ 1 ชุด (CropWatAutoRunner.prev.log): เดิม
+        # filemode="w" ล้าง log ทุกครั้งที่เปิด ผู้ใช้ที่เจอค้างแล้วปิด-เปิดโปรแกรมใหม่จึงไม่
+        # เหลือ log ของตอนที่มีปัญหาให้ส่งมาดู
+        log_path = _exe_dir() / "CropWatAutoRunner.log"
+        try:
+            if log_path.is_file() and log_path.stat().st_size > 0:
+                os.replace(log_path, log_path.with_name("CropWatAutoRunner.prev.log"))
+        except OSError:
+            pass
         logging.basicConfig(
-            filename=str(_exe_dir() / "CropWatAutoRunner.log"),
+            filename=str(log_path),
             filemode="w",
             level=logging.INFO,
             format="%(asctime)s %(name)s %(levelname)s: %(message)s",

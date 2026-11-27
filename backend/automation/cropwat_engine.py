@@ -82,6 +82,9 @@ class CandidateRunResult:
     planting_date: date
     ok: bool
     error_message: Optional[str] = None
+    # v1.3.2 — ชื่อชนิดของ exception ที่ทำให้พัง (runner ใช้แยก "ข้อมูลมีปัญหา" ออกจาก
+    # "หน้าต่าง CropWat เพี้ยน" เพื่อตัดสินว่าควรเปิด CropWat ใหม่ไหม)
+    error_kind: Optional[str] = None
     exported_file: Optional[Path] = None
     schedule_screenshot: Optional[Path] = None
     graph_screenshot: Optional[Path] = None
@@ -147,6 +150,12 @@ class CropWatEngine:
         # runner ผูก hook เดียวกันไว้บริการคำขอ "ถ่ายภาพหน้าจอตอนนี้" แทน (ดู
         # desktop_session.service_peek_request) — ตั้งจาก runner หลังสร้าง engine
         self.pause_check: Optional[Callable[[], None]] = None
+        # v1.4.0 — อายุพืช (วัน) จากไฟล์ .CRO ที่เปิดอยู่ ใช้ตรวจว่าไฟล์ผลลัพธ์เป็นของวันปลูกที่
+        # สั่งจริง (วันเก็บเกี่ยว = วันปลูก + อายุพืช - 1) และลำดับวัน/เดือนที่ CropWat เครื่องนี้ใช้
+        # กับช่องวันปลูก ("dmy" = วัน/เดือน ตามที่เจอทุกเครื่องจนถึงตอนนี้ — สลับเป็น "mdy" เอง
+        # ถ้าหลักฐานจากไฟล์ผลลัพธ์ชี้ว่าเครื่องนี้อ่านเป็น เดือน/วัน)
+        self.crop_cycle_days: Optional[int] = None
+        self.date_order: str = "dmy"
 
     def _sleep(self, base_seconds: float) -> None:
         """time.sleep คูณด้วย speed_multiplier — ใช้แทน time.sleep() ตรงๆ ทุกจุด
@@ -659,6 +668,9 @@ class CropWatEngine:
     # เปิดอยู่แล้วและ title ตรงกับไฟล์เป้าหมาย open_module_file จะข้ามให้เอง
     # ------------------------------------------------------------------
     def ensure_crop_soil_open(self, crop_file: Path, soil_file: Path) -> None:
+        from file_engine.txt_parser import crop_cycle_days
+
+        self.crop_cycle_days = crop_cycle_days(crop_file)
         cfg = controls.CROP_SCREEN
         self.open_module_file(
             cfg.window_class_name,
@@ -745,7 +757,11 @@ class CropWatEngine:
         crop_window = self._focus_mdi_child(cfg.window_class_name)
         field = crop_window.child_window(class_name=cfg.planting_date_field_class_name)
 
-        text = f"{planting_date.day:02d}/{planting_date.month:02d}"
+        first, second = (
+            (planting_date.day, planting_date.month) if self.date_order == "dmy"
+            else (planting_date.month, planting_date.day)
+        )
+        text = f"{first:02d}/{second:02d}"
         if self.background_mode:
             self._real_set_focus(field.handle)
             self._sleep(0.15)
@@ -754,9 +770,10 @@ class CropWatEngine:
         self._raise_if_error_dialog(f"ตั้งวันปลูก {text}")
 
         # อ่านช่องกลับมายืนยันว่าค่าลงจริง (วน 4 รอบสั้นๆ เผื่ออัปเดตช้าเสี้ยววินาที)
-        # — ถ้าเครื่องไหน mask เป็น mm/dd (ยังไม่เคยเจอ) ช่องจะโชว์ไม่ตรง แล้วด่าน
-        # ตรวจไฟล์ .txt จะจับได้อีกชั้น
-        expected = (planting_date.day, planting_date.month)
+        # — ข้อจำกัดที่รู้: ถ้าเครื่องไหน mask เป็น mm/dd (ยังไม่เคยเจอ) วันที่ 13 ขึ้นไป
+        # จะตั้งไม่ติดและถูกจับได้ แต่วันที่ 1-12 ที่วัน/เดือนสลับกันพอดี ด่านตรวจไฟล์
+        # .txt แยกไม่ออก (ข้อความเหมือนกันทุกตัวอักษร)
+        expected = (first, second)
         for _ in range(4):
             after = self._parse_field_date(field.window_text())
             if after and (after[0], after[2]) == expected:
@@ -997,14 +1014,14 @@ class CropWatEngine:
             # ตอบสนองเลย จึงไม่ติดปัญหาเดียวกัน)
             ok = self._print_window_with_timeout(hwnd, save_dc.GetSafeHdc(), PW_RENDERFULLCONTENT)
             if not ok:
-                # บางหน้าต่าง/ไดรเวอร์ไม่รองรับ PrintWindow หรือค้างเกินเวลา →
-                # ถอยไปถ่ายจากจอแทน (ภาพอาจมีอย่างอื่นบัง แต่ดีกว่าไม่มีภาพเลย)
-                logger.warning(
-                    "PrintWindow ล้มเหลวหรือค้างเกิน %ss — ถอยไปถ่ายจากหน้าจอแทน (ภาพอาจถูกบัง)",
-                    self._PRINT_WINDOW_TIMEOUT_SECONDS,
+                # v1.3.2 — เดิมถอยไปถ่ายจากพิกเซลบนจอ (ของเหลือจากโหมดเบื้องหลังเก่าที่
+                # CropWat ยังอยู่บนจอผู้ใช้) — โหมดนี้ใช้เฉพาะกับเดสก์ท็อปซ่อนแล้ว ภาพจากจอจึง
+                # ไม่ใช่ CropWat เลย (ดำ/เป็นหน้าจออื่น) แต่ถูกนับว่าถ่ายสำเร็จและเข้าไฟล์ Word
+                # — ถือว่าล้มเหลวให้ชัด วันปลูกนี้จะถูกลองใหม่ตามปกติ
+                raise StepTimeoutError(
+                    "ถ่ายภาพหน้าต่าง CropWat ไม่สำเร็จ (PrintWindow ล้มเหลวหรือค้างเกิน "
+                    f"{self._PRINT_WINDOW_TIMEOUT_SECONDS:.0f} วินาที)"
                 )
-                self.main_window.capture_as_image().save(save_path)
-                return
             info = bmp.GetInfo()
             pixels = bmp.GetBitmapBits(True)
             img = Image.frombuffer(
@@ -1440,7 +1457,12 @@ class CropWatEngine:
         # โยงภาพ error dialog (ถ้ามี) กลับไปหาวันปลูกที่พัง — ชื่อไฟล์เป็น
         # "{ปี}_{เดือนวัน}" เดียวกับไฟล์ .txt เพื่อให้จับคู่ได้ง่าย
         self.current_candidate_label = f"{year}_{planting_date:%m%d}"
-        from file_engine.txt_parser import TxtParseError, parse_txt
+        from file_engine.txt_parser import (
+            TxtParseError,
+            detect_date_order,
+            parse_txt,
+            planting_date_matches,
+        )
 
         last_exc: Optional[Exception] = None
         for attempt in range(1, self._MAX_CANDIDATE_ATTEMPTS + 1):
@@ -1466,6 +1488,7 @@ class CropWatEngine:
                         break
                     except (TxtParseError, OSError) as exc:
                         if time.monotonic() > parse_deadline:
+                            exported_file.unlink(missing_ok=True)
                             raise CropWatReportedError(
                                 f"ไฟล์ผลลัพธ์ {exported_file.name} อ่านค่า Planting date ไม่ได้: {exc}"
                             ) from exc
@@ -1476,14 +1499,35 @@ class CropWatEngine:
                         year, planting_date, parse_tries,
                     )
 
-                pd_match = re.match(r"^\s*(\d{1,2})/(\d{1,2})\s*$", parsed.planting_date)
-                if not pd_match:
-                    raise CropWatReportedError(
-                        f"ไฟล์ {exported_file.name} มี Planting date รูปแบบแปลก: {parsed.planting_date!r}"
+                # v1.4.0 — ลำดับ วัน/เดือน ที่ไฟล์ผลลัพธ์ใช้ ตัดสินจากวันเก็บเกี่ยว + อายุพืช: ถ้า
+                # ไฟล์เป็นของ "วัน/เดือนสลับกัน" (เครื่องที่ CropWat อ่านช่องวันปลูกเป็น เดือน/วัน)
+                # สลับวิธีพิมพ์วันปลูกแล้วให้รอบลองใหม่ทำซ้ำ — เดิมกรณีนี้ผ่านการตรวจไปเงียบๆ
+                order = detect_date_order(
+                    parsed.planting_date, parsed.harvest_date, year, self.crop_cycle_days
+                )
+                if (
+                    order is not None
+                    and planting_date.day != planting_date.month
+                    and not planting_date_matches(
+                        f"{planting_date:%m%d}", parsed.planting_date, parsed.harvest_date,
+                        year, self.crop_cycle_days,
                     )
-                a, b = int(pd_match.group(1)), int(pd_match.group(2))
-                want_day, want_month = planting_date.day, planting_date.month
-                if (a, b) != (want_day, want_month) and (a, b) != (want_month, want_day):
+                    and planting_date_matches(f"{planting_date:%m%d}", parsed.planting_date)
+                ):
+                    exported_file.unlink(missing_ok=True)
+                    self.date_order = "mdy" if self.date_order == "dmy" else "dmy"
+                    logger.warning(
+                        "ไฟล์ผลลัพธ์เป็นของวัน/เดือนที่สลับกัน (ดูจากวันเก็บเกี่ยว %s) — เปลี่ยนวิธีพิมพ์"
+                        "วันปลูกเป็นแบบ %s แล้วลองใหม่", parsed.harvest_date, self.date_order,
+                    )
+                    raise CropWatReportedError(
+                        f"CropWat อ่านวันปลูก {planting_date:%d/%m} เป็นวัน/เดือนสลับกัน "
+                        f"(ไฟล์ {exported_file.name}: ปลูก {parsed.planting_date} เก็บเกี่ยว {parsed.harvest_date})"
+                    )
+                if not planting_date_matches(f"{planting_date:%m%d}", parsed.planting_date):
+                    # v1.3.2 — ลบไฟล์ที่เป็นผลของ "วันปลูกอื่น" ทิ้งทันที: เดิมถ้าพังครบทุกรอบ
+                    # ไฟล์รอบสุดท้ายค้างอยู่ในโฟลเดอร์ txt ใต้ชื่อของวันปลูกนี้
+                    exported_file.unlink(missing_ok=True)
                     raise CropWatReportedError(
                         "ตั้งวันปลูกไม่ติดในผลคำนวณจริง: "
                         f"ไฟล์ {exported_file.name} แสดง {parsed.planting_date} แต่ต้องเป็น "
@@ -1518,10 +1562,46 @@ class CropWatEngine:
                     "ปี %s วันปลูก %s รันไม่สำเร็จ (ครั้งที่ %s/%s): %s",
                     year, planting_date, attempt, self._MAX_CANDIDATE_ATTEMPTS, exc,
                 )
+                self._close_leftover_dialogs()
 
         return CandidateRunResult(
-            year=year, planting_date=planting_date, ok=False, error_message=str(last_exc)
+            year=year, planting_date=planting_date, ok=False, error_message=str(last_exc),
+            error_kind=type(last_exc).__name__ if last_exc is not None else None,
         )
+
+    def _close_leftover_dialogs(self) -> None:
+        """v1.3.2 — เก็บกวาดหลังวันปลูกพัง 1 รอบ: ปิด dialog ของขั้น print/เปิดไฟล์ที่อาจ
+        ค้างอยู่ (หน้า Print options, Save As, Open) + error dialog + prompt ถามบันทึก —
+        เดิมไม่มีขั้นนี้ ถ้ารอบที่พังทิ้ง dialog แบบ modal ไว้ หน้าต่างหลักจะถูกล็อก ทุกรอบ
+        ลองใหม่และทุกวันปลูกถัดไปในหน้าต่างนี้พังตามทั้งหมด ห้าม raise (เป็นขั้นช่วยกู้)"""
+        try:
+            self._poll_error_dialog()
+            self._answer_no_to_save_prompt()
+            sched = controls.IRRIGATION_SCHEDULE
+            patterns = [
+                re.compile(p) for p in (
+                    sched.print_options_dialog_title_re,
+                    sched.print_save_dialog_title_re,
+                    controls.CLIMATE_SCREEN.file_dialog_title_re,
+                ) if p
+            ]
+            skip_classes = {controls.MAIN_WINDOW_CLASS_NAME, "TApplication"}
+            closed = False
+            for hwnd in find_windows(
+                top_level_only=True, process=self.app.process, visible_only=True
+            ):
+                if win32gui.GetClassName(hwnd) in skip_classes:
+                    continue
+                title = win32gui.GetWindowText(hwnd) or ""
+                if any(p.match(title) for p in patterns):
+                    logger.warning("ปิด dialog '%s' ที่ค้างจากรอบที่พัง (hwnd=%#x)", title, hwnd)
+                    win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+                    closed = True
+            if closed:
+                self._sleep(0.3)
+                self._poll_error_dialog()
+        except Exception:  # noqa: BLE001
+            logger.debug("เก็บกวาด dialog ค้างไม่สำเร็จ", exc_info=True)
 
     # จำนวนครั้งสูงสุดที่ลอง "สลับไฟล์ climate/rain" ต่อ 1 วันปลูก
     _MAX_OPEN_ATTEMPTS = 3
@@ -1637,6 +1717,7 @@ class CropWatEngine:
                 result = CandidateRunResult(
                     year=year, planting_date=task.planting_date, ok=False,
                     error_message=f"เปิดไฟล์ climate/rain ไม่สำเร็จ: {exc}",
+                    error_kind=type(exc).__name__,
                 )
                 candidates.append(result)
                 if on_candidate_done is not None:

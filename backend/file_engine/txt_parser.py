@@ -24,7 +24,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date, timedelta
 from pathlib import Path
+from typing import Optional
 
 _FLOAT_RE = r"-?\d+\.?\d*"
 
@@ -113,3 +115,77 @@ def parse_txt(path: Path) -> ParsedCandidateResult:
         reduction_etc_stage_c=stage_c,
         reduction_etc_stage_d=stage_d,
     )
+
+
+def crop_cycle_days(crop_file) -> Optional[int]:
+    """อายุพืชรวม (วัน) จากไฟล์ .CRO — บรรทัดที่ 3 คือความยาว 4 ระยะการเจริญเติบโต (ยืนยันจาก
+    ไฟล์จริง MAIZE_120.CRO: "20 30 40 30" = 120 วัน และผลจริง ปลูก 01/04 เก็บเกี่ยว 29/07)
+    คืน None ถ้าอ่านไม่ได้หรือรูปแบบไม่ใช่ 4 ระยะ (เช่น ข้าว ที่มีช่วงกล้า/เตรียมแปลงเพิ่ม)"""
+    try:
+        lines = Path(crop_file).read_text(encoding="latin-1", errors="replace").splitlines()
+        if not lines[0].lower().startswith("cropwat"):
+            return None
+        stages = [int(x) for x in lines[2].split()]
+    except (OSError, IndexError, ValueError):
+        return None
+    if len(stages) != 4 or min(stages) < 0 or not 10 <= sum(stages) <= 400:
+        return None
+    return sum(stages)
+
+
+def _day_month(text: str) -> Optional[tuple[int, int]]:
+    m = re.match(r"^\s*(\d{1,2})/(\d{1,2})\s*$", text or "")
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def detect_date_order(planting: str, harvest: str, year: int, cycle_days: Optional[int]) -> Optional[str]:
+    """ไฟล์ผลลัพธ์เขียนวันที่แบบ วัน/เดือน ("dmy") หรือ เดือน/วัน ("mdy") — ตัดสินจากหลักฐาน:
+    วันเก็บเกี่ยวต้องเท่ากับ วันปลูก + อายุพืช - 1 วัน (ยอมคลาด 1 วันเผื่อปีอธิกสุรทิน) ภายใต้การ
+    อ่านแบบใดแบบหนึ่งเท่านั้น คืน None ถ้าไม่มีอายุพืช หรือหลักฐานไม่ชี้ชัดทางเดียว
+
+    นี่คือสิ่งที่ทำให้แยก "04/05 = 4 พ.ค." ออกจาก "04/05 = 5 เม.ย." ได้ ทั้งที่ข้อความเหมือนกัน"""
+    p, h = _day_month(planting), _day_month(harvest)
+    if not cycle_days or p is None or h is None:
+        return None
+    fits = []
+    for order in ("dmy", "mdy"):
+        (pd, pm), (hd, hm) = (p, h) if order == "dmy" else ((p[1], p[0]), (h[1], h[0]))
+        try:
+            start = date(year, pm, pd)
+        except ValueError:
+            continue
+        for slack in (0, -1, 1):
+            expected = start + timedelta(days=cycle_days - 1 + slack)
+            if (expected.day, expected.month) == (hd, hm):
+                fits.append(order)
+                break
+    return fits[0] if len(fits) == 1 else None
+
+
+def planting_date_matches(
+    mmdd: str,
+    planting_date: str,
+    harvest_date: str = "",
+    year: Optional[int] = None,
+    cycle_days: Optional[int] = None,
+) -> bool:
+    """วันปลูกในหัวไฟล์ (ที่ CropWat พิมพ์เอง) ตรงกับ "MMDD" จากชื่อไฟล์หรือไม่ — ใช้ร่วมกัน
+    ทั้งตอนตรวจ resume, ตอนตรวจหลัง export และตอนสร้าง Excel (v1.3.2: เดิมตัวสร้าง Excel
+    ไม่ตรวจ ไฟล์ที่ตั้งวันปลูกไม่ติดจึงถูกลงคอลัมน์ผิดวันได้)
+
+    ถ้าส่งวันเก็บเกี่ยว + ปี + อายุพืชมาด้วย จะตัดสินลำดับ วัน/เดือน จากหลักฐาน (ดู
+    detect_date_order) แล้วเทียบแบบเคร่ง — แยกวัน/เดือนที่สลับกัน (วันที่ 1-12) ได้ ถ้าไม่มี
+    หลักฐานพอ ยอมรับทั้งสองลำดับเหมือนเดิม (Region ของเครื่องต่างกันได้)"""
+    got = _day_month(planting_date)
+    if got is None or not re.fullmatch(r"\d{4}", mmdd or ""):
+        return False
+    month, day = int(mmdd[:2]), int(mmdd[2:])
+    if got != (day, month) and got != (month, day):
+        return False
+    if year is not None:
+        order = detect_date_order(planting_date, harvest_date, year, cycle_days)
+        if order == "dmy":
+            return got == (day, month)
+        if order == "mdy":
+            return got == (month, day)
+    return True

@@ -46,6 +46,13 @@ class RunState:
         # v1.3.0 — จำนวนหน้าต่าง CropWat (ตั้งไว้ / ทำงานอยู่จริง) ดู runner._run_years_hidden_desktop
         self._windows_target = 0
         self._windows_active = 0
+        # v1.3.2 — เลขรอบการรัน: เพิ่มทุกครั้งที่เริ่มรอบใหม่ (begin_run) หรือยกเลิกรอบ
+        # (cancel_run ตอน Force Close) — thread ของรอบเก่าที่ยังไม่ตาย (ผูกเลขรอบของตัวเอง
+        # ไว้ด้วย bind_thread) จะเห็นว่าตัวเอง "ตกรุ่น": ถูกบอกให้หยุด และแก้สถานะไม่ได้อีก
+        # (เดิม: Force Close แล้วเริ่มใหม่ทันที รอบใหม่ล้างธงหยุด → รอบเก่าฟื้นมาทำงานต่อ
+        # ปนกับรอบใหม่ และเรียก end_run ทับรอบใหม่ได้)
+        self._run_id = 0
+        self._tls = threading.local()
 
         # websocket subscribers ต้องถูกแตะจาก asyncio loop เท่านั้น
         self._subscribers: set[asyncio.Queue] = set()
@@ -66,9 +73,40 @@ class RunState:
             }
         self._notify()
 
-    # --- run lifecycle ---
-    def begin_run(self) -> None:
+    # --- เลขรอบการรัน (v1.3.2) ---
+    def bind_thread(self, run_id: Optional[int]) -> None:
+        """ผูก thread ปัจจุบันเข้ากับรอบการรัน (None = เลิกผูก) — thread ที่ไม่ได้ผูก
+        (API/overlay) ทำงานได้ตามปกติเสมอ"""
+        self._tls.run_id = run_id
+
+    def bound_run_id(self) -> Optional[int]:
+        return getattr(self._tls, "run_id", None)
+
+    def _stale_locked(self) -> bool:
+        bound = getattr(self._tls, "run_id", None)
+        return bound is not None and bound != self._run_id
+
+    def is_stale(self) -> bool:
+        """thread นี้เป็นของรอบการรันที่ถูกยกเลิก/ถูกแทนที่ไปแล้วหรือไม่"""
         with self._lock:
+            return self._stale_locked()
+
+    def cancel_run(self) -> None:
+        """Force Close: คืนสถานะ IDLE ทันที + ทำให้ทุก thread ของรอบนี้ตกรุ่น"""
+        with self._lock:
+            self._run_id += 1
+            self._stop_requested = True
+            self._overall_state = OverallRunState.IDLE
+            self._current_year = None
+            self._windows_target = 0
+            self._windows_active = 0
+        self._notify()
+
+    # --- run lifecycle ---
+    def begin_run(self) -> int:
+        with self._lock:
+            self._run_id += 1
+            run_id = self._run_id
             self._overall_state = OverallRunState.RUNNING
             self._stop_requested = False
             self._candidate_done = 0
@@ -78,12 +116,15 @@ class RunState:
             self._windows_target = 0
             self._windows_active = 0
         self._notify()
+        return run_id
 
     def set_baseline_done(self, done: int) -> None:
         """เรียกครั้งเดียวตอนเริ่มรัน (หลัง begin_run) — บอกว่ามีกี่วันปลูกที่
         "เสร็จไปแล้วจากรอบก่อนหน้า" ก่อนรอบนี้จะเริ่มทำอะไรเลย ใช้แยกคำนวณ ETA
         จากความเร็วที่ทำได้จริงในรอบนี้เท่านั้น ดู _estimate_eta_seconds"""
         with self._lock:
+            if self._stale_locked():
+                return
             self._baseline_done = done
         self._notify()
 
@@ -91,12 +132,16 @@ class RunState:
         """progress ระดับวันปลูก (ละเอียดกว่าระดับปี) — runner อัปเดตหลังจบแต่ละ
         วันปลูกที่ทดลอง ให้ bar เดินสม่ำเสมอ ไม่กระโดดทีละปี"""
         with self._lock:
+            if self._stale_locked():
+                return
             self._candidate_done = done
             self._candidate_total = total
         self._notify()
 
     def end_run(self) -> None:
         with self._lock:
+            if self._stale_locked():
+                return
             self._overall_state = OverallRunState.IDLE
             self._current_year = None
             self._windows_target = 0
@@ -106,6 +151,8 @@ class RunState:
     # --- v1.3.0: จำนวนหน้าต่าง CropWat ที่รันพร้อมกัน ---
     def set_windows_target(self, n: int) -> None:
         with self._lock:
+            if self._stale_locked():
+                return
             self._windows_target = n
         self._notify()
 
@@ -115,23 +162,30 @@ class RunState:
 
     def set_windows_active(self, n: int) -> None:
         with self._lock:
-            if self._windows_active == n:
+            if self._stale_locked() or self._windows_active == n:
                 return
             self._windows_active = n
         self._notify()
 
     def request_stop(self) -> None:
+        """v1.3.2 — ไม่ได้รันอยู่ = ไม่ทำอะไร (เดิมกดหยุด/Ctrl+Alt+F10 ตอนว่างแล้วสถานะ
+        ค้าง "กำลังหยุด" ถาวร กดเริ่มใหม่ไม่ได้จนกว่าจะ Force Close)"""
         with self._lock:
+            if self._overall_state == OverallRunState.IDLE:
+                return
             self._stop_requested = True
             self._overall_state = OverallRunState.STOPPING
         self._notify()
 
     def is_stop_requested(self) -> bool:
+        """thread ของรอบที่ตกรุ่นแล้วได้ True เสมอ (ต้องหยุด แม้รอบใหม่จะล้างธงไปแล้ว)"""
         with self._lock:
-            return self._stop_requested
+            return self._stop_requested or self._stale_locked()
 
     def set_current_year(self, year: Optional[int]) -> None:
         with self._lock:
+            if self._stale_locked():
+                return
             self._current_year = year
         self._notify()
 
@@ -144,6 +198,8 @@ class RunState:
         exported_file: Optional[str] = None,
     ) -> None:
         with self._lock:
+            if self._stale_locked():
+                return
             existing = self._years.get(year, YearStatus(year=year))
             existing.status = status
             existing.error_message = error_message

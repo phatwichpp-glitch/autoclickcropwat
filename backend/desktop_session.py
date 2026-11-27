@@ -42,7 +42,9 @@ from pywinauto.findwindows import find_windows
 
 logger = logging.getLogger("desktop_session")
 
-_user32 = ctypes.windll.user32
+# use_last_error=True — ไม่งั้น ctypes.get_last_error() ได้ 0 เสมอ ข้อความ error ของ
+# CreateDesktopW/SetThreadDesktop จะไม่บอกสาเหตุจริง (v1.3.2)
+_user32 = ctypes.WinDLL("user32", use_last_error=True)
 _GENERIC_ALL = 0x10000000
 _DESKTOP_SWITCHDESKTOP = 0x0100
 # v1.3.0 — รันหลายหน้าต่างพร้อมกัน: แต่ละหน้าต่าง (worker) ใช้เดสก์ท็อปซ่อนของตัวเอง

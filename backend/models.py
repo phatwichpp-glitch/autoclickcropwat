@@ -79,6 +79,25 @@ class StationScan(BaseModel):
     missing_years: list[int] = Field(default_factory=list)
 
 
+class StationInfo(BaseModel):
+    """v1.4.0 — 1 สถานีที่ตรวจพบ (ให้หน้าตั้งค่าแสดง/ให้เลือกเมื่อมีหลายสถานี)"""
+
+    id: str
+    folder: str
+    files: int = 0
+    first_year: Optional[int] = None
+    last_year: Optional[int] = None
+    selected: bool = False
+    # ค่าที่ต้องใส่ในช่อง "สถานี" ของหน้าตั้งค่าเพื่อเลือกสถานีนี้
+    choose_value: str = ""
+
+
+class SkippedFile(BaseModel):
+    path: str
+    kind: str
+    reason: str
+
+
 class ScanResult(BaseModel):
     """ผลสแกนโฟลเดอร์ต้นทาง (GET /api/scan) — ใช้แสดงหน้าตั้งค่าว่าเจออะไรบ้าง
     ก่อนเริ่มรันจริง"""
@@ -90,3 +109,15 @@ class ScanResult(BaseModel):
     climate: Optional[StationScan] = None
     rain: Optional[StationScan] = None
     errors: list[str] = Field(default_factory=list)
+    # v1.4.0 — ผลจากตัวค้นหาไฟล์แบบใหม่ (file_engine/discovery.py)
+    climate_stations: list[StationInfo] = Field(default_factory=list)
+    rain_stations: list[StationInfo] = Field(default_factory=list)
+    # สิ่งที่ต้องเลือกก่อนรัน (ข้อความไทย) เช่น มีหลายสถานี/หลายไฟล์ crop
+    needs_choice: list[str] = Field(default_factory=list)
+    # ไฟล์ที่เจอแต่ไม่ได้ใช้ พร้อมเหตุผล (ส่งมาไม่เกิน 200 รายการ — skipped_total คือจำนวนจริง)
+    skipped: list[SkippedFile] = Field(default_factory=list)
+    skipped_total: int = 0
+    # ข้อสังเกตที่ไม่ขวางการรัน (ส่งมาไม่เกิน 200 รายการ)
+    warnings: list[str] = Field(default_factory=list)
+    warnings_total: int = 0
+    duplicate_copies: int = 0

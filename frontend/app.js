@@ -46,10 +46,80 @@ function showTab(target) {
   document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === target));
   document.getElementById("view-dash").classList.toggle("active", target === "dash");
   document.getElementById("view-setup").classList.toggle("active", target === "setup");
+  document.getElementById("view-files").classList.toggle("active", target === "files");
   // จำแท็บไว้ใน URL — กด refresh แล้วยังอยู่แท็บเดิม
-  history.replaceState(null, "", target === "setup" ? "#setup" : location.pathname);
+  history.replaceState(null, "", target === "setup" ? "#setup" : target === "files" ? "#files" : location.pathname);
   if (target === "setup") renderScanResults(lastScan);
+  filesTabActive(target === "files");
 }
+
+// ---------------------------------------------------------------------------
+// v1.4.0 — แท็บ "ไฟล์ที่ใช้": ตอนนี้กำลังรันวันปลูกไหนด้วยไฟล์อะไร + รายการที่เสร็จแล้ว
+// (อ่านอย่างเดียวผ่าน GET /api/run/files — รีเฟรชเองทุก 2 วินาทีเฉพาะตอนเปิดแท็บนี้อยู่)
+// ---------------------------------------------------------------------------
+let filesTimer = null;
+let filesData = { current: [], recent: [], recent_total: 0 };
+
+function baseName(path) {
+  return String(path || "").split(/[\\/]/).pop() || "-";
+}
+
+function renderFilesTab() {
+  const running = !!lastSnapshot && lastSnapshot.overall_state !== "idle";
+  const badge = document.getElementById("files-now-badge");
+  const now = document.getElementById("files-now");
+  const cur = filesData.current || [];
+  badge.textContent = running ? (cur.length ? `กำลังประมวลผล ${cur.length} หน้าต่าง` : "กำลังเตรียม...") : "ไม่ได้ประมวลผลอยู่";
+  badge.className = "badge " + (running ? "running" : "neutral");
+  const fileRow = (label, path) =>
+    `<div class="file-row"><span class="file-kind">${label}</span><span class="file-name" title="${escHtml(path)}">${escHtml(baseName(path))}</span></div>`;
+  now.innerHTML = cur.length
+    ? cur
+        .map(
+          (e) => `<div class="file-now-card">
+            <div class="file-now-head">หน้าต่างที่ ${e.window} — ปี ${e.year} วันปลูก ${escHtml(e.date)}</div>
+            ${fileRow("Climate", e.climate)}${fileRow("Rain", e.rain)}${fileRow("Crop", e.crop)}${fileRow("Soil", e.soil)}
+          </div>`
+        )
+        .join("")
+    : `<div class="note">${running ? "กำลังเปิด CropWat และเตรียมไฟล์..." : "เริ่มประมวลผลแล้วรายการจะขึ้นที่นี่"}</div>`;
+
+  const q = document.getElementById("files-filter").value.trim().toLowerCase();
+  const rows = (filesData.recent || []).filter(
+    (e) => !q || `${e.year} ${e.date} ${baseName(e.climate)} ${baseName(e.rain)} ${baseName(e.crop)} ${baseName(e.soil)}`.toLowerCase().includes(q)
+  );
+  const total = filesData.recent_total || 0;
+  document.getElementById("files-done-count").textContent = total
+    ? `บันทึกไว้ ${total} วันปลูก` + (total > (filesData.recent || []).length ? ` (แสดง ${filesData.recent.length} รายการล่าสุด)` : "")
+    : "";
+  document.getElementById("files-done").innerHTML = rows.length
+    ? `<table class="files-table"><thead><tr><th>ปี</th><th>วันปลูก</th><th>Climate</th><th>Rain</th><th>Crop</th><th>Soil</th><th>เวลาที่รัน</th></tr></thead><tbody>${rows
+        .map(
+          (e) => `<tr><td>${e.year}</td><td>${escHtml(e.date)}</td><td title="${escHtml(e.climate)}">${escHtml(baseName(e.climate))}</td><td title="${escHtml(e.rain)}">${escHtml(baseName(e.rain))}</td><td>${escHtml(baseName(e.crop))}</td><td>${escHtml(baseName(e.soil))}</td><td>${escHtml(e.at || "-")}</td></tr>`
+        )
+        .join("")}</tbody></table>`
+    : `<div class="note">${total ? "ไม่พบรายการที่ตรงกับคำค้น" : "ยังไม่มีบันทึก — โปรแกรมเริ่มจดไฟล์ที่ใช้ตั้งแต่เวอร์ชันนี้ (ผลที่รันไว้ก่อนหน้าดูได้ใน Excel แผ่น \"ไฟล์ที่ใช้\" แบบประเมินย้อนหลัง)"}</div>`;
+}
+
+async function fetchFilesTab() {
+  try {
+    const res = await fetch("/api/run/files");
+    if (res.ok) filesData = await res.json();
+  } catch {
+    /* ออฟไลน์ชั่วคราว — ใช้ข้อมูลเดิม */
+  }
+  renderFilesTab();
+}
+
+function filesTabActive(active) {
+  clearInterval(filesTimer);
+  filesTimer = null;
+  if (!active) return;
+  fetchFilesTab();
+  filesTimer = setInterval(fetchFilesTab, 2000);
+}
+
+document.getElementById("files-filter").addEventListener("input", renderFilesTab);
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -670,6 +740,33 @@ document.getElementById("btn-copy-output").addEventListener("click", () => {
   copyText(document.getElementById("output-dir").value, "คัดลอก path แล้ว");
 });
 
+function escHtml(text) {
+  return String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// เลือกสถานี/ไฟล์จากผลตรวจ: ใส่ค่าลงช่องในการ์ด "ขั้นสูง" ให้ แล้วให้ผู้ใช้กดบันทึกเอง
+// (ไม่บันทึกอัตโนมัติ — ใช้ปุ่มบันทึกการตั้งค่าเดิม)
+function chooseScanValue(inputId, value) {
+  const el = document.getElementById(inputId);
+  el.value = value;
+  const adv = el.closest("details");
+  if (adv) adv.open = true;
+  updateSaveBar();
+  showToast("เลือกแล้ว — กด \"บันทึกการตั้งค่า\" แล้วกด \"ตรวจสอบ\" อีกครั้ง");
+}
+
+function scanChoiceList(items, inputId) {
+  // items: [{ label, value, selected }]
+  return `<div class="scan-choices">${items
+    .map(
+      (it) => `<div class="scan-choice${it.selected ? " picked" : ""}">
+        <span>${escHtml(it.label)}</span>
+        ${it.selected ? '<span class="badge ok">ใช้อยู่</span>' : `<button type="button" class="link-btn" data-scan-input="${inputId}" data-scan-value="${escHtml(it.value)}">ใช้ตัวนี้</button>`}
+      </div>`
+    )
+    .join("")}</div>`;
+}
+
 function renderScanResults(scan) {
   const badge = document.getElementById("scan-badge");
   const container = document.getElementById("scan-results");
@@ -686,13 +783,32 @@ function renderScanResults(scan) {
   if (scan.errors && scan.errors.length) {
     badge.textContent = "มีปัญหา";
     badge.className = "badge warn";
-    container.innerHTML = `<div class="note">${scan.errors.join("<br>")}</div>`;
+    container.innerHTML = `<div class="note">${scan.errors.map(escHtml).join("<br>")}</div>`;
     strip.innerHTML = "";
     return;
   }
 
-  badge.textContent = "ตรวจสอบแล้ว";
-  badge.className = "badge ok";
+  const needsChoice = scan.needs_choice || [];
+  const skipped = scan.skipped || [];
+  const warnings = scan.warnings || [];
+  const climStations = scan.climate_stations || [];
+  const rainStations = scan.rain_stations || [];
+  const missingKinds = [];
+  if (!climStations.length) missingKinds.push("Climate (.PED)");
+  if (!rainStations.length) missingKinds.push("Rain (.CRD)");
+  if (!scan.crop_files.length) missingKinds.push("Crop (.CRO)");
+  if (!scan.soil_files.length) missingKinds.push("Soil (.SOI)");
+
+  if (missingKinds.length) {
+    badge.textContent = "ไฟล์ไม่ครบ";
+    badge.className = "badge warn";
+  } else if (needsChoice.length) {
+    badge.textContent = "ต้องเลือกก่อน";
+    badge.className = "badge warn";
+  } else {
+    badge.textContent = "ตรวจสอบแล้ว";
+    badge.className = "badge ok";
+  }
 
   const yearStrip = (s) => {
     if (!s) return "";
@@ -700,33 +816,74 @@ function renderScanResults(scan) {
       .map((y) => `<i class="${s.missing_years.includes(y) ? "miss" : "ok"}" title="${y}"></i>`)
       .join("");
   };
+  const stationLabel = (st) =>
+    `สถานี ${st.id} — ${st.files} ไฟล์` + (st.first_year ? ` (ปี ${st.first_year}–${st.last_year})` : "") + ` · ${st.folder}`;
+  const stationBlock = (stations, inputId) => {
+    if (!stations.length) return '<div class="note os-warn">ไม่พบไฟล์ชนิดนี้ในโฟลเดอร์ต้นทาง (ค้นทุกโฟลเดอร์ย่อยแล้ว)</div>';
+    if (stations.length === 1) return `<div class="note">${escHtml(stationLabel(stations[0]))}</div>`;
+    return scanChoiceList(
+      stations.map((st) => ({ label: stationLabel(st), value: st.choose_value, selected: st.selected })),
+      inputId
+    );
+  };
+  const fileBlock = (files, inputId, current) => {
+    if (files.length <= 1) return files.length ? `<div class="note">${escHtml(files[0])}</div>` : "";
+    return scanChoiceList(
+      files.map((f) => ({ label: f, value: f, selected: !!current && (current === f || f.toLowerCase().endsWith("\\" + current.toLowerCase())) })),
+      inputId
+    );
+  };
+  const foldList = (title, rows, total, cls) =>
+    rows.length
+      ? `<details class="sub-details scan-fold"><summary class="${cls}">${title}${total > rows.length ? ` (แสดง ${rows.length} จาก ${total})` : ""}</summary><div class="note scan-list">${rows.join("<br>")}</div></details>`
+      : "";
 
   container.innerHTML = `
+    ${needsChoice.length ? `<div class="note os-warn">⚠ ${needsChoice.map(escHtml).join("<br>⚠ ")}</div>` : ""}
     <div class="detect-row">
       <span class="dr-lbl">${ICONS.thermometer} สถานี Climate/ETo</span>
-      <span class="dr-val">${scan.climate_station_folders.join(", ") || "ไม่พบ"}</span>
+      <span class="dr-val">${climStations.length ? `พบ ${climStations.length} สถานี` : "ไม่พบ"}</span>
     </div>
+    ${stationBlock(climStations, "climate-station-dir")}
     <div class="year-strip">${yearStrip(scan.climate)}</div>
     <div class="detect-row">
       <span class="dr-lbl">${ICONS.cloudRain} สถานี Rain</span>
-      <span class="dr-val">${scan.rain_station_folders.join(", ") || "ไม่พบ"}</span>
+      <span class="dr-val">${rainStations.length ? `พบ ${rainStations.length} สถานี` : "ไม่พบ"}</span>
     </div>
+    ${stationBlock(rainStations, "rain-station-dir")}
     <div class="year-strip">${yearStrip(scan.rain)}</div>
     <div class="detect-row">
       <span class="dr-lbl">${ICONS.sprout} ไฟล์ Crop</span>
       <span class="dr-val">${scan.crop_files.length} ไฟล์</span>
     </div>
+    ${fileBlock(scan.crop_files, "crop-file", settings.crop_file)}
     <div class="detect-row">
       <span class="dr-lbl">${ICONS.layers} ไฟล์ Soil</span>
       <span class="dr-val">${scan.soil_files.length} ไฟล์</span>
     </div>
+    ${fileBlock(scan.soil_files, "soil-file", settings.soil_file)}
+    ${foldList(
+      `⚠ ไฟล์ที่พบแต่ไม่ได้ใช้ ${scan.skipped_total || skipped.length} ไฟล์ — กดดูเหตุผล`,
+      skipped.map((f) => `<b>${escHtml(f.path)}</b> — ${escHtml(f.reason)}`),
+      scan.skipped_total || skipped.length,
+      "os-warn"
+    )}
+    ${foldList(
+      `ข้อสังเกต ${scan.warnings_total || warnings.length} รายการ (ไม่ขวางการประมวลผล) — กดดู`,
+      warnings.map(escHtml),
+      scan.warnings_total || warnings.length,
+      ""
+    )}
   `;
+  container.querySelectorAll("[data-scan-input]").forEach((btn) => {
+    btn.addEventListener("click", () => chooseScanValue(btn.dataset.scanInput, btn.dataset.scanValue));
+  });
 
   const climYears = scan.climate ? scan.climate.years.length - scan.climate.missing_years.length : 0;
   const rainYears = scan.rain ? scan.rain.years.length - scan.rain.missing_years.length : 0;
   strip.innerHTML = `
-    <div class="stat-tile ok"><div class="stat-lbl">Climate ครบ</div><div class="stat-val">${climYears} ปี</div></div>
-    <div class="stat-tile ${scan.rain && scan.rain.missing_years.length ? "warn" : "ok"}">
+    <div class="stat-tile ${scan.climate ? "ok" : "warn"}"><div class="stat-lbl">Climate ครบ</div><div class="stat-val">${climYears} ปี</div></div>
+    <div class="stat-tile ${!scan.rain || scan.rain.missing_years.length ? "warn" : "ok"}">
       <div class="stat-lbl">Rain ครบ</div><div class="stat-val">${rainYears} ปี</div>
     </div>
     <div class="stat-tile"><div class="stat-lbl">Crop</div><div class="stat-val" style="font-size:14px">${scan.crop_files.length ? "พบแล้ว" : "ไม่พบ"}</div></div>
@@ -1889,6 +2046,7 @@ screenshotModal.addEventListener("click", (e) => {
 // ---------------------------------------------------------------------------
 loadConfig();
 if (location.hash === "#setup") showTab("setup");
+else if (location.hash === "#files") showTab("files");
 fetchStatus();
 fetchOutputProgress();
 refreshLatestShot(); // แสดงภาพหน้าจอล่าสุดทันทีที่เปิดหน้า (ถ้ามีจากรอบก่อน)

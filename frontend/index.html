@@ -54,6 +54,7 @@
     </div>
     <nav class="tabs">
       <button class="tab-btn active" data-tab="dash" type="button">ภาพรวม</button>
+      <button class="tab-btn" data-tab="files" type="button">ไฟล์ที่ใช้</button>
       <button class="tab-btn" data-tab="setup" type="button">ตั้งค่า</button>
     </nav>
     <div class="conn">
@@ -256,6 +257,33 @@
     <!-- ======================================================================
          แท็บ 2: ตั้งค่า — ลำดับขั้น 1 → 2 → 3
          ====================================================================== -->
+    <section class="view" id="view-files">
+      <div class="card">
+        <div class="card-head">
+          <h2>ไฟล์ที่กำลังใช้ตอนนี้</h2>
+          <span class="badge neutral" id="files-now-badge">ไม่ได้ประมวลผลอยู่</span>
+        </div>
+        <div class="card-body stack">
+          <span class="note">วันปลูกที่ CropWat แต่ละหน้าต่างกำลังคำนวณอยู่ และไฟล์ Climate / Rain / Crop / Soil ที่เปิดใช้กับวันนั้น</span>
+          <div id="files-now"><!-- filled by JS --></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h2>ไฟล์ที่ใช้ของวันปลูกที่เสร็จแล้ว</h2>
+          <span class="note" id="files-done-count"></span>
+        </div>
+        <div class="card-body stack">
+          <span class="note">กฎการเลือกไฟล์: ใช้ไฟล์ของเดือนที่ปลูก ถ้าไม่มี ใช้ไฟล์ของเดือนก่อนหน้าที่ใกล้ที่สุด (ไม่ใช้ไฟล์ของเดือนถัดไป) — รายการทั้งหมดอยู่ใน Excel แผ่น "ไฟล์ที่ใช้" ด้วย</span>
+          <label class="field">
+            <span class="lbl">ค้นหา (ปี วันปลูก หรือชื่อไฟล์)</span>
+            <input type="text" id="files-filter" placeholder="เช่น 1981 หรือ Apr" />
+          </label>
+          <div class="files-table-wrap" id="files-done"><!-- filled by JS --></div>
+        </div>
+      </div>
+    </section>
+
     <section class="view" id="view-setup">
 
       <div class="setup-intro">
@@ -411,13 +439,13 @@
       <details class="card">
         <summary class="card-head"><h2>ขั้นสูง: กำหนดสถานี/ไฟล์เอง</h2></summary>
         <div class="card-body stack">
-          <span class="note">เว้นว่างไว้ได้ — ระบุเฉพาะเมื่อตรวจสอบแล้วพบมากกว่า 1 ตัวเลือก</span>
+          <span class="note">เว้นว่างไว้ได้ — โปรแกรมค้นหาไฟล์จากทุกโฟลเดอร์ย่อยให้เอง ระบุเฉพาะเมื่อกด "ตรวจสอบ" แล้วพบมากกว่า 1 ตัวเลือก (กด "ใช้ตัวนี้" ในผลตรวจได้เลย)</span>
           <label class="field">
-            <span class="lbl">โฟลเดอร์สถานี Climate/ETo</span>
+            <span class="lbl">สถานี Climate/ETo (รหัสสถานี หรือโฟลเดอร์)</span>
             <input type="text" id="climate-station-dir" />
           </label>
           <label class="field">
-            <span class="lbl">โฟลเดอร์สถานี Rain</span>
+            <span class="lbl">สถานี Rain (รหัสสถานี หรือโฟลเดอร์)</span>
             <input type="text" id="rain-station-dir" />
           </label>
           <label class="field">

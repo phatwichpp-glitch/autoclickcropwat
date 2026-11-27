@@ -660,6 +660,27 @@ input.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2
 .year-strip i { width: 10px; height: 10px; border-radius: 2px; background: var(--queued-soft); }
 .year-strip i.ok { background: var(--done); }
 .year-strip i.miss { background: var(--error); }
+/* ผลตรวจไฟล์ต้นทาง: รายการสถานี/ไฟล์ให้เลือก + รายการไฟล์ที่ไม่ได้ใช้ (v1.4.0) */
+.scan-choices { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 6px; }
+.scan-choice { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px; }
+.scan-choice > span:first-child { min-width: 0; word-break: break-word; }
+.scan-choice.picked { border-color: var(--done); }
+.scan-choice .link-btn { flex: none; color: var(--accent-ink); font-weight: 600; }
+.scan-fold { margin-top: 8px; }
+.scan-fold > summary { cursor: pointer; font-size: 12.5px; }
+.scan-list { max-height: 220px; overflow: auto; word-break: break-word; }
+/* แท็บ "ไฟล์ที่ใช้" (v1.4.0) */
+#files-now { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.file-now-card { border: 1px solid var(--border); border-left: 3px solid var(--running); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.file-now-head { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }
+.file-row { display: flex; gap: 10px; font-size: 12.5px; padding: 3px 0; border-top: 1px solid var(--border); min-width: 0; }
+.file-row .file-kind { flex: none; width: 58px; color: var(--muted); }
+.file-row .file-name { font-weight: 600; word-break: break-all; min-width: 0; }
+.files-table-wrap { max-height: 520px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.files-table-wrap > .note { display: block; padding: 12px; }
+.files-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.files-table th, .files-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.files-table th { position: sticky; top: 0; background: var(--panel-2); color: var(--muted); font-weight: 600; }
 
 .exe-status {
   font-size: 13.5px; font-weight: 600; padding: 10px 12px; border-radius: 10px;

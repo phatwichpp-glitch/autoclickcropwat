@@ -131,15 +131,20 @@ set "_PYI_SPLASH_IPC="
 set RETRIES=0
 :loop
 ping -n 2 127.0.0.1 >nul
-move /y "{new_exe}" "{target_exe}" >nul 2>&1
+move /y "%CWAR_NEW_EXE%" "%CWAR_TARGET_EXE%" >nul 2>&1
 if errorlevel 1 (
   set /a RETRIES+=1
   if %RETRIES% lss 60 goto loop
   exit /b 1
 )
-start "" "{target_exe}" --updated
+start "" "%CWAR_TARGET_EXE%" --updated
 del "%~f0"
 """
+# v1.3.2 — path ทั้งสองส่งผ่าน environment variable (CWAR_NEW_EXE / CWAR_TARGET_EXE) ไม่ได้
+# ฝังลงในตัวสคริปต์: เดิมฝัง path แล้วเขียนไฟล์แบบ ascii → โปรแกรมที่วางในโฟลเดอร์ชื่อภาษาไทย
+# อัปเดตไม่ได้เลย (UnicodeEncodeError) — ตัวสคริปต์จึงเป็น ASCII ล้วน ส่วน path เป็น Unicode
+# เต็มรูปแบบไม่ขึ้นกับ code page ของ cmd
+#
 # หมายเหตุ "--updated": บอก launcher ว่านี่คือการเปิดหลังอัปเดต — ไม่ต้องเปิด
 # หน้าต่างโปรแกรมใหม่ เพราะหน้าต่างเดิมของผู้ใช้ยังเปิดอยู่และจะ reload ตัวเอง
 # เมื่อ backend กลับมา (ยืนยันจากผู้ใช้: ไม่ใส่ flag นี้จะได้ 2 หน้าต่างซ้อนกัน)
@@ -180,10 +185,16 @@ def apply_update() -> None:
         new_exe.unlink(missing_ok=True)
         raise UpdateError("ไฟล์ที่ดาวน์โหลดมาเล็กผิดปกติ — ยกเลิกการอัปเดตไว้ก่อน")
 
+    _spawn_swap_script(new_exe, target_exe)
+    logger.info("วางสคริปต์อัปเดตแล้ว — ปิดโปรแกรมใน 1 วินาที ตัวใหม่จะเปิดเอง")
+    # หน่วง 1 วิ ให้ HTTP response ของ endpoint ส่งกลับถึงหน้าจอก่อนค่อยปิดตัวเอง
+    threading.Timer(1.0, os._exit, args=(0,)).start()
+
+
+def _spawn_swap_script(new_exe: Path, target_exe: Path) -> subprocess.Popen:
+    """วางสคริปต์สลับไฟล์ข้าง target_exe แล้วเปิดแบบ detached — คืน process ของสคริปต์"""
     bat_path = target_exe.with_name("cropwat_update.bat")
-    bat_path.write_text(
-        _UPDATER_BAT.format(new_exe=new_exe, target_exe=target_exe), encoding="ascii"
-    )
+    bat_path.write_text(_UPDATER_BAT, encoding="ascii")
 
     DETACHED_PROCESS = 0x00000008
     CREATE_NEW_PROCESS_GROUP = 0x00000200
@@ -198,13 +209,12 @@ def apply_update() -> None:
         "_PYI_SPLASH_IPC",
     ):
         child_env.pop(var, None)
-    subprocess.Popen(
+    child_env["CWAR_NEW_EXE"] = str(new_exe)
+    child_env["CWAR_TARGET_EXE"] = str(target_exe)
+    return subprocess.Popen(
         ["cmd", "/c", str(bat_path)],
         creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
         close_fds=True,
         cwd=str(target_exe.parent),
         env=child_env,
     )
-    logger.info("วางสคริปต์อัปเดตแล้ว — ปิดโปรแกรมใน 1 วินาที ตัวใหม่จะเปิดเอง")
-    # หน่วง 1 วิ ให้ HTTP response ของ endpoint ส่งกลับถึงหน้าจอก่อนค่อยปิดตัวเอง
-    threading.Timer(1.0, os._exit, args=(0,)).start()

@@ -43,7 +43,9 @@ from pathlib import Path
 
 logger = logging.getLogger("overlay")
 
-URL = "http://127.0.0.1:8000"
+# พอร์ตเดียวกับ launcher.PORT (v1.3.2 — เดิมตายตัว 8000 ตัวทดสอบบนพอร์ตอื่นจึงเปิดไปที่
+# โปรแกรมตัวจริงของผู้ใช้)
+URL = "http://127.0.0.1:" + (os.environ.get("CROPWAT_AUTORUNNER_PORT") or "8000")
 # grace period ที่ overlay ยังค้างโชว์ผลสรุป "จบแล้ว X/Y" หลังรันเสร็จ ก่อนซ่อนตัวเอง
 _DONE_GRACE_SECONDS = 15
 

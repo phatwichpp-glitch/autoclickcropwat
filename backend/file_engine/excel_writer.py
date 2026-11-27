@@ -6,6 +6,9 @@ file_engine/excel_writer.py
 ได้ทุกเมื่อโดยไม่ต้องรอเฟส 1 รันจนจบ (อ่านจากไฟล์ .txt ที่มีอยู่ ณ ตอนนั้นเท่านั้น
 ไม่ได้ผูกกับ state การรันของเฟส 1 เลย)
 
+v1.3.2 — เพิ่ม sheet "ไฟล์ที่ใช้": วันปลูกไหนของปีไหนใช้ไฟล์ climate/rain/crop/soil ไฟล์ไหน
+(ดู _write_files_sheet + runner._record_files_used)
+
 v0.12.0 — สร้าง 3 sheet (ไม่แตะ sheet อื่นที่ผู้ใช้สร้างเองในไฟล์ปลายทาง):
   - "Result"   ตารางผลรายปี × วันปลูก (ด้านล่าง) + แถบสีบนแถว % yield reduction
   - "สรุป"     ค่าเฉลี่ย/ต่ำสุด/สูงสุดข้ามปีของแต่ละวันปลูก ไฮไลต์วันปลูกที่ดีที่สุด
@@ -39,7 +42,13 @@ from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from file_engine.txt_parser import ParsedCandidateResult, TxtParseError, parse_txt
+from file_engine.discovery import parse_name
+from file_engine.txt_parser import (
+    ParsedCandidateResult,
+    TxtParseError,
+    parse_txt,
+    planting_date_matches,
+)
 
 logger = logging.getLogger("excel_writer")
 
@@ -93,6 +102,11 @@ class RunNotes:
     error_shots: dict[int, list[str]] = field(default_factory=dict)
     # v1.2.0 — ค่า CropWat Options ที่ใช้ตอนรัน (จากสำเนา Cropwat.ini ในโฟลเดอร์ผลลัพธ์)
     extra_meta: list[tuple[str, str]] = field(default_factory=list)
+    # v1.3.2 — (ปี, "MMDD") -> {climate, rain, crop, soil, at, source} สำหรับ sheet "ไฟล์ที่ใช้"
+    # source: "run" = บันทึกตอนรันจริง, "estimate" = คำนวณย้อนหลังจากไฟล์/ค่าตั้งปัจจุบัน
+    files_used: dict = field(default_factory=dict)
+    # v1.4.0 — อายุพืช (วัน) ใช้ตรวจลำดับ วัน/เดือน ของไฟล์ผลลัพธ์ (None = ไม่ตรวจชั้นนี้)
+    crop_cycle_days: int | None = None
 
 
 def _sort_key(mmdd: str) -> tuple[int, int]:
@@ -104,7 +118,7 @@ def _format_mmdd(mmdd: str) -> str:
 
 
 def _collect_results(
-    txt_dir: Path, failures: dict[int, list[str]] | None = None
+    txt_dir: Path, failures: dict[int, list[str]] | None = None, cycle_days: int | None = None
 ) -> dict[int, dict[str, ParsedCandidateResult]]:
     """สแกน txt_dir หาไฟล์ .txt ทั้งหมด parse ทีละไฟล์ — ไฟล์ที่ parse ไม่ได้แค่
     ข้าม + log warning ไป ไม่ทำให้ทั้งเฟส 2 ล้ม (เหมือนหลักการเดียวกับเฟส 1)
@@ -119,10 +133,21 @@ def _collect_results(
         mmdd = m.group("mmdd")
         try:
             result = parse_txt(path)
-        except TxtParseError as exc:
+        except (TxtParseError, OSError) as exc:
             logger.warning("parse ไฟล์ %s ไม่สำเร็จ: %s", path.name, exc)
             if failures is not None:
                 failures.setdefault(year, []).append(path.name)
+            continue
+        # v1.3.2 — เนื้อไฟล์ต้องเป็นของวันปลูกตามชื่อไฟล์จริง (เงื่อนไขเดียวกับตอนตรวจ resume)
+        # ไม่งั้นค่าของวันปลูกอื่นจะถูกลงคอลัมน์นี้ และเข้าไปในค่าเฉลี่ยของ sheet สรุป
+        if not planting_date_matches(mmdd, result.planting_date, result.harvest_date, year, cycle_days):
+            logger.warning(
+                "ข้ามไฟล์ %s: เนื้อในเป็นวันปลูก %s ไม่ตรงกับชื่อไฟล์", path.name, result.planting_date
+            )
+            if failures is not None:
+                failures.setdefault(year, []).append(
+                    f"{path.name} (วันปลูกในไฟล์ {result.planting_date} ไม่ตรงชื่อไฟล์)"
+                )
             continue
         parsed.setdefault(year, {})[mmdd] = result
     return parsed
@@ -285,7 +310,7 @@ def _write_notes_sheet(
         if notes.year_errors.get(year):
             remarks.append(notes.year_errors[year])
         if parse_failures.get(year):
-            remarks.append("ไฟล์ .txt อ่านไม่ได้: " + ", ".join(parse_failures[year]))
+            remarks.append("ไฟล์ .txt ที่ไม่ได้นำมาใช้: " + ", ".join(parse_failures[year]))
         if notes.error_shots.get(year):
             remarks.append("ภาพ error (โฟลเดอร์ _error_dialogs): " + ", ".join(notes.error_shots[year]))
         if not planned and not have and not remarks:
@@ -307,11 +332,88 @@ def _write_notes_sheet(
     ws.freeze_panes = ws.cell(row=head_row + 1, column=1)
 
 
+def _data_month(path_text: str) -> tuple[int, int] | None:
+    """(ปี, เดือน) ของข้อมูลในไฟล์ climate/rain อ่านจากชื่อไฟล์/ชื่อโฟลเดอร์ (ตัวอ่านเดียวกับ
+    ตอนค้นหาไฟล์ ไม่เปิดไฟล์) — None ถ้าอ่านไม่ออก"""
+    if not path_text:
+        return None
+    info = parse_name(Path(path_text))
+    year = info.years[0] if len(info.years) == 1 else info.folder_year
+    month = info.months[0] if len(info.months) == 1 else info.folder_month
+    return (year, month) if year and month else None
+
+
+def _write_files_sheet(wb: Workbook, parsed: dict, notes: RunNotes) -> None:
+    """sheet "ไฟล์ที่ใช้" (v1.3.2): 1 แถวต่อ 1 วันปลูกที่มีผล — ใช้ไฟล์ climate/rain/crop/soil
+    ไฟล์ไหน ข้อมูลของเดือน/ปีอะไร ไฮไลต์แถวที่ไฟล์ไม่ใช่ของเดือนที่ปลูก (ใช้ไฟล์ย้อนหลังแทน)"""
+    ws = _replace_owned_sheet(wb, "ไฟล์ที่ใช้", 3)
+    headers = [
+        "ปี", "วันปลูก", "ไฟล์ climate", "ข้อมูล climate ของ", "ไฟล์ rain", "ข้อมูล rain ของ",
+        "ไฟล์ crop", "ไฟล์ soil", "ที่มาของข้อมูลแถวนี้", "เวลาที่รัน", "หมายเหตุ",
+        "ตำแหน่งไฟล์ climate", "ตำแหน่งไฟล์ rain",
+    ]
+    ws.cell(
+        row=2, column=1,
+        value="ที่มา: \"บันทึกตอนรัน\" = โปรแกรมจดไว้ขณะรันจริง · \"ประเมินย้อนหลัง\" = ผลจากเวอร์ชันก่อนที่ยัง"
+              "ไม่จด คำนวณจากไฟล์ในโฟลเดอร์ต้นทางและค่าตั้งตอนนี้ (อาจไม่ตรงถ้าไฟล์/ค่าตั้งเปลี่ยนหลังรัน)",
+    ).font = _MUTED
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=3, column=col_idx, value=h)
+        cell.font = _BOLD
+        cell.fill = _HEADER_FILL
+
+    def ym(v) -> str:
+        return f"{v[1]:02d}/{v[0]}" if v else "-"
+
+    row_idx = 4
+    for year in sorted(parsed):
+        for mmdd in sorted(parsed[year], key=_sort_key):
+            info = notes.files_used.get((year, mmdd))
+            ws.cell(row=row_idx, column=1, value=year)
+            ws.cell(row=row_idx, column=2, value=_format_mmdd(mmdd))
+            if not info:
+                ws.cell(row=row_idx, column=9, value="ไม่มีบันทึก")
+                ws.cell(row=row_idx, column=11, value="ไม่ทราบไฟล์ที่ใช้ (ผลจากเวอร์ชันก่อน และหาโฟลเดอร์ต้นทางไม่เจอ)")
+                row_idx += 1
+                continue
+            clim, rain = info.get("climate", ""), info.get("rain", "")
+            clim_ym, rain_ym = _data_month(clim), _data_month(rain)
+            want = (year, int(mmdd[:2]))
+            remarks = []
+            if clim_ym and clim_ym != want:
+                remarks.append(f"climate ใช้ข้อมูลของ {ym(clim_ym)} (ไม่ใช่เดือนที่ปลูก)")
+            if rain_ym and rain_ym != want:
+                remarks.append(f"rain ใช้ข้อมูลของ {ym(rain_ym)} (ไม่ใช่เดือนที่ปลูก)")
+            values = [
+                Path(clim).name if clim else "-", ym(clim_ym),
+                Path(rain).name if rain else "-", ym(rain_ym),
+                Path(info["crop"]).name if info.get("crop") else "-",
+                Path(info["soil"]).name if info.get("soil") else "-",
+                "บันทึกตอนรัน" if info.get("source") == "run" else "ประเมินย้อนหลัง",
+                info.get("at") or "-",
+                " · ".join(remarks) or "-",
+                str(Path(clim).parent) if clim else "-",
+                str(Path(rain).parent) if rain else "-",
+            ]
+            for col_idx, v in enumerate(values, start=3):
+                ws.cell(row=row_idx, column=col_idx, value=v)
+            if remarks:
+                for col_idx in range(1, len(headers) + 1):
+                    ws.cell(row=row_idx, column=col_idx).fill = _WARN_FILL
+            row_idx += 1
+
+    for letter, width in zip("ABCDEFGHIJKLM", (7, 9, 26, 18, 26, 18, 18, 18, 20, 19, 48, 60, 60)):
+        ws.column_dimensions[letter].width = width
+    ws.freeze_panes = "C4"
+    ws.auto_filter.ref = f"A3:{get_column_letter(len(headers))}{max(row_idx - 1, 3)}"
+
+
 def build_result_sheet(txt_dir: Path, output_xlsx: Path, notes: RunNotes | None = None) -> int:
     """สร้าง/เขียนทับ sheet 'Result' + 'สรุป' + 'หมายเหตุ' ใน output_xlsx จากไฟล์
     .txt ทั้งหมดใน txt_dir คืนค่าจำนวนปีที่เขียนสำเร็จ"""
     parse_failures: dict[int, list[str]] = {}
-    parsed = _collect_results(txt_dir, parse_failures)
+    notes = notes or RunNotes()
+    parsed = _collect_results(txt_dir, parse_failures, notes.crop_cycle_days)
     if not parsed:
         raise FileNotFoundError(f"ไม่พบไฟล์ .txt ที่ parse ได้เลยในโฟลเดอร์: {txt_dir}")
 
@@ -320,7 +422,8 @@ def build_result_sheet(txt_dir: Path, output_xlsx: Path, notes: RunNotes | None 
     wb = _load_or_create_workbook(Path(output_xlsx))
     _write_result_sheet(wb, parsed, all_mmdd)
     _write_summary_sheet(wb, parsed, all_mmdd)
-    _write_notes_sheet(wb, parsed, notes or RunNotes(), parse_failures)
+    _write_notes_sheet(wb, parsed, notes, parse_failures)
+    _write_files_sheet(wb, parsed, notes)
     wb.active = 0
 
     Path(output_xlsx).parent.mkdir(parents=True, exist_ok=True)

@@ -10,6 +10,7 @@ asyncio event loop ของ FastAPI เพราะ pywinauto เป็น bloc
 
 from __future__ import annotations
 
+import json
 import logging
 import queue
 import re
@@ -29,8 +30,10 @@ from config import (
     planting_dates_for_year,
     screenshot_dir,
     txt_dir,
+    year_range,
 )
-from file_engine import paths as file_paths
+from file_engine import discovery
+from file_engine.txt_parser import crop_cycle_days, planting_date_matches
 from models import OverallRunState, YearRunStatus
 from state import run_state
 
@@ -58,6 +61,7 @@ def _scan_valid_outputs(settings: Settings) -> tuple[set, set, list[str]]:
     และ "ไม่นับว่าเสร็จ" → รอบรันถัดไปทำวันปลูกนั้นใหม่ทับให้เอง"""
     from file_engine.txt_parser import TxtParseError, parse_txt
 
+    cycle_days = _crop_cycle_days(settings)
     txt_ok: set[tuple[int, str]] = set()
     invalid: list[str] = []
     d = txt_dir(settings)
@@ -79,17 +83,15 @@ def _scan_valid_outputs(settings: Settings) -> tuple[set, set, list[str]]:
             # ชื่อไฟล์ต่างกัน — เทียบวันปลูกในหัวไฟล์ (ที่ CropWat พิมพ์เอง) กับ
             # ชื่อไฟล์ ยอมรับทั้งลำดับ วัน/เดือน และ เดือน/วัน (กัน Region ต่างกัน)
             mmdd = m.group("mmdd")
-            want_day, want_month = int(mmdd[2:]), int(mmdd[:2])
-            pd_match = re.match(r"^\s*(\d{1,2})/(\d{1,2})\s*$", parsed.planting_date)
-            if pd_match:
-                a, b = int(pd_match.group(1)), int(pd_match.group(2))
-                if (a, b) != (want_day, want_month) and (a, b) != (want_month, want_day):
-                    logger.warning(
-                        "ไฟล์ %s เนื้อในเป็นวันปลูก %s ไม่ตรงกับชื่อไฟล์ (จะรันใหม่)",
-                        p.name, parsed.planting_date,
-                    )
-                    invalid.append(p.name)
-                    continue
+            if not planting_date_matches(
+                mmdd, parsed.planting_date, parsed.harvest_date, int(m.group("year")), cycle_days
+            ):
+                logger.warning(
+                    "ไฟล์ %s เนื้อในเป็นวันปลูก %s ไม่ตรงกับชื่อไฟล์ (จะรันใหม่)",
+                    p.name, parsed.planting_date,
+                )
+                invalid.append(p.name)
+                continue
             txt_ok.add((int(m.group("year")), mmdd))
 
     shots_ok: set[tuple[int, str]] = set()
@@ -106,6 +108,131 @@ def _scan_valid_outputs(settings: Settings) -> tuple[set, set, list[str]]:
             except OSError:
                 continue
     return txt_ok, shots_ok, invalid
+
+
+# v1.3.2 — บันทึก "วันปลูกนี้ใช้ไฟล์ไหน" ตอนรันจริง (1 บรรทัด JSON ต่อ 1 วันปลูกที่สำเร็จ ต่อท้าย
+# ไฟล์นี้ในโฟลเดอร์ผลลัพธ์) — sheet "ไฟล์ที่ใช้" ใน Result.xlsx อ่านจากไฟล์นี้ รันซ้ำวันเดิม =
+# บรรทัดใหม่กว่าชนะ ต่อท้ายทีละบรรทัดจึงไม่เสียของเดิมแม้โปรแกรมถูกปิดกลางคัน
+RUN_FILES_LOG = "_run_files.jsonl"
+_run_files_lock = threading.Lock()
+
+
+def _record_files_used(settings: Settings, batch, plan, result) -> None:
+    """เรียกหลังวันปลูกสำเร็จ — พังแล้วห้ามกระทบการรัน"""
+    try:
+        d = result.planting_date
+        entry = {
+            "year": plan.year,
+            "mmdd": f"{d:%m%d}",
+            "climate": str(plan.climate_file_for(d.month)),
+            "rain": str(plan.rain_file_for(d.month)),
+            "crop": str(batch.crop_file),
+            "soil": str(batch.soil_file),
+            "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        out_dir = Path(settings.output_dir)
+        with _run_files_lock:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            with open(out_dir / RUN_FILES_LOG, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:  # noqa: BLE001
+        logger.debug("บันทึกไฟล์ที่ใช้ของวันปลูกไม่สำเร็จ", exc_info=True)
+
+
+# v1.4.0 — "ตอนนี้แต่ละหน้าต่างกำลังรันวันปลูกไหน ด้วยไฟล์อะไร" (แท็บ "ไฟล์ที่ใช้" ในหน้าโปรแกรม
+# ตามคำขอผู้ใช้งานจริง: "เพิ่ม tab ชื่อไฟล์ที่กำลัง Run อยู่ — rain climate soil crop")
+_current_files: dict[str, dict] = {}
+_current_files_lock = threading.Lock()
+
+
+def files_status(settings: Settings, limit: int = 400) -> dict:
+    """ข้อมูลของแท็บ "ไฟล์ที่ใช้": current = วันปลูกที่แต่ละหน้าต่างกำลังทำอยู่ตอนนี้,
+    recent = วันปลูกที่ทำเสร็จแล้ว (บันทึกตอนรันจริง) ใหม่สุดก่อน ไม่เกิน limit รายการ"""
+    with _current_files_lock:
+        current = sorted(_current_files.values(), key=lambda e: e["window"])
+    if not is_run_active():
+        current = []
+    recent = []
+    total = 0
+    if settings.output_dir:
+        entries = [e for e in _load_files_used(settings, estimate=False).values()]
+        total = len(entries)
+        entries.sort(key=lambda e: e.get("at", ""), reverse=True)
+        recent = [
+            {
+                "year": e["year"], "date": f"{e['mmdd'][2:]}/{e['mmdd'][:2]}",
+                "climate": e.get("climate", ""), "rain": e.get("rain", ""),
+                "crop": e.get("crop", ""), "soil": e.get("soil", ""), "at": e.get("at", ""),
+            }
+            for e in entries[:limit]
+        ]
+    return {"current": current, "recent": recent, "recent_total": total}
+
+
+def _load_files_used(settings: Settings, estimate: bool = True) -> dict:
+    """(ปี, "MMDD") -> {climate, rain, crop, soil, at, source} สำหรับ sheet "ไฟล์ที่ใช้"
+
+    source="run" = บันทึกไว้ตอนรันจริง · source="estimate" = ผลจากเวอร์ชันก่อนที่ยังไม่มีการ
+    บันทึก จึงคำนวณจากไฟล์ในโฟลเดอร์ต้นทาง + ค่าตั้งปัจจุบันด้วยกติกาเดียวกับตอนรัน (อาจไม่ตรง
+    ถ้าไฟล์/ค่าตั้งเปลี่ยนไปหลังรัน — sheet ระบุที่มาทุกแถว)"""
+    used: dict = {}
+    log_path = Path(settings.output_dir) / RUN_FILES_LOG
+    if log_path.is_file():
+        try:
+            for line in log_path.read_text(encoding="utf-8").splitlines():
+                try:
+                    e = json.loads(line)
+                    used[(int(e["year"]), str(e["mmdd"]))] = {**e, "source": "run"}
+                except (ValueError, KeyError, TypeError):
+                    continue  # บรรทัดเขียนค้าง (ปิดโปรแกรมกลางคัน) — ข้าม
+        except OSError:
+            logger.debug("อ่าน %s ไม่ได้", log_path, exc_info=True)
+
+    if not estimate:
+        return used
+    d = txt_dir(settings)
+    missing = []
+    if d.is_dir():
+        for p in d.glob("*.txt"):
+            m = _TXT_RE.match(p.name)
+            if m and (int(m.group("year")), m.group("mmdd")) not in used:
+                missing.append((int(m.group("year")), m.group("mmdd")))
+    if not missing or not settings.input_dir:
+        return used
+    try:
+        found = discover_inputs(settings)
+        climate_index, rain_index = _station_indexes(settings, found)
+    except Exception:  # noqa: BLE001 -- ไม่มีโฟลเดอร์ต้นทางแล้ว = ประเมินไม่ได้ เว้นว่างไว้
+        return used
+    aux = {"crop": "", "soil": ""}
+    try:
+        crop_file, soil_file = _crop_soil_files(settings, found)
+        aux = {"crop": str(crop_file), "soil": str(soil_file)}
+    except Exception:  # noqa: BLE001
+        pass
+    for year, mmdd in missing:
+        month = int(mmdd[:2])
+        if not settings.shift_year_per_candidate:
+            months = [dd.month for dd, _ in planting_dates_for_year(settings, year)]
+            month = min(months) if months else month
+        try:
+            used[(year, mmdd)] = {
+                "climate": str(climate_index.resolve(year, month)),
+                "rain": str(rain_index.resolve(year, month)),
+                "crop": aux["crop"], "soil": aux["soil"], "at": "", "source": "estimate",
+            }
+        except FileNotFoundError:
+            continue
+    return used
+
+
+def _crop_cycle_days(settings: Settings) -> Optional[int]:
+    """อายุพืชจากไฟล์ .CRO ที่ตั้งไว้/ตรวจพบ (None ถ้าหาไม่ได้ — ตัวตรวจวันปลูกจะผ่อนปรนเอง)"""
+    try:
+        crop_file, _soil = _crop_soil_files(settings)
+        return crop_cycle_days(crop_file)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _candidate_complete(
@@ -137,7 +264,7 @@ def scan_output_progress(settings: Settings) -> dict:
     """รายงานความคืบหน้าไฟล์ output แบบละเอียด: ต่อปีเสร็จสมบูรณ์กี่/จากกี่วันปลูก
     + รวมทั้งหมด + จำนวนภาพ + จำนวนไฟล์ไม่สมบูรณ์ที่เจอ (จะถูกรันใหม่อัตโนมัติ)"""
     txt_ok, shots_ok, invalid = _scan_valid_outputs(settings)
-    years = list(range(settings.default_start_year, settings.default_end_year + 1))
+    years = year_range(settings)
 
     per_year = []
     total_expected = 0
@@ -193,8 +320,10 @@ def start_run(years: list[int], settings: Settings) -> bool:
         if is_run_active():
             return False
         _snapshot_cropwat_options(settings)
+        # v1.3.2 — ตั้งสถานะ RUNNING "ใต้ล็อกนี้" (เดิมตั้งใน thread หลังปล่อยล็อกแล้ว)
+        run_id = run_state.begin_run()
         _active_thread = threading.Thread(
-            target=_run_years, args=(years, settings), daemon=True
+            target=_run_years, args=(years, settings, run_id), daemon=True
         )
         _active_thread.start()
         return True
@@ -228,17 +357,23 @@ def force_reset() -> int:
 
     v0.7.0: ปิด CropWat บนเดสก์ท็อปซ่อนด้วย (find_windows มองไม่เห็นข้ามเดสก์ท็อป
     ต้องปิดผ่าน process handle ของ session ตรงๆ)"""
-    killed = force_close_cropwat()
+    # v1.3.2 — ระหว่างรันโหมดเดสก์ท็อปซ่อน ปิดเฉพาะ CropWat ที่โปรแกรมเปิดเอง: CropWat ที่
+    # ผู้ใช้เปิดไว้ทำงานอื่นบนจอหลักไม่เกี่ยวกับการรันนี้เลย ห้ามปิดทิ้ง (งานที่ยังไม่บันทึกหาย)
+    hidden_run = _active_run_hidden is True and is_run_active()
+    killed = 0 if hidden_run else force_close_cropwat()
     with _sessions_lock:
         sessions = list(_active_hidden_sessions)
     for session in sessions:  # v1.3.0: ปิดทุกหน้าต่างที่รันขนานกันอยู่
         try:
-            session.stop()
+            # kill_process (ไม่ใช่ stop): stop() ต้องเรียกจาก thread เจ้าของเดสก์ท็อปเท่านั้น
+            # — thread นั้นจะปิดเดสก์ท็อปของตัวเองใน finally เมื่อคำสั่งที่ค้างหลุดออกมา
+            session.kill_process()
             killed += 1
         except Exception:  # noqa: BLE001 -- session ปิดไปเองแล้ว = ปกติ
             pass
-    run_state.request_stop()  # เผื่อ thread เก่ายังไม่ตาย ให้รู้ว่าควรหยุดถ้าตื่นมาเช็ค
-    run_state.end_run()
+    # ยกเลิกรอบนี้: thread เก่าที่ยังไม่ตายจะเห็นว่าตัวเองตกรุ่น → หยุดเอง + แตะสถานะไม่ได้อีก
+    # แม้ผู้ใช้กดเริ่มรอบใหม่ทันที (ดู RunState.cancel_run)
+    run_state.cancel_run()
     return killed
 
 
@@ -251,45 +386,55 @@ def start_default_run() -> bool:
     if not settings.input_dir or not settings.output_dir:
         logger.error("ยังไม่ได้ตั้งค่าโฟลเดอร์ต้นทาง/ผลลัพธ์ — เปิดหน้าตั้งค่า (⚙) ก่อน")
         return False
-    run_state.init_years(settings.default_start_year, settings.default_end_year)
-    years = list(range(settings.default_start_year, settings.default_end_year + 1))
+    years = year_range(settings)
+    if not years:
+        return False
+    run_state.init_years(years[0], years[-1])
     return start_run(years, settings)
 
 
-def _resolve_single_station(root: Path, prefix: str, override: str) -> Path:
-    """หาโฟลเดอร์สถานี — ใช้ override ถ้าตั้งไว้ในหน้าตั้งค่า ไม่งั้น auto-pick
-    ตัวเดียวที่เจอ (error ชัดเจนถ้าเจอ 0 หรือมากกว่า 1 ตัว)"""
-    if override:
-        station_dir = Path(override)
-        if not station_dir.is_dir():
-            raise NotADirectoryError(f"ไม่พบโฟลเดอร์สถานีที่ตั้งไว้: {station_dir}")
-        return station_dir
-    candidates = file_paths.find_station_folders(root, prefix)
-    if not candidates:
-        raise FileNotFoundError(f"ไม่พบโฟลเดอร์ขึ้นต้นด้วย '{prefix}' ใน {root}")
-    if len(candidates) > 1:
-        names = ", ".join(p.name for p in candidates)
-        raise ValueError(
-            f"เจอโฟลเดอร์ '{prefix}*' มากกว่า 1 ตัว ({names}) กรุณาเลือกในหน้าตั้งค่า"
-        )
-    return candidates[0]
+def discover_inputs(settings: Settings) -> discovery.Discovery:
+    """v1.4.0 — สแกนโฟลเดอร์ต้นทางทั้งหมด (ทุกชั้น ไม่ยึดชื่อโฟลเดอร์) หาไฟล์ climate/rain/
+    crop/soil — ข้ามโฟลเดอร์ผลลัพธ์ถ้าอยู่ข้างในโฟลเดอร์ต้นทาง (ดู file_engine/discovery.py)"""
+    return discovery.discover(Path(settings.input_dir), exclude=(settings.output_dir,))
 
 
-def _resolve_single_file(root: Path, ext: str, override: str) -> Path:
+def _station_indexes(settings: Settings, found: Optional[discovery.Discovery] = None):
+    """(index ไฟล์ climate, index ไฟล์ rain) ของสถานีที่จะใช้ — raise FileNotFoundError /
+    ValueError พร้อมข้อความไทยถ้าไม่พบหรือมีหลายสถานีแล้วยังไม่ได้เลือก"""
+    found = found or discover_inputs(settings)
+    return (
+        found.index("climate", settings.climate_station_dir),
+        found.index("rain", settings.rain_station_dir),
+    )
+
+
+def _pick_single_file(candidates: list, override: str, label: str, ext: str, root) -> Path:
+    """ไฟล์ crop/soil ที่จะใช้: ค่าที่ตั้งไว้ (path เต็ม หรือแค่ชื่อไฟล์) ก่อน ไม่ได้ตั้ง = ต้องมี
+    ไฟล์เดียว — หลายไฟล์แล้วไม่ได้เลือก = error บอกตัวเลือก (ไม่เดาแทนผู้ใช้)"""
+    override = (override or "").strip()
     if override:
         file_path = Path(override)
-        if not file_path.is_file():
-            raise FileNotFoundError(f"ไม่พบไฟล์ที่ตั้งไว้: {file_path}")
-        return file_path
-    candidates = file_paths.find_files_by_extension(root, ext)
+        if file_path.is_file():
+            return file_path
+        by_name = [p for p in candidates if p.name.lower() == override.lower()]
+        if len(by_name) == 1:
+            return by_name[0]
+        raise FileNotFoundError(f"ไม่พบไฟล์ {label} ที่ตั้งไว้: {override}")
     if not candidates:
-        raise FileNotFoundError(f"ไม่พบไฟล์ '*{ext}' ใน {root}")
+        raise FileNotFoundError(f"ไม่พบไฟล์ {label} ({ext}) ใน {root}")
     if len(candidates) > 1:
-        names = ", ".join(str(p) for p in candidates)
-        raise ValueError(
-            f"เจอไฟล์ '*{ext}' มากกว่า 1 ตัว ({names}) กรุณาเลือกในหน้าตั้งค่า"
-        )
+        names = ", ".join(p.name for p in candidates)
+        raise ValueError(f"พบไฟล์ {label} มากกว่า 1 ไฟล์ ({names}) — เลือกไฟล์ที่จะใช้ในหน้าตั้งค่า")
     return candidates[0]
+
+
+def _crop_soil_files(settings: Settings, found: Optional[discovery.Discovery] = None):
+    found = found or discover_inputs(settings)
+    return (
+        _pick_single_file(found.crops, settings.crop_file, "Crop", ".CRO", found.root),
+        _pick_single_file(found.soils, settings.soil_file, "Soil", ".SOI", found.root),
+    )
 
 
 def check_shift_year_coverage(settings: Settings) -> list[dict]:
@@ -301,16 +446,12 @@ def check_shift_year_coverage(settings: Settings) -> list[dict]:
     ทุกเดือนที่จะใช้จริงตาม shift_year_per_candidate" ก่อนเริ่มรัน คืน list ของ
     ปัญหาที่เจอ ให้ frontend แจ้งเตือน + ขอความยินยอมจากผู้ใช้ก่อนเสมอ (ห้ามรันต่อ
     เงียบๆ โดยไม่ถาม — ผู้ใช้กำชับว่าไม่งั้นผลจะเพี้ยนจากที่ต้องการ)"""
-    input_root = Path(settings.input_dir)
     try:
-        climate_station = _resolve_single_station(input_root, "Clim_", settings.climate_station_dir)
-        rain_station = _resolve_single_station(input_root, "Rain_", settings.rain_station_dir)
-        climate_index = file_paths.index_climate_station(climate_station)
-        rain_index = file_paths.index_rain_station(rain_station)
+        climate_index, rain_index = _station_indexes(settings)
     except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
         return [{"year": None, "month": None, "climate_error": str(exc), "rain_error": None}]
 
-    years = list(range(settings.default_start_year, settings.default_end_year + 1))
+    years = year_range(settings)
     problems: list[dict] = []
     checked: set[tuple[int, int]] = set()
     for year in years:
@@ -346,7 +487,11 @@ def check_shift_year_coverage(settings: Settings) -> list[dict]:
     return problems
 
 
-def _run_years(years: list[int], settings: Settings) -> None:
+# โหมดของรอบที่กำลังรัน (True = เดสก์ท็อปซ่อน) — ให้ force_reset รู้ว่าควรปิด CropWat ตัวไหน
+_active_run_hidden: Optional[bool] = None
+
+
+def _run_years(years: list[int], settings: Settings, run_id: Optional[int] = None) -> None:
     """v0.7.0 — เหลือ 2 โหมดที่พิสูจน์แล้วว่าเสถียรเท่านั้น:
     1. เดสก์ท็อปซ่อน (default): CropWat รันบนเดสก์ท็อปแยกที่มองไม่เห็น ไม่มีการ
        เหวี่ยงหน้าต่าง/shield ใดๆ ทั้งสิ้น (ระบบพวกนั้นคือต้นเหตุ crash — ถอดออก
@@ -354,7 +499,11 @@ def _run_years(years: list[int], settings: Settings) -> None:
     2. โหมดคลาสสิก (ปิดสวิตช์): เห็น CropWat บนจอ ดึงหน้าต่างขึ้นมาระหว่างรัน
        (background_mode=False ดั้งเดิมที่พิสูจน์มานานว่าเสถียร) — สำหรับเครื่องที่
        โหมดเดสก์ท็อปซ่อนใช้ไม่ได้"""
-    run_state.begin_run()
+    global _active_run_hidden
+    if run_id is None:  # เรียกตรงๆ (เทสต์) — start_run ตั้งให้แล้วใต้ล็อก
+        run_id = run_state.begin_run()
+    run_state.bind_thread(run_id)
+    _active_run_hidden = bool(settings.hidden_desktop_mode)
     # v0.11.1 — บั๊กจากผู้ใช้จริง: หลังงานจบ (โดยเฉพาะจบแบบมีปัญหา) กดเริ่มใหม่ไม่
     # ได้ ขึ้น "ระบบกำลังรันอยู่ ต้องหยุดก่อน" ทั้งที่ไม่มีอะไรรันแล้ว ต้องปิด
     # โปรแกรมทั้งตัวถึงจะหาย — สาเหตุ: ถ้ามี exception หลุดออกมา (เช่น _finish_run
@@ -392,8 +541,12 @@ def _run_years(years: list[int], settings: Settings) -> None:
             pass
     finally:
         # ถ้ายังไม่ IDLE (มี exception หลุด หรือ path ไหนลืมปิด) ปิดให้เสมอ
+        # (thread ของรอบที่ถูก Force Close ไปแล้ว: end_run ไม่มีผล — ไม่ทับรอบใหม่)
         if run_state.snapshot().overall_state != OverallRunState.IDLE:
             run_state.end_run()
+        if not run_state.is_stale():
+            _active_run_hidden = None
+        run_state.bind_thread(None)
 
 
 # session เดสก์ท็อปซ่อนที่กำลังรันอยู่ — เก็บไว้ให้ force_reset ปิดได้ (CropWat บน
@@ -426,6 +579,10 @@ class _Batch:
     # v1.3.1 — วันปลูกที่ "ข้ามไป" เพราะหน้าต่างค้างจน watchdog ต้องปิด CropWat (ปี → ข้อความ)
     # ส่วนที่เหลือของปีนั้นย้ายไปทำต่ออีกหน้าต่าง — ตอนปีนั้นจบต้องยังขึ้นว่ามีปัญหา
     year_failures: dict = field(default_factory=dict)
+    # v1.3.2 — เลขรอบการรัน (ให้ thread ของแต่ละหน้าต่างผูกตัวเองกับรอบนี้) + ปีที่เคย
+    # "เปิด CropWat ใหม่เพราะพังติดกัน" ไปแล้ว (ทำได้ปีละครั้ง กันวนเปิดใหม่ไม่จบ)
+    run_id: Optional[int] = None
+    breaker_years: set = field(default_factory=set)
 
     def candidate_done(self) -> None:
         # หลายหน้าต่างเรียกพร้อมกันได้ — นับ + ส่ง progress ในล็อกเดียวกัน กันเลขถอยหลัง
@@ -463,18 +620,14 @@ def _prepare_batch(years: list[int], settings: Settings) -> Optional[_Batch]:
     crop/soil + โฟลเดอร์สถานี + index ไฟล์ climate/rain ทั้งสถานี (เดิม index ใหม่ทุก
     ปีในลูป — สแกนโฟลเดอร์ทั้งต้นไม้ recursive ซ้ำ 45 รอบ ทั้งที่ผลเหมือนเดิมทุกรอบ)
     + ตรวจไฟล์ผลลัพธ์เดิม (resume) — ถ้าขั้นนี้พังถือว่าทั้ง batch error หมด คืน None"""
-    input_root = Path(settings.input_dir)
     try:
-        crop_file = _resolve_single_file(input_root, ".cro", settings.crop_file)
-        soil_file = _resolve_single_file(input_root, ".soi", settings.soil_file)
-        climate_station = _resolve_single_station(
-            input_root, "Clim_", settings.climate_station_dir
-        )
-        rain_station = _resolve_single_station(
-            input_root, "Rain_", settings.rain_station_dir
-        )
-        climate_index = file_paths.index_climate_station(climate_station)
-        rain_index = file_paths.index_rain_station(rain_station)
+        found = discover_inputs(settings)
+        crop_file, soil_file = _crop_soil_files(settings, found)
+        climate_index, rain_index = _station_indexes(settings, found)
+        for warning in found.warnings[:30]:
+            logger.warning("ข้อสังเกตจากการตรวจไฟล์ต้นทาง: %s", warning)
+        for item in found.unreadable[:30]:
+            logger.warning("ไม่ได้ใช้ไฟล์ %s: %s", item["path"], item["reason"])
     except Exception as exc:  # noqa: BLE001 -- ต้องแจ้งทุกปีว่า error เพราะเหตุนี้
         logger.error("เตรียมไฟล์/สถานีก่อนรันไม่สำเร็จ หยุดการรันทั้งหมด: %s", exc)
         _fail_all_years(years, f"เตรียมไฟล์/สถานีไม่สำเร็จ: {exc}")
@@ -570,21 +723,49 @@ def _execute_year(
     run_state.set_current_year(year)
     run_state.set_year_status(year, YearRunStatus.RUNNING)
 
+    # engine เรียกตัวหาไฟล์ climate 1 ครั้งต่อ 1 วันปลูก ตามลำดับใน plan.tasks ก่อนเริ่มทำวันนั้น
+    # — ใช้จังหวะนั้นจดว่า "หน้าต่างนี้กำลังทำวันปลูกไหน ด้วยไฟล์อะไร" ให้แท็บ "ไฟล์ที่ใช้" แสดง
+    thread_name = threading.current_thread().name
+    window = int(thread_name.rsplit("-", 1)[-1]) if thread_name.startswith("cropwat-window-") else 1
+    step = {"i": 0}
+
+    def _climate_for(month):
+        path = plan.climate_file_for(month)
+        try:
+            task = plan.tasks[min(step["i"], len(plan.tasks) - 1)]
+            step["i"] += 1
+            entry = {
+                "window": window, "year": year, "date": f"{task.planting_date:%d/%m}",
+                "climate": str(path), "rain": str(plan.rain_file_for(month)),
+                "crop": str(batch.crop_file), "soil": str(batch.soil_file),
+            }
+            with _current_files_lock:
+                _current_files[thread_name] = entry
+        except Exception:  # noqa: BLE001 -- ของแสดงผล พังแล้วห้ามกระทบการรัน
+            pass
+        return path
+
     def _done(_result) -> None:
+        if getattr(_result, "ok", False):
+            _record_files_used(settings, batch, plan, _result)
         batch.candidate_done()
         if on_progress is not None:
-            on_progress()
+            on_progress(_result)
 
-    result = engine.run_year(
-        year=year,
-        tasks=plan.tasks,
-        climate_file_for=plan.climate_file_for,
-        rain_file_for=plan.rain_file_for,
-        export_dir=txt_dir(settings),
-        screenshot_dir=screenshot_dir(settings),
-        on_candidate_done=_done,
-        should_stop=should_stop or run_state.is_stop_requested,
-    )
+    try:
+        result = engine.run_year(
+            year=year,
+            tasks=plan.tasks,
+            climate_file_for=_climate_for,
+            rain_file_for=plan.rain_file_for,
+            export_dir=txt_dir(settings),
+            screenshot_dir=screenshot_dir(settings),
+            on_candidate_done=_done,
+            should_stop=should_stop or run_state.is_stop_requested,
+        )
+    finally:
+        with _current_files_lock:
+            _current_files.pop(thread_name, None)
 
     if result.stopped:
         # ถูกสั่งหยุดกลางปี — คืนสถานะเป็น "รอคิว" ให้กด "รันปีที่ค้างใหม่"/
@@ -627,6 +808,13 @@ _WATCHDOG_SECONDS = 300.0
 _worker_heartbeat: dict[int, float] = {}
 _worker_sessions: dict[int, object] = {}
 _worker_hung: set[int] = set()
+
+# v1.3.2 — ตัวตัดวงจร: วันปลูกพังติดกันกี่วันด้วยสาเหตุ "ฝั่งหน้าต่าง CropWat" (ไม่ใช่ข้อมูล)
+# แล้วให้ปิด CropWat ของหน้าต่างนั้น เปิดตัวใหม่มาทำวันที่พังซ้ำ — เดิมหน้าต่างที่มี dialog
+# ค้าง/สถานะเพี้ยนจะพังทุกวันปลูกที่เหลือ และเพราะพังเร็ว จึงหยิบปีจากคิวไปพังต่อเรื่อยๆ
+_POISON_STREAK = 3
+# สาเหตุที่เป็นเรื่องของข้อมูล (CropWat แจ้ง error เอง / ไม่มีไฟล์) — เปิด CropWat ใหม่ก็ไม่หาย
+_DATA_ERROR_KINDS = {"CropWatReportedError", "FileNotFoundError"}
 
 
 def _beat(index: int) -> None:
@@ -696,6 +884,7 @@ def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
     if batch is None:
         run_state.end_run()
         return
+    batch.run_id = run_state.bound_run_id()
 
     plans: list[_YearPlan] = []
     for year in years:
@@ -727,6 +916,8 @@ def _run_years_hidden_desktop(years: list[int], settings: Settings) -> None:
             _worker_sessions.clear()
             _worker_hung.clear()
         while True:
+            if run_state.is_stale():
+                break  # รอบนี้ถูก Force Close ไปแล้ว — เลิกคุม (หน้าต่างของรอบนี้หยุดเอง)
             with _workers_lock:
                 active = set(_worker_indices)
             run_state.set_windows_active(len(active))
@@ -794,9 +985,28 @@ def _hidden_worker(
     def _fail(message: str) -> None:
         failures.append(f"หน้าต่าง CropWat ที่ {index + 1}: {message}")
 
-    def _retire_or_stop() -> bool:
-        return run_state.is_stop_requested() or _worker_should_retire(index) or _is_hung(index)
+    streak = {"n": 0, "tripped": False, "year": None}
 
+    def _retire_or_stop() -> bool:
+        return (
+            run_state.is_stop_requested() or _worker_should_retire(index)
+            or _is_hung(index) or streak["tripped"]
+        )
+
+    def _on_candidate(result) -> None:
+        _beat(index)
+        kind = getattr(result, "error_kind", None)
+        if result is None or result.ok or kind is None or kind in _DATA_ERROR_KINDS:
+            streak["n"] = 0
+            return
+        streak["n"] += 1
+        if streak["n"] >= _POISON_STREAK:
+            with batch.lock:
+                first_time = streak["year"] not in batch.breaker_years
+            if first_time:
+                streak["tripped"] = True
+
+    run_state.bind_thread(batch.run_id)
     session = None
     try:
         if _retire_or_stop() or work.empty():
@@ -848,10 +1058,12 @@ def _hidden_worker(
             except queue.Empty:
                 break
             _beat(index)
+            streak["year"] = plan.year
+            streak["n"] = 0
             try:
                 result = _execute_year(
                     plan, settings, engine, batch,
-                    should_stop=_retire_or_stop, on_progress=lambda: _beat(index),
+                    should_stop=_retire_or_stop, on_progress=_on_candidate,
                 )
             except Exception as exc:  # noqa: BLE001 -- ปีเดียวพังห้ามล้มทั้งหน้าต่าง
                 logger.exception("หน้าต่างที่ %s: ปี %s ล้มเหลวโดยไม่คาดคิด", index + 1, plan.year)
@@ -882,6 +1094,21 @@ def _hidden_worker(
                             plan.year, YearRunStatus.ERROR, error_message=" · ".join(skipped)
                         )
                 break
+            if streak["tripped"] and not run_state.is_stop_requested():
+                # พังติดกันด้วยสาเหตุฝั่งหน้าต่าง — คืนวันที่ยังไม่สำเร็จ (รวมที่เพิ่งพัง) เข้าคิว
+                # ให้ CropWat ตัวใหม่ทำซ้ำ แล้วหน้าต่างนี้จบตัวเอง (ตัวคุมเปิดตัวใหม่แทน)
+                with batch.lock:
+                    batch.breaker_years.add(plan.year)
+                done_ok = {c.planting_date for c in result.candidates if c.ok}
+                rest = [t for t in plan.tasks if t.planting_date not in done_ok]
+                logger.warning(
+                    "หน้าต่างที่ %s: ปี %s พังติดกัน %s วันปลูก — ปิด CropWat แล้วเปิดใหม่ ทำซ้ำ %s วันปลูก",
+                    index + 1, plan.year, _POISON_STREAK, len(rest),
+                )
+                if rest:
+                    work.put(_YearPlan(plan.year, rest, plan.climate_file_for, plan.rain_file_for))
+                    run_state.set_year_status(plan.year, YearRunStatus.QUEUED)
+                break
             if result.stopped and not run_state.is_stop_requested():
                 # ถูกลดจำนวนหน้าต่างกลางปี — คืนวันปลูกที่ยังไม่สำเร็จเข้าคิวให้หน้าต่างอื่น
                 done_ok = {c.planting_date for c in result.candidates if c.ok}
@@ -910,6 +1137,7 @@ def _hidden_worker(
             _worker_sessions.pop(index, None)
             _worker_heartbeat.pop(index, None)
             _worker_hung.discard(index)
+        run_state.bind_thread(None)
 
 
 def set_windows_target(n: int) -> int:
@@ -928,6 +1156,7 @@ def _run_years_inner(years: list[int], settings: Settings, engine: CropWatEngine
     if batch is None:
         run_state.end_run()
         return
+    batch.run_id = run_state.bound_run_id()
     try:
         engine.ensure_crop_soil_open(batch.crop_file, batch.soil_file)
     except Exception as exc:  # noqa: BLE001 -- ต้องแจ้งทุกปีว่า error เพราะเหตุนี้
@@ -956,6 +1185,8 @@ def _finish_run(years: list[int], settings: Settings) -> None:
     เป้าหมายจริงของผู้ใช้คือ "ไฟล์ส่งงาน 2 ไฟล์" ไม่ใช่ .txt ดิบ — ถ้ารันจบครบ
     (ไม่ได้กดหยุด) ให้สร้าง Excel+Word ให้เองเลย (ปิดได้ผ่าน auto_build_outputs)
     แล้วยิง Windows notification สรุปผลเสมอ ให้รู้ทันทีแม้กำลังทำงานอื่นอยู่"""
+    if run_state.is_stale():
+        return  # รอบที่ถูก Force Close ไปแล้ว — ห้ามสร้างไฟล์/แจ้งเตือนทับรอบใหม่
     snap = run_state.snapshot()
     done_years = sum(1 for y in snap.years if y.status == YearRunStatus.DONE)
     error_years = sum(1 for y in snap.years if y.status == YearRunStatus.ERROR)
@@ -1028,7 +1259,7 @@ def _collect_run_notes(settings: Settings):
     from file_engine.excel_writer import RunNotes
 
     notes = RunNotes()
-    for y in range(settings.default_start_year, settings.default_end_year + 1):
+    for y in year_range(settings):
         planned = [f"{d:%m%d}" for d, _ in planting_dates_for_year(settings, y)]
         if planned:
             notes.planned[y] = planned
@@ -1044,6 +1275,11 @@ def _collect_run_notes(settings: Settings):
             notes.extra_meta.insert(0, ("CropWat Options", "ค่าปัจจุบันของเครื่อง (ไม่พบสำเนาตอนรัน)"))
     except Exception:  # noqa: BLE001
         logger.debug("อ่านค่า CropWat Options ไม่ได้", exc_info=True)
+    notes.crop_cycle_days = _crop_cycle_days(settings)
+    try:
+        notes.files_used = _load_files_used(settings)
+    except Exception:  # noqa: BLE001 -- sheet "ไฟล์ที่ใช้" เป็นของเสริม พังแล้วห้ามล้มการสร้าง Excel
+        logger.warning("รวบรวมไฟล์ที่ใช้ของแต่ละวันปลูกไม่สำเร็จ", exc_info=True)
     shots_dir = Path(settings.output_dir) / "_error_dialogs"
     if shots_dir.is_dir():
         for p in sorted(shots_dir.glob("*.png")):

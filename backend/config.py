@@ -22,12 +22,17 @@ capture ทุกวันนั้น)
 from __future__ import annotations
 
 import json
+import logging
+import os
 import sys
 import threading
+import time
 from datetime import date
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
+
+logger = logging.getLogger("config")
 
 # ตัวคูณเวลาหน่วง (settle time) ทุกจุดที่ automation รอ CropWat ประมวลผลคำสั่ง —
 # "normal" (1.0) คือค่าที่ทดสอบยืนยันมาตลอดในเครื่องพัฒนา ไม่เปลี่ยนพฤติกรรมของ
@@ -37,6 +42,10 @@ SPEED_MULTIPLIERS: dict[str, float] = {"fast": 0.7, "normal": 1.0, "slow": 2.0}
 
 # v1.3.0 — จำนวนหน้าต่าง CropWat ที่รันพร้อมกันได้ (เฉพาะโหมดเดสก์ท็อปซ่อน)
 MAX_PARALLEL_WINDOWS = 4
+
+# v1.3.2 — ช่วงปีที่ยอมรับ (กันพิมพ์เลขปีผิดหลัก เช่น 20250 แล้วระบบวนสร้างสถานะเป็นหมื่นปี)
+MIN_YEAR = 1900
+MAX_YEAR = 2100
 
 
 def _app_base_dir() -> Path:
@@ -176,17 +185,41 @@ def load_settings() -> Settings:
             settings = Settings()
             save_settings(settings)
             return settings
-        raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        return Settings(**raw)
+        try:
+            raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                raise ValueError("config.json ไม่ใช่ object")
+            return Settings(**raw)
+        except (ValueError, ValidationError, OSError) as exc:
+            # v1.3.2 — ไฟล์ตั้งค่าเสีย (เช่น เครื่องดับตอนกำลังเขียน): เดิมโปรแกรมเปิดไม่ขึ้นเลย
+            # จนกว่าจะลบไฟล์เอง — เก็บไฟล์เสียไว้ข้างๆ (กู้ค่าเองได้) แล้วเริ่มจากค่าเริ่มต้น
+            bad = CONFIG_PATH.with_name(f"config.corrupt-{time.strftime('%Y%m%d-%H%M%S')}.json")
+            logger.error(
+                "อ่าน %s ไม่ได้ (%s) — เก็บไฟล์เดิมไว้ที่ %s แล้วใช้ค่าเริ่มต้น", CONFIG_PATH, exc, bad.name
+            )
+            try:
+                os.replace(CONFIG_PATH, bad)
+            except OSError:
+                logger.warning("ย้ายไฟล์ตั้งค่าที่เสียไม่สำเร็จ", exc_info=True)
+            settings = Settings()
+            save_settings(settings)
+            return settings
 
 
 def save_settings(settings: Settings) -> None:
+    """เขียนลงไฟล์ชั่วคราวแล้วสลับชื่อ (atomic) — ไฟล์จริงไม่มีสภาพเขียนค้างครึ่งเดียว"""
     with _lock:
         _ensure_data_dir()
-        CONFIG_PATH.write_text(
-            settings.model_dump_json(indent=2),
-            encoding="utf-8",
-        )
+        tmp = CONFIG_PATH.with_name(CONFIG_PATH.name + ".tmp")
+        tmp.write_text(settings.model_dump_json(indent=2), encoding="utf-8")
+        os.replace(tmp, CONFIG_PATH)
+
+
+def year_range(settings: Settings) -> list[int]:
+    """ช่วงปีตามค่าตั้ง บีบให้อยู่ใน MIN_YEAR..MAX_YEAR (ว่างถ้าปีเริ่ม > ปีจบ)"""
+    start = max(MIN_YEAR, int(settings.default_start_year))
+    end = min(MAX_YEAR, int(settings.default_end_year))
+    return list(range(start, end + 1))
 
 
 # --- helper path ที่คำนวณจาก output_dir เดียว (ไม่ใช่ field แยก) ---

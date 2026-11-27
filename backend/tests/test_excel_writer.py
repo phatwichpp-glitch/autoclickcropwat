@@ -13,9 +13,25 @@ from file_engine.excel_writer import _AUTO_MARK, RunNotes, build_result_sheet
 from tests.test_txt_parser import SAMPLE_TXT
 
 
-def _write_txt(txt_dir: Path, year: int, mmdd: str, yield_red: float) -> None:
+def _write_txt(txt_dir: Path, year: int, mmdd: str, yield_red: float, planting: str | None = None) -> None:
+    """planting = วันปลูกในเนื้อไฟล์ "dd/mm" (ค่าเริ่มต้น = ตรงกับชื่อไฟล์)"""
     text = SAMPLE_TXT.replace("Yield red.:   12.8 %", f"Yield red.:   {yield_red} %")
+    text = text.replace("Planting date: 01/04", f"Planting date: {planting or f'{mmdd[2:]}/{mmdd[:2]}'}")
     (txt_dir / f"{year}_{mmdd}.txt").write_text(text, encoding="cp1252")
+
+
+def test_file_with_other_planting_date_is_not_used(tmp_path):
+    """v1.3.2 — ไฟล์ที่ชื่อเป็น 15/05 แต่เนื้อในเป็นวันปลูก 01/04 (ตั้งวันปลูกไม่ติด) ห้ามถูก
+    ลงคอลัมน์ 15/05 และต้องถูกบันทึกไว้ใน sheet หมายเหตุ"""
+    txt_dir = _fixture(tmp_path)
+    _write_txt(txt_dir, 1981, "0515", 99.0, planting="01/04")
+    out = tmp_path / "Result.xlsx"
+    build_result_sheet(txt_dir, out)
+    wb = load_workbook(out)
+    headers = [c.value for c in wb["Result"][1]]
+    assert "15/05" not in headers
+    notes_text = " ".join(str(c.value) for row in wb["หมายเหตุ"].iter_rows() for c in row if c.value)
+    assert "1981_0515.txt" in notes_text
 
 
 def _fixture(tmp_path: Path) -> Path:
@@ -102,4 +118,44 @@ def test_user_written_sheets_are_never_overwritten(tmp_path):
     assert wb["หมายเหตุ"]["A1"].value == "บันทึกของฉันเอง"
     assert wb["กราฟของฉัน"]["A1"].value == 42
     assert _AUTO_MARK in wb["หมายเหตุ (auto)"]["A1"].value
-    assert sorted(wb.sheetnames) == sorted(["Result", "สรุป", "หมายเหตุ (auto)", "หมายเหตุ", "กราฟของฉัน"])
+    assert sorted(wb.sheetnames) == sorted(
+        ["Result", "สรุป", "หมายเหตุ (auto)", "หมายเหตุ", "กราฟของฉัน", "ไฟล์ที่ใช้"]
+    )
+
+
+def test_files_used_sheet_lists_files_and_flags_fallback(tmp_path):
+    """v1.3.2 — sheet "ไฟล์ที่ใช้": 1 แถวต่อวันปลูกที่มีผล บอกไฟล์ + ที่มา และไฮไลต์แถวที่
+    ไฟล์ไม่ใช่ของเดือนที่ปลูก"""
+    out = tmp_path / "Result.xlsx"
+    notes = RunNotes(files_used={
+        (1981, "0401"): {
+            "climate": "D:/in/Clim_1/04_Apr/111111clim_1981apr.PED",
+            "rain": "D:/in/Rain_2/rain_222222_1981apr.CRD",
+            "crop": "D:/in/MAIZE.CRO", "soil": "D:/in/sand.SOI",
+            "at": "2026-11-27 10:00:00", "source": "run",
+        },
+        (1981, "0415"): {
+            "climate": "D:/in/Clim_1/111111clim_1980dec.PED",
+            "rain": "D:/in/Rain_2/rain_222222_1981apr.CRD",
+            "crop": "", "soil": "", "at": "", "source": "estimate",
+        },
+    })
+    build_result_sheet(_fixture(tmp_path), out, notes)
+    wb = load_workbook(out)
+    assert wb.sheetnames[:4] == ["Result", "สรุป", "หมายเหตุ", "ไฟล์ที่ใช้"]
+    ws = wb["ไฟล์ที่ใช้"]
+    rows = {(r[0].value, r[1].value): r for r in ws.iter_rows(min_row=4) if r[0].value}
+    assert len(rows) == 4  # 2 ปี × 2 วันปลูกที่มีผล
+
+    r = rows[(1981, "01/04")]
+    assert [c.value for c in r[2:10]] == [
+        "111111clim_1981apr.PED", "04/1981", "rain_222222_1981apr.CRD", "04/1981",
+        "MAIZE.CRO", "sand.SOI", "บันทึกตอนรัน", "2026-11-27 10:00:00",
+    ]
+    assert r[10].value == "-" and r[11].value.endswith("04_Apr")
+
+    r = rows[(1981, "15/04")]
+    assert r[8].value == "ประเมินย้อนหลัง"
+    assert "12/1980" in r[10].value and r[0].fill.start_color.rgb.endswith("FCE4D6")
+
+    assert rows[(1982, "01/04")][8].value == "ไม่มีบันทึก"
