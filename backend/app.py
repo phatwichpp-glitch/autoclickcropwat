@@ -289,11 +289,12 @@ async def output_progress() -> dict:
 
 
 @app.get("/api/run/files")
-async def run_files() -> dict:
-    """v1.4.0 — แท็บ "ไฟล์ที่ใช้": วันปลูกที่กำลังทำอยู่ตอนนี้ใช้ไฟล์ climate/rain/crop/soil
-    ไฟล์ไหน + รายการที่ทำเสร็จแล้ว (อ่านอย่างเดียว)"""
+async def run_files(recent: bool = True) -> dict:
+    """v1.4.0 — "ไฟล์ที่ใช้" ในหน้าภาพรวม: วันปลูกที่กำลังทำอยู่ตอนนี้ใช้ไฟล์ climate/rain/crop/
+    soil ไฟล์ไหน + รายการที่ทำเสร็จแล้ว (อ่านอย่างเดียว) — recent=0 = ไม่ต้องส่งรายการย้อนหลัง
+    (หน้าเว็บขอแบบนี้ตอนการ์ดรายการย้อนหลังพับอยู่)"""
     settings = load_settings()
-    return await asyncio.to_thread(runner.files_status, settings)
+    return await asyncio.to_thread(runner.files_status, settings, 400 if recent else 0)
 
 
 @app.get("/api/shift-year-check")

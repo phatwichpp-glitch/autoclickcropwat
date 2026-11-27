@@ -54,7 +54,8 @@ backend/
   automation/
     cropwat_engine.py       pywinauto steps: open files, set date, calculate, print, screenshot
   file_engine/
-    paths.py                Folder scanning + shift-year file resolution
+    discovery.py            Input discovery: any folder layout, reads CropWat file headers + file/folder names
+    paths.py                Shift-year file resolution (StationIndex)
     txt_parser.py           Parses CropWat's printed .txt output
     excel_writer.py         Builds Result / สรุป / หมายเหตุ sheets from parsed .txt files
   tests/                     Unit tests for the pure-logic pieces (no CropWat needed)
@@ -79,13 +80,15 @@ Open `http://127.0.0.1:8000`. Before starting a run:
    then loading the real file over it and answering CropWat's
    "Save changes?" prompt with No automatically)
 2. In the **ตั้งค่า** (Setup) tab, point "โฟลเดอร์ข้อมูลต้นทาง" at the folder
-   containing your `Clim_*`/`Rain_*` station folders and crop/soil files, and
-   scan. **File naming is enforced** (year/month are parsed from filenames;
-   case-insensitive, any folder nesting):
-   - station folders start with `Clim_` / `Rain_` (e.g. `Clim_425201`)
-   - climate files: `{station}clim_{year}{mon}.PED` (e.g. `425201clim_1981apr.PED`)
-   - rain files: `rain_{station}_{year}{mon}.CRD` (e.g. `Rain_450006_1981Apr.CRD`)
-   - crop/soil files: any name with `.CRO` / `.SOI` extension
+   containing your climate/rain/crop/soil files, and scan. Since v1.4.0 any
+   folder layout works (`file_engine/discovery.py` walks every subfolder):
+   - climate = `.PED`, rain = `.CRD`, crop = `.CRO`, soil = `.SOI`
+   - station and year are read from the CropWat file header, the file name, or
+     the folder names; the **month** must be in the file or folder name
+     (`Apr`, `April`, `เม.ย.`, `1981-04`, ... — e.g. `425201clim_1981apr.PED` or
+     `01_Rain381017Jan/01/Rain_381017_1981.CRD`)
+   - files that cannot be identified are never guessed: the scan lists them
+     with a reason; multiple stations / crop files must be chosen in Setup
 3. In the **Dashboard** tab, adjust the planting-date calendar and year range,
    then start the run — or just press **Ctrl+Alt+F9** (start) /
    **Ctrl+Alt+F10** (stop) from anywhere once configured; a small always-on-top

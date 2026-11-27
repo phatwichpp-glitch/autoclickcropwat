@@ -54,7 +54,6 @@
     </div>
     <nav class="tabs">
       <button class="tab-btn active" data-tab="dash" type="button">ภาพรวม</button>
-      <button class="tab-btn" data-tab="files" type="button">ไฟล์ที่ใช้</button>
       <button class="tab-btn" data-tab="setup" type="button">ตั้งค่า</button>
     </nav>
     <div class="conn">
@@ -130,6 +129,9 @@
           <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
           <div class="progress-txt" id="progress-txt">0 / 0 ปี</div>
         </div>
+
+        <!-- v1.4.1 — ไฟล์ที่กำลังใช้ตอนนี้ (แสดงเฉพาะระหว่างประมวลผล) ดู app.js: renderFilesNow -->
+        <div class="now-files" id="files-now" hidden></div>
 
         <div class="run-actions">
           <div class="run-actions-main">
@@ -252,27 +254,13 @@
           </div>
         </div>
       </div>
-    </section>
 
-    <!-- ======================================================================
-         แท็บ 2: ตั้งค่า — ลำดับขั้น 1 → 2 → 3
-         ====================================================================== -->
-    <section class="view" id="view-files">
-      <div class="card">
-        <div class="card-head">
-          <h2>ไฟล์ที่กำลังใช้ตอนนี้</h2>
-          <span class="badge neutral" id="files-now-badge">ไม่ได้ประมวลผลอยู่</span>
-        </div>
-        <div class="card-body stack">
-          <span class="note">วันปลูกที่ CropWat แต่ละหน้าต่างกำลังคำนวณอยู่ และไฟล์ Climate / Rain / Crop / Soil ที่เปิดใช้กับวันนั้น</span>
-          <div id="files-now"><!-- filled by JS --></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head">
-          <h2>ไฟล์ที่ใช้ของวันปลูกที่เสร็จแล้ว</h2>
-          <span class="note" id="files-done-count"></span>
-        </div>
+      <!-- 5. ไฟล์ที่ใช้ของแต่ละวันปลูก (ย้อนหลัง) — พับไว้ กางเมื่ออยากตรวจ ดู app.js: renderFilesDone -->
+      <details class="card files-card" id="files-card">
+        <summary class="card-head">
+          <h2>ไฟล์ที่ใช้ของแต่ละวันปลูก</h2>
+          <span class="plan-sum" id="files-done-count">ยังไม่มีบันทึก</span>
+        </summary>
         <div class="card-body stack">
           <span class="note">กฎการเลือกไฟล์: ใช้ไฟล์ของเดือนที่ปลูก ถ้าไม่มี ใช้ไฟล์ของเดือนก่อนหน้าที่ใกล้ที่สุด (ไม่ใช้ไฟล์ของเดือนถัดไป) — รายการทั้งหมดอยู่ใน Excel แผ่น "ไฟล์ที่ใช้" ด้วย</span>
           <label class="field">
@@ -281,9 +269,12 @@
           </label>
           <div class="files-table-wrap" id="files-done"><!-- filled by JS --></div>
         </div>
-      </div>
+      </details>
     </section>
 
+    <!-- ======================================================================
+         แท็บ 2: ตั้งค่า — ลำดับขั้น 1 → 2 → 3
+         ====================================================================== -->
     <section class="view" id="view-setup">
 
       <div class="setup-intro">
@@ -476,11 +467,11 @@
       <ol class="guide-steps">
         <li>
           <b>เตรียมข้อมูลไว้ในโฟลเดอร์เดียว</b>
-          <div>ระบบอ่านปี+เดือนจากชื่อไฟล์ ชื่อต้องตรงรูปแบบ (ไม่แยกตัวพิมพ์ใหญ่-เล็ก):
-            <br>• โฟลเดอร์สถานี: <code>Clim_425201</code>, <code>Rain_450006</code>
-            <br>• climate: <code>425201clim_1981apr.PED</code>
-            <br>• rain: <code>Rain_450006_1981Apr.CRD</code>
-            <br>• พืช/ดิน: ชื่อใดก็ได้ นามสกุล <code>.CRO</code> / <code>.SOI</code></div>
+          <div>จัดโฟลเดอร์ย่อยอย่างไรก็ได้ โปรแกรมค้นหาไฟล์ให้เองจากทุกชั้น:
+            <br>• climate นามสกุล <code>.PED</code> · rain นามสกุล <code>.CRD</code> · พืช <code>.CRO</code> · ดิน <code>.SOI</code>
+            <br>• ไฟล์ climate / rain ต้องมี<b>ปี</b>และ<b>เดือน</b>อยู่ในชื่อไฟล์หรือชื่อโฟลเดอร์ เช่น <code>425201clim_1981apr.PED</code> หรือ <code>01_Rain381017Jan\Rain_381017_1981.CRD</code>
+            <br>• เดือนเขียนได้หลายแบบ: <code>Apr</code> <code>April</code> <code>เม.ย.</code> <code>1981-04</code> · ปีเป็น ค.ศ. หรือ พ.ศ. ก็ได้
+            <br>• กด <b>ตรวจสอบ</b> แล้วโปรแกรมจะบอกว่าพบอะไรบ้าง และไฟล์ไหนไม่ได้ใช้เพราะอะไร</div>
         </li>
         <li>
           <b>แท็บ "ตั้งค่า" — ทำ 3 ขั้น</b>
@@ -488,11 +479,11 @@
         </li>
         <li>
           <b>แท็บ "ภาพรวม"</b>
-          <div>ใส่ช่วงปี ตรวจแผนวันปลูก &rarr; กด <b>เริ่มประมวลผล</b> (หรือ <kbd>Ctrl+Alt+F9</kbd>, หยุด <kbd>Ctrl+Alt+F10</kbd>) — แผงด้านบนบอกว่าถึงไหนแล้วและเหลืออีกนานเท่าไร ระหว่างรันใช้เครื่องทำอย่างอื่นได้</div>
+          <div>ใส่ช่วงปี ตรวจแผนวันปลูก &rarr; กด <b>เริ่มประมวลผล</b> (หรือ <kbd>Ctrl+Alt+F9</kbd>, หยุด <kbd>Ctrl+Alt+F10</kbd>) — แผงด้านบนบอกว่าถึงไหนแล้วและเหลืออีกนานเท่าไร ระหว่างรันใช้เครื่องทำอย่างอื่นได้ และแผงเดียวกันนี้บอกด้วยว่า<b>กำลังใช้ไฟล์ไหนอยู่</b></div>
         </li>
         <li>
           <b>รับผลลัพธ์</b>
-          <div>เสร็จแล้วได้ <b>Result.xlsx</b> และ <b>Screenshots.docx</b> อัตโนมัติ กด <b>เปิด Excel</b> เพื่อดูผล — sheet <b>สรุป</b> บอกวันปลูกที่ดีที่สุด, <b>หมายเหตุ</b> บอกปีที่มีปัญหา</div>
+          <div>เสร็จแล้วได้ <b>Result.xlsx</b> และ <b>Screenshots.docx</b> อัตโนมัติ กด <b>เปิด Excel</b> เพื่อดูผล — sheet <b>สรุป</b> บอกวันปลูกที่ดีที่สุด, <b>หมายเหตุ</b> บอกปีที่มีปัญหา, <b>ไฟล์ที่ใช้</b> บอกว่าวันปลูกไหนใช้ไฟล์ไหน</div>
         </li>
       </ol>
       <div class="modal-foot">
